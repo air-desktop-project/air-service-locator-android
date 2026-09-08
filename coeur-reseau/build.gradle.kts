@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "ch.narro.airservicelocator.reseau"
+    namespace = "org.airdesktop.servicelocator.reseau"
     compileSdk = 34
 
     defaultConfig {

@@ -1,4 +1,4 @@
-package ch.narro.airservicelocator.identite
+package org.airdesktop.servicelocator.identite
 
 import android.content.Context
 import androidx.biometric.BiometricManager

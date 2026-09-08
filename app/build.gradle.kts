@@ -4,18 +4,22 @@ plugins {
 }
 
 android {
-    namespace = "ch.narro.airservicelocator"
+    namespace = "org.airdesktop.servicelocator"
     compileSdk = 34
 
     defaultConfig {
-        // ── L'IDENTIFIANT RESTE À CONFIRMER ────────────────────────────────
+        // ── L'IDENTIFIANT EST ARRÊTÉ, ET IL NE SE CHANGERA PLUS ────────────
         //
-        // Il suppose que `narro.ch` est le domaine sous lequel ces applications
-        // seront publiées. **UN `applicationId` NE SE CHANGE PLUS** une fois
-        // qu'une version a été déposée sur Google Play : le changer produit une
-        // application DIFFÉRENTE, que les installations existantes ne mettront
-        // jamais à jour.
-        applicationId = "ch.narro.airservicelocator"
+        // Il suit l'organisation `air-desktop-project` plutôt qu'un domaine de
+        // produit : c'est le nom sous lequel les trois dépôts vivent déjà, et
+        // celui qui ne dépendra pas d'une bascule de domaine.
+        //
+        // **UN `applicationId` NE SE CHANGE PLUS** une fois qu'une version a été
+        // déposée sur Google Play : le changer produit une application
+        // DIFFÉRENTE, que les installations existantes ne mettront jamais à
+        // jour. Le fixer maintenant, avant tout dépôt, est la seule occasion de
+        // le faire sans coût.
+        applicationId = "org.airdesktop.servicelocator"
 
         // Android 9. C'est le PLANCHER DE `BiometricPrompt` du framework, et le
         // seuil sous lequel la vérification d'identité que ce produit exige

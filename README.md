@@ -25,7 +25,7 @@ Elle est appliquée à DEUX endroits, et ni l'un ni l'autre ne suffit seul :
 | Où | Ce que cela filtre |
 |---|---|
 | `uses-feature android.hardware.biometrics required="true"` | Google Play retire l'application du catalogue des appareils sans le matériel — **avant** l'installation. |
-| [`IdentiteLocale`](coeur-identite/src/main/kotlin/ch/narro/airservicelocator/identite/IdentiteLocale.kt) | Le matériel présent mais rien d'enrôlé, ou une biométrie seulement « faible » — **après** l'installation. |
+| [`IdentiteLocale`](coeur-identite/src/main/kotlin/org/airdesktop/servicelocator/identite/IdentiteLocale.kt) | Le matériel présent mais rien d'enrôlé, ou une biométrie seulement « faible » — **après** l'installation. |
 
 Ce que cela veut *réellement* dire mérite d'être écrit, parce que la version
 courte induit en erreur :

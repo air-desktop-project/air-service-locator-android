@@ -1,4 +1,4 @@
-package ch.narro.airservicelocator
+package org.airdesktop.servicelocator
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,8 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import ch.narro.airservicelocator.identite.EtatIdentite
-import ch.narro.airservicelocator.identite.IdentiteLocale
+import org.airdesktop.servicelocator.identite.EtatIdentite
+import org.airdesktop.servicelocator.identite.IdentiteLocale
 
 /**
  * L'unique écran de l'application.
