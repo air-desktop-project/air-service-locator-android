@@ -1,0 +1,43 @@
+# Sorties de construction
+build/
+.gradle/
+local.properties
+
+# `local.properties` porte le CHEMIN DU SDK sur une machine donnée. Le versionner
+# ferait échouer la construction de tous ceux dont le SDK est ailleurs, avec un
+# message qui ne désigne pas sa cause.
+
+# Secrets de signature. UN `.jks` DANS UN COMMIT EST UNE CLÉ PRIVÉE PUBLIÉE :
+# elle ne se retire jamais vraiment d'un historique, et sur Google Play une clé
+# de signature d'application compromise ne se remplace pas — elle condamne la
+# ligne de publication.
+*.jks
+*.keystore
+keystore.properties
+
+# Sorties d'empaquetage
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Éditeurs
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# Systèmes de fichiers
+.DS_Store
+._*
+
+.claude/*
+!.claude/settings.json
+claude_session.id
+codex_session.id
+scratchpad/
+
+# NB : `gradle/wrapper/gradle-wrapper.jar` EST COMMITTÉ, et doit l'être. C'est
+# lui qui permet à `./gradlew` de fonctionner sur une machine où Gradle n'est pas
+# installé — l'objet même du wrapper. Ne pas l'ajouter à ce fichier.

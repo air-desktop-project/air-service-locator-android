@@ -1,0 +1,80 @@
+# CI d'air-service-locator-android.
+#
+# **CE WORKFLOW N'A JAMAIS TOURNÉ**, et le dépôt qu'il juge n'a jamais été
+# construit : il a été posé depuis une machine Linux sans JDK ni SDK Android.
+# La première exécution est donc elle-même un contrôle — c'est elle qui dira si
+# le couple AGP / Gradle du catalogue de versions tient.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'partage' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    name: DCO et paternité
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Déterminer la base de comparaison
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+          else
+            base="${{ github.event.before }}"
+            case "$base" in
+              0000000000000000000000000000000000000000) base="" ;;
+            esac
+            if [ -n "$base" ] && ! git rev-parse --verify --quiet "$base" >/dev/null; then
+              base=""
+            fi
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: check-dco
+        run: ./scripts/check-dco.sh "${{ steps.base.outputs.base }}"
+
+  construction:
+    name: assembleDebug et essais JVM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Java 17 : c'est ce que le projet cible (`jvmTarget`), et le faire dire
+      # par le runner plutôt que par le défaut de l'image évite qu'une mise à
+      # jour de l'image change silencieusement ce qui compile.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Le cache Gradle est géré par l'action officielle : elle sait quelles
+      # clefs composer, ce qu'un `gradle/libs.versions.toml` modifié invalide, et
+      # ne resservira pas un cache d'une autre toolchain.
+      - uses: gradle/actions/setup-gradle@v4
+
+      # `assembleDebug` et NON `assembleRelease` : la variante `release` exige
+      # une clé de signature, que la CI n'a pas et ne doit pas avoir. Ce job
+      # vérifie que le code COMPILE, jamais qu'il est signable.
+      - name: Build
+        run: ./gradlew assembleDebug --no-daemon
+
+      # Les essais JVM SEULEMENT. Un essai instrumenté demande un émulateur, dix
+      # minutes de démarrage, et échoue pour des raisons qui ne concernent pas le
+      # code. Le module `coeur-modele` est justement conçu pour être éprouvable
+      # ici, sans appareil.
+      - name: Essais
+        run: ./gradlew test --no-daemon

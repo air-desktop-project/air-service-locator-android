@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Manifeste de l'application.
+
+  `android:required="true"` SUR LA BIOMÉTRIE, ET C'EST LA DÉCISION DU PRODUIT.
+
+  Google Play lit cette déclaration et RETIRE l'application du catalogue des
+  appareils qui ne portent pas le matériel. C'est le seul endroit où la condition
+  de déploiement — « uniquement là où l'identité du porteur peut être confirmée »
+  — s'applique AVANT l'installation plutôt qu'après.
+
+  Le prix est réel et doit être dit : la liste des appareils éligibles rétrécit,
+  et un utilisateur dont le téléphone a le matériel mais rien d'enrôlé passera ce
+  filtre pour échouer plus tard. Le filtre du catalogue et la vérification à
+  l'exécution sont donc tous les deux nécessaires — ni l'un ni l'autre ne suffit.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature
+        android:name="android.hardware.biometrics"
+        android:required="true" />
+
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/nom_application"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <!--
+          `allowBackup="false"` ci-dessus : la sauvegarde automatique d'Android
+          copie les données de l'application vers Google Drive. Ce qui vit ici
+          est un enrôlement d'APPAREIL — une clé du Keystore matériel, qui ne
+          sort pas et ne se restaure pas ailleurs. Restaurer le reste sans elle
+          produirait une application qui croit être enrôlée et ne l'est pas.
+        -->
+        <activity
+            android:name=".ActivitePrincipale"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

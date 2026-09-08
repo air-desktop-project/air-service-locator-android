@@ -1,0 +1,46 @@
+# Le catalogue de versions — UN SEUL ENDROIT où un numéro de version s'écrit.
+#
+# Sans lui, une version vit dans chaque `build.gradle.kts` qui l'emploie, et
+# deux modules finissent par tirer deux versions de la même bibliothèque. Le
+# conflit se résout silencieusement, en faveur de la plus haute, et le module
+# qui comptait sur l'autre le découvre à l'exécution.
+#
+# ── LES VERSIONS CI-DESSOUS N'ONT PAS ÉTÉ CONSTRUITES ────────────────────────
+#
+# Ce dépôt a été posé depuis une machine Linux SANS JDK ni SDK Android : rien
+# ici n'a été compilé. Le couple AGP 8.5.2 / Gradle 8.7 est celui que l'amont
+# documente comme compatible, et le wrapper est repris tel quel d'un projet qui
+# tourne — mais la première construction reste un contrôle à passer, et c'est
+# elle qui dira si ce catalogue tient.
+
+[versions]
+agp = "8.5.2"
+kotlin = "2.0.20"
+coreKtx = "1.13.1"
+lifecycle = "2.8.4"
+activityCompose = "1.9.1"
+composeBom = "2024.06.00"
+biometric = "1.2.0-alpha05"
+junit = "4.13.2"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+# `androidx.biometric` PLUTÔT QUE `BiometricPrompt` du framework : ce dernier
+# n'existe qu'à partir d'Android 9, et la bibliothèque de compatibilité rend le
+# même dialogue plus bas. Version alpha, et c'est un choix à revoir : c'est la
+# seule branche qui expose `BIOMETRIC_STRONG` combiné à un repli par code de
+# verrouillage.
+androidx-biometric = { group = "androidx.biometric", name = "biometric-ktx", version.ref = "biometric" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

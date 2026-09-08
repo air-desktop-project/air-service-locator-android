@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Le module déclare LUI-MÊME la permission dont il a besoin.
+
+  La fusion de manifestes la remontera dans l'application ; la déclarer ici
+  plutôt que seulement dans `app/` fait que le module reste utilisable tel quel,
+  sans qu'un autre projet ait à deviner ce qu'il exige.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+</manifest>
