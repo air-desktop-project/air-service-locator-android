@@ -44,3 +44,14 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+# ── LE COMPILATEUR COMPOSE EST UN GREFFON DEPUIS KOTLIN 2.0 ──────────────────
+#
+# Il vivait dans AGP, sous `composeOptions.kotlinCompilerExtensionVersion`, avec
+# sa propre version à tenir accordée à celle de Kotlin. Depuis Kotlin 2.0 c'est
+# un greffon du compilateur Kotlin, versionné AVEC lui — d'où `version.ref =
+# "kotlin"`, et non un numéro de plus à synchroniser à la main.
+#
+# **SON ABSENCE A FAIT ÉCHOUER LA PREMIÈRE COURSE DE CI**, sur
+# « Starting in Kotlin 2.0, the Compose Compiler Gradle plugin is required when
+# compose is enabled ». `buildFeatures.compose = true` ne suffit plus à lui seul.
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
