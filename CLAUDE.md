@@ -19,31 +19,45 @@ protocole.
 
 ## L'état réel, sans fard
 
-Le dépôt porte une **arborescence** Gradle (`app`, `coeur-identite`,
-`coeur-modele`, `coeur-reseau`) et sa CI. Il a été posé depuis une machine
-Linux ; la construction complète sur un vrai environnement Android reste à
-passer. Tu es sur un Mac (oxygene) avec Android Studio : **fais d'abord compiler
-et tourner les tests**, corrige ce qui bloque, avant d'ajouter du code.
+Les **huit écrans sont écrits** (Compose, Material 3, minSdk 28), sur un
+**annuaire simulé** en mémoire (`coeur-reseau`, `AnnuaireSimule`) qui tient les
+règles du protocole sans réseau. Tout compile sans avertissement et les essais
+JVM passent (`./gradlew assembleDebug test`). Les maquettes validées sont dans
+`../maquettes/` (hors dépôt).
 
-## Ta première tâche, concrète
+Ce qui manque, dans l'ordre où ça se fera :
 
-**Faire compiler et produire un jeton Play Integrity réel**, dans cet ordre :
+1. **La clé P-256 dans le Keystore** (`setUserAuthenticationRequired(true)`,
+   StrongBox si présent) et la signature `r ‖ s` — aujourd'hui
+   `IdentiteLocale.confirmer` fait le geste biométrique, mais rien ne signe.
+2. **Le transport** : la pile QUIC d'`asl-client` (dépôt
+   `air-service-locator-client`), étendue aux verbes d'`asl-api`, construite
+   pour `aarch64-linux-android` et liée par JNI, avec la signature par rappel.
+   `AnnuaireSimule` sera alors remplacé dans `ActivitePrincipale`, et nulle
+   part ailleurs.
+3. **La capture Play Integrity** (`outils-capture/`), qui exige un projet
+   Google Cloud et l'app dans la Play Console.
+4. Les écrans restants : enrôler un second appareil, détail d'un service et ses
+   candidats, expositions.
 
-1. Ouvrir le projet dans Android Studio, le faire **compiler** et passer ses
-   tests (`./gradlew build`).
-2. Intégrer [`outils-capture/CaptureIntegrity.kt`](outils-capture/CaptureIntegrity.kt) :
-   il pose un défi, demande un jeton d'intégrité (API classique), et l'imprime
-   dans Logcat. Il exige la dépendance `com.google.android.play:integrity` et un
-   projet Google Cloud (voir le mode d'emploi).
-3. Lancer sur un **appareil réel** avec les services Google Play, **récupérer le
-   bloc imprimé** et les deux clés de chiffrement de réponse de la Play Console,
-   et les rendre à Thierry. Ce jeton débloque la vérification côté serveur :
-   `asl-play` est écrit d'après la documentation de Google et n'a jamais vu de
-   vrai jeton ; cette capture confirme (ou corrige) nos hypothèses et révèle la
-   forme du verdict.
+Tu es sur un Mac (oxygen) avec le SDK Android ; un **Fairphone 5** est branché
+en USB (`adb devices`), avec une empreinte enrôlée.
 
-Le mode d'emploi complet — projet Cloud, clés à télécharger, ce qu'il faut
-noter — est dans le serveur : `docs/attestation/capture-play.md`.
+## Ce qu'il faut tenir en écrivant un écran
+
+- **Les écrans parlent à `Annuaire`, jamais au banc.** `AnnuaireSimule` n'est
+  nommé que dans la composition et les essais.
+- **Le vocabulaire est celui de `modele.md` §4.2** : `annoncé`, `joignable`
+  (avec sa date), `parti (volontaire / inactivité)`, UDP `non sondé`. Le mot
+  « en ligne » n'apparaît nulle part.
+- **Un identifiant se compare sur ses octets** (`Identifiant`), jamais comme
+  une chaîne ; il ne s'affiche que par `texte` ou `abrege`, et voyage dans une
+  route de navigation sous sa forme canonique.
+- **Ce que l'on ne sait pas faire se dit à l'écran**, on ne le simule pas.
+- Les dates s'affichent en français quel que soit le réglage du téléphone
+  (`Formats.relatif`, `Formats.jour`).
+- Les icônes sont tracées dans `Icones.kt`, pas tirées de
+  `material-icons-extended`.
 
 ## Le protocole, l'essentiel que l'app devra tenir
 
@@ -61,9 +75,6 @@ noter — est dans le serveur : `docs/attestation/capture-play.md`.
   donnée envoyée.
 - **Aucune donnée personnelle** hébergée, hormis un alias public facultatif.
 
-N'écris PAS les écrans tant que le modèle n'est pas arrêté : des vues sur des
-données supposées sont des vues à jeter. Concentre-toi sur le noyau (identité,
-clé, réseau) et la capture.
 
 ## Les règles qui ne se négocient pas
 

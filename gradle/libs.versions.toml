@@ -21,6 +21,8 @@ lifecycle = "2.8.4"
 activityCompose = "1.9.1"
 composeBom = "2024.06.00"
 biometric = "1.2.0-alpha05"
+coroutines = "1.8.1"
+navigation = "2.7.7"
 junit = "4.13.2"
 
 [libraries]
@@ -37,6 +39,11 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 # seule branche qui expose `BIOMETRIC_STRONG` combiné à un repli par code de
 # verrouillage.
 androidx-biometric = { group = "androidx.biometric", name = "biometric-ktx", version.ref = "biometric" }
+# Le banc `AnnuaireSimule` est un objet à état partagé entre écrans : un mutex de
+# coroutine, et rien de plus lourd.
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

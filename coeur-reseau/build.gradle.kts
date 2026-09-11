@@ -29,8 +29,10 @@ android {
 }
 
 dependencies {
-    // AUCUNE bibliothèque HTTP pour l'instant, et c'est un choix en attente :
-    // le transport n'est pas arrêté (dépôt serveur, `docs/protocole.md`).
+    // AUCUNE bibliothèque HTTP, et ce n'est plus une attente : le transport est
+    // HTTP/3 sur QUIC avec la pile Rust d'`asl-client`, qui arrivera par JNI. En
+    // attendant, ce module porte l'interface `Annuaire` et son banc en mémoire.
     implementation(project(":coeur-modele"))
+    implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.junit)
 }

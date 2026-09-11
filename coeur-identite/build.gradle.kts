@@ -29,6 +29,10 @@ android {
 }
 
 dependencies {
-    implementation(libs.androidx.biometric)
+    // `api` et non `implementation` : la confirmation prend une `FragmentActivity`
+    // d'`androidx.fragment`, que `BiometricPrompt` exige, et ce type fait donc
+    // partie de ce que ce module expose.
+    api(libs.androidx.biometric)
+    implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.junit)
 }

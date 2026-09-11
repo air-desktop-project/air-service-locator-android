@@ -3,17 +3,25 @@
 L'application Android d'**air-service-locator** : ouvrir un compte, déclarer ses
 machines, et voir quels daemons y écoutent — et sur quel port.
 
-> ## État : une arborescence, et un seul type qui fait quelque chose
+> ## État : les huit écrans, sur un annuaire simulé
 >
-> Le dépôt porte sa structure, sa composition Gradle et sa CI. Il ne contient
-> **aucun écran** au-delà d'un provisoire qui dit où en est le projet : les
-> spécifications ne sont pas écrites, et dessiner des vues avant que le modèle
-> soit arrêté produirait des écrans qui décrivent des données supposées.
+> L'application compile (AGP 8.5.2, Kotlin 2.0, avertissements en erreurs) et
+> tourne sur un Fairphone 5. Elle porte les huit écrans arrêtés avec les
+> maquettes — accueil, machines, machine, déclaration, code d'enrôlement,
+> accès, accorder, compte — et dix-neuf essais JVM.
 >
-> **RIEN ICI N'A ÉTÉ CONSTRUIT.** Le dépôt a été posé depuis une machine Linux
-> sans JDK ni SDK Android. Le couple AGP 8.5.2 / Gradle 8.7 est celui que l'amont
-> documente comme compatible, et le wrapper vient d'un projet qui tourne — mais
-> la première construction reste un contrôle à passer.
+> **Elle ne parle à aucun serveur.** Les écrans s'adressent à l'interface
+> `Annuaire` (`coeur-reseau`), et c'est `AnnuaireSimule` qui répond : un banc
+> en mémoire qui tient les refus de `docs/protocole.md` §2 — un appareil ne se
+> révoque pas lui-même, un alias pris rend `409`, un objet absent et un objet
+> d'un autre compte rendent le même `404`. Le transport réel — la pile QUIC
+> d'`asl-client` par JNI, l'authentification liée au canal, la clé P-256 dans
+> le Keystore — reste à embarquer, et c'est la composition dans
+> `ActivitePrincipale` qui changera, pas les écrans.
+>
+> Trois choses sont dites « pas encore possible » à l'écran plutôt que
+> simulées : enrôler un second appareil, les expositions (`501` côté serveur),
+> et le jeton Play Integrity, qui exige un projet Google Cloud.
 
 ## La condition de déploiement
 
@@ -46,10 +54,10 @@ clé du Keystore. La classe faible rend un booléen, et rien de plus.
 
 | Module | Ce qu'il porte | Dépend d'Android ? |
 |---|---|---|
-| `app` | L'activité et les écrans. | oui |
-| `coeur-identite` | Ce que l'appareil sait confirmer, et la clé matérielle à venir. | oui |
-| `coeur-reseau` | Le client de l'API. Vide — le transport n'est pas choisi. | oui |
-| `coeur-modele` | Utilisateur, machine, service, bail. **Kotlin pur.** | non |
+| `app` | L'activité, la navigation, les écrans Compose et leurs composants. | oui |
+| `coeur-identite` | Ce que l'appareil sait confirmer, le geste de confirmation, et la clé matérielle à venir. | oui |
+| `coeur-reseau` | L'interface `Annuaire`, ses erreurs, et le banc `AnnuaireSimule` avec ses données de démonstration. | oui (bibliothèque), mais rien d'Android n'y est appelé |
+| `coeur-modele` | Identifiant (base32 de Crockford, seize octets), code d'enrôlement, compte, appareil, machine, service, autorisation. **Kotlin pur.** | non |
 
 `coeur-modele` n'a pas de greffon Android, et c'est le point : ses essais
 tournent sur la JVM en quelques secondes, sans émulateur. C'est la frontière des
