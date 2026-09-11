@@ -73,6 +73,27 @@ tournent sur la JVM en quelques secondes, sans émulateur. C'est la frontière d
 Il faut un JDK 17 et un SDK Android (API 34). `local.properties` n'est pas
 versionné : il porte le chemin du SDK sur *votre* machine.
 
+## Capturer un jeton Play Integrity
+
+La variante de débogage embarque `outils-capture/CaptureIntegrity.kt` derrière
+une activité sans lanceur. Il faut le **numéro** du projet Google Cloud, posé
+dans `local.properties` (non versionné) :
+
+```
+asl.numeroProjetCloud=123456789012
+```
+
+```sh
+./gradlew installDebug
+adb shell am start -n org.airdesktop.servicelocator/.capture.ActiviteCapture
+adb logcat -s CAPTURE
+```
+
+Le bloc `JETON=` / `DEFI=` / `PAQUET=` s'affiche à l'écran et dans Logcat. Les
+deux clés de chiffrement de réponse, elles, viennent de la Play Console et ne
+passent ni par ce dépôt ni par Logcat — voir `docs/attestation/capture-play.md`
+du serveur.
+
 ## Ce que ce dépôt ne contient pas, et où c'est
 
 | Question | Où elle est traitée |
