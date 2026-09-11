@@ -4,6 +4,8 @@ import kotlinx.coroutines.runBlocking
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Capacite
+import org.airdesktop.servicelocator.modele.CleLogicielle
+import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
@@ -23,8 +25,28 @@ class AnnuaireSimuleEssais {
 
     private fun avecCompte(bloc: suspend (AnnuaireSimule) -> Unit) = runBlocking {
         val annuaire = AnnuaireSimule { instant }
-        annuaire.ouvrirCompte()
+        val cle = CleLogicielle()
+        annuaire.ouvrirCompte(cle.clePublique, cle.prouverLaPossession(annuaire.defi(), annuaire.liaisonDeCanal()))
         bloc(annuaire)
+    }
+
+    @Test
+    fun ouvrirUnCompteExigeUnePreuveSurLeDefiEmis(): Unit = runBlocking {
+        val annuaire = AnnuaireSimule { instant }
+        val cle = CleLogicielle()
+        val liaison = annuaire.liaisonDeCanal()
+        // Sans défi émis : rien à couvrir.
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, ByteArray(64)) } }
+        // Une preuve sur un AUTRE défi ne vérifie pas.
+        annuaire.defi()
+        val fausse = cle.prouverLaPossession(ByteArray(32) { 7 }, liaison)
+        assertThrows(ErreurAnnuaire.PreuveInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, fausse) } }
+        // Un défi ne sert qu'une fois : consommé par l'essai raté.
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, fausse) } }
+        // Une preuve sous une autre clé que celle présentée ne vérifie pas non plus.
+        val defi = annuaire.defi()
+        val usurpee = CleLogicielle().signer(Messages.dePossession(cle.clePublique, defi, liaison))
+        assertThrows(ErreurAnnuaire.PreuveInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, usurpee) } }
     }
 
     @Test

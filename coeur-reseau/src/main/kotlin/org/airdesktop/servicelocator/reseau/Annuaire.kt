@@ -24,6 +24,8 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
     class Reseau(detail: String) : ErreurAnnuaire("Annuaire injoignable : $detail")
     /** L'appareil n'a pas confirmé l'identité de son porteur ; la clé n'a pas signé, rien n'est parti. */
     object NonConfirme : ErreurAnnuaire("Identité non confirmée ; rien n'a été envoyé.")
+    /** La preuve de possession ne vérifie pas sous la clé présentée. */
+    object PreuveInvalide : ErreurAnnuaire("La preuve de possession de la clé ne vérifie pas.")
 }
 
 /**
@@ -43,8 +45,16 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
  * un paramètre : c'est ce qui se passe quand une méthode d'ici est appelée.
  */
 interface Annuaire {
-    /** `POST /v1/comptes` — crée le compte et enrôle cet appareil. */
-    suspend fun ouvrirCompte(): Compte
+    /** `GET /v1/defi` — trente-deux octets à usage unique, que la prochaine signature couvrira. */
+    suspend fun defi(): ByteArray
+    /** La liaison de canal de la connexion courante — l'exportateur TLS, que seul un transport réel sait dériver. Trente-deux octets. */
+    suspend fun liaisonDeCanal(): ByteArray
+    /**
+     * `POST /v1/comptes` — crée le compte et enrôle cet appareil : sa clé
+     * publique (33 octets, SEC1 compressé) et la preuve qu'il la détient
+     * (64 octets, `r ‖ s`, sur le défi et la liaison).
+     */
+    suspend fun ouvrirCompte(cle: ByteArray, preuve: ByteArray): Compte
     /** Le compte de cet appareil, s'il en a un. */
     suspend fun compte(): Compte?
 

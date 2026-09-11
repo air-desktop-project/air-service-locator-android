@@ -29,6 +29,9 @@ android {
 }
 
 dependencies {
+    // Le modèle, en `api` : `Signataire` parle d'`Identifiant`, et c'est ce que
+    // ce module expose.
+    api(project(":coeur-modele"))
     // `api` et non `implementation` : la confirmation prend une `FragmentActivity`
     // d'`androidx.fragment`, que `BiometricPrompt` exige, et ce type fait donc
     // partie de ce que ce module expose.

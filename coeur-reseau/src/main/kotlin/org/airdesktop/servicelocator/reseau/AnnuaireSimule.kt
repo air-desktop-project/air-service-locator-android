@@ -10,6 +10,8 @@ import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.Messages
+import org.airdesktop.servicelocator.modele.P256
 import org.airdesktop.servicelocator.modele.Service
 import java.security.SecureRandom
 import java.time.Instant
@@ -49,8 +51,25 @@ class AnnuaireSimule(
 
     // ── Compte ────────────────────────────────────────────────────────────────
 
-    override suspend fun ouvrirCompte(): Compte = verrou.withLock {
+    /** Le défi en cours. Un seul, et consommé par la première preuve qui le couvre : un défi rejoué n'est plus un défi. */
+    private var defiEnCours: ByteArray? = null
+
+    override suspend fun defi(): ByteArray = verrou.withLock {
+        ByteArray(Messages.DEFI_OCTETS).also(alea::nextBytes).also { defiEnCours = it }
+    }
+
+    /** Il n'y a pas de canal : trente-deux zéros, et le banc le dit. Un transport réel dérive cette valeur de sa connexion TLS. */
+    override suspend fun liaisonDeCanal(): ByteArray = ByteArray(Messages.LIAISON_OCTETS)
+
+    override suspend fun ouvrirCompte(cle: ByteArray, preuve: ByteArray): Compte = verrou.withLock {
         compteLocal?.let { return it }
+        // Le banc vérifie la preuve comme le serveur le fera : sous la clé
+        // présentée, sur le défi qu'il a émis. C'est la seule cryptographie
+        // qu'il fait, et c'est celle qui éprouve la clé de l'appareil.
+        val defi = defiEnCours ?: throw ErreurAnnuaire.RequeteInvalide("aucun défi en cours")
+        defiEnCours = null
+        val message = Messages.dePossession(cle, defi, ByteArray(Messages.LIAISON_OCTETS))
+        if (!P256.verifie(cle, message, preuve)) throw ErreurAnnuaire.PreuveInvalide
         val compte = Compte(neuf(Genre.UTILISATEUR))
         compteLocal = compte
         parcAppareils += Appareil(neuf(Genre.APPAREIL), "Cet appareil", Appareil.Biometrie.EMPREINTE, horloge(), estCeluiCi = true)

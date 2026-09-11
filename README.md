@@ -8,20 +8,27 @@ machines, et voir quels daemons y écoutent — et sur quel port.
 > L'application compile (AGP 8.5.2, Kotlin 2.0, avertissements en erreurs) et
 > tourne sur un Fairphone 5. Elle porte les huit écrans arrêtés avec les
 > maquettes — accueil, machines, machine, déclaration, code d'enrôlement,
-> accès, accorder, compte — et dix-neuf essais JVM.
+> accès, accorder, compte — et trente-huit essais JVM.
 >
 > **Elle ne parle à aucun serveur.** Les écrans s'adressent à l'interface
 > `Annuaire` (`coeur-reseau`), et c'est `AnnuaireSimule` qui répond : un banc
 > en mémoire qui tient les refus de `docs/protocole.md` §2 — un appareil ne se
 > révoque pas lui-même, un alias pris rend `409`, un objet absent et un objet
-> d'un autre compte rendent le même `404`. Le transport réel — la pile QUIC
-> d'`asl-client` par JNI, l'authentification liée au canal, la clé P-256 dans
-> le Keystore — reste à embarquer, et c'est la composition dans
-> `ActivitePrincipale` qui changera, pas les écrans.
+> d'un autre compte rendent le même `404`.
 >
-> Trois choses sont dites « pas encore possible » à l'écran plutôt que
-> simulées : enrôler un second appareil, les expositions (`501` côté serveur),
-> et le jeton Play Integrity, qui exige un projet Google Cloud.
+> **La clé de l'appareil est réelle** : P-256 dans le Keystore matériel
+> (StrongBox si l'appareil en a un, sinon le TEE), biométrie forte exigée à
+> chaque signature par `BiometricPrompt` et son `CryptoObject`. Ouvrir un compte
+> est une vraie preuve de possession — le corps de `POST /v1/comptes` : clé
+> SEC1 compressée, signature `r ‖ s` sur le défi de l'annuaire — que le banc
+> vérifie comme le serveur le fera. Le transport — la pile QUIC d'`asl-client`
+> par JNI, et la liaison de canal, qui vaut zéro d'ici là — reste à embarquer,
+> et c'est la composition dans `ActivitePrincipale` qui changera, pas les
+> écrans.
+>
+> Deux choses sont dites « pas encore possible » à l'écran plutôt que
+> simulées : enrôler un second appareil, et les expositions (`501` côté
+> serveur).
 
 ## La condition de déploiement
 

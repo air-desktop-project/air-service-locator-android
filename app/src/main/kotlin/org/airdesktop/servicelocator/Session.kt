@@ -5,8 +5,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
+import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
-import org.airdesktop.servicelocator.identite.confirmer
+import org.airdesktop.servicelocator.identite.NonConfirmeException
+import org.airdesktop.servicelocator.identite.Signataire
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.reseau.Annuaire
 import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
@@ -18,8 +20,10 @@ import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
 class Session(
     val annuaire: Annuaire,
     val identite: IdentiteLocale,
+    /** D'où vient la clé : le Keystore sur un appareil, une clé logicielle dans un essai. */
+    private val signataire: (FragmentActivity) -> Signataire = { CleAppareil.ouOuvrir().avec(it) },
     /** Comment on ouvre un compte — séparé de l'annuaire parce qu'en démonstration, l'ouverture peuple aussi l'annuaire. */
-    private val ouverture: suspend () -> Compte,
+    private val ouverture: suspend (cle: ByteArray, preuve: ByteArray) -> Compte,
 ) {
     var compte: Compte? by mutableStateOf(null)
         private set
@@ -29,12 +33,24 @@ class Session(
         compte = runCatching { annuaire.compte() }.getOrNull()
     }
 
-    /** Ouvre le compte, après confirmation biométrique. Sans confirmation, rien ne part. */
+    /**
+     * Ouvre le compte : la clé de l'appareil prouve qu'elle est détenue, sur le
+     * défi de l'annuaire et la liaison du canal.
+     *
+     * **C'est ici que la biométrie est demandée**, par le Keystore, au moment
+     * de signer — et nulle part avant. Sans confirmation, la clé ne signe pas,
+     * et rien ne part.
+     */
     suspend fun ouvrirCompte(activite: FragmentActivity) {
-        if (!identite.confirmer(activite, "Ouvrir votre compte", "Votre identité est confirmée sur cet appareil et n'en sort pas.")) {
+        val cle = signataire(activite)
+        val defi = annuaire.defi()
+        val liaison = annuaire.liaisonDeCanal()
+        val preuve = try {
+            cle.prouverLaPossession(defi, liaison)
+        } catch (e: NonConfirmeException) {
             throw ErreurAnnuaire.NonConfirme
         }
-        compte = ouverture()
+        compte = ouverture(cle.clePublique, preuve)
     }
 
     suspend fun definirAlias(alias: String?) {

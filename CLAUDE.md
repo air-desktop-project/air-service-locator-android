@@ -27,9 +27,10 @@ JVM passent (`./gradlew assembleDebug test`). Les maquettes validées sont dans
 
 Ce qui manque, dans l'ordre où ça se fera :
 
-1. **La clé P-256 dans le Keystore** (`setUserAuthenticationRequired(true)`,
-   StrongBox si présent) et la signature `r ‖ s` — aujourd'hui
-   `IdentiteLocale.confirmer` fait le geste biométrique, mais rien ne signe.
+1. ~~La clé P-256 dans le Keystore~~ — **faite** (`coeur-identite/CleAppareil.kt`,
+   `coeur-modele/P256.kt`) : StrongBox ou TEE, biométrie forte à chaque
+   signature, `r ‖ s` et SEC1 compressé dépliés en Kotlin pur. Vérifiée sur le
+   Fairphone 5.
 2. **Le transport** : la pile QUIC d'`asl-client` (dépôt
    `air-service-locator-client`), étendue aux verbes d'`asl-api`, construite
    pour `aarch64-linux-android` et liée par JNI, avec la signature par rappel.

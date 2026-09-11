@@ -22,8 +22,8 @@ import java.time.Instant
  */
 object Demonstration {
     /** Ouvre le compte ET pose les données, pour que la suite ait quelque chose à montrer. */
-    suspend fun ouvrirCompte(annuaire: AnnuaireSimule): Compte {
-        val compte = annuaire.ouvrirCompte()
+    suspend fun ouvrirCompte(annuaire: AnnuaireSimule, cle: ByteArray, preuve: ByteArray): Compte {
+        val compte = annuaire.ouvrirCompte(cle, preuve)
         if (annuaire.machines().isNotEmpty()) return compte
         peupler(annuaire, compte)
         return compte

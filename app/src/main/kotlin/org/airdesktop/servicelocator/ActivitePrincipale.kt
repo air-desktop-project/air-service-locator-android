@@ -23,7 +23,7 @@ import org.airdesktop.servicelocator.reseau.Demonstration
 class ActivitePrincipale : FragmentActivity() {
     private val session: Session by lazy {
         val simule = AnnuaireSimule()
-        Session(simule, IdentiteLocale(this)) { Demonstration.ouvrirCompte(simule) }
+        Session(simule, IdentiteLocale(this)) { cle, preuve -> Demonstration.ouvrirCompte(simule, cle, preuve) }
     }
 
     override fun onCreate(etatSauvegarde: Bundle?) {
