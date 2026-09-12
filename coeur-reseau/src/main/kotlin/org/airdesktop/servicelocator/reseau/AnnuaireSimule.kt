@@ -48,6 +48,8 @@ class AnnuaireSimule(
     private var compteLocal: Compte? = null
     private val parcMachines = mutableListOf<Machine>()
     private val parcAppareils = mutableListOf<Appareil>()
+    /** La clé sous laquelle chaque appareil enrôlé d'ici est entré — ce que [rejoindre] recoupe. */
+    private val clesEnrolees = mutableMapOf<Identifiant, ByteArray>()
     private val aretes = mutableListOf<Autorisation>()
     /** Les autres comptes que cet annuaire connaît : identifiant → alias. */
     private val autresComptes = mutableMapOf<Identifiant, String?>()
@@ -87,6 +89,37 @@ class AnnuaireSimule(
             compteLocal = compte
             parcAppareils += Appareil(neuf(Genre.APPAREIL), "Cet appareil", Appareil.Biometrie.EMPREINTE, horloge(), estCeluiCi = true)
             compte
+        }
+    }
+
+    override suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte {
+        // Le banc ne connaît qu'un compte, et les appareils qu'on y a enrôlés
+        // avec leur clé : l'invitation doit désigner l'un d'eux, sous la clé
+        // que le signataire présente. Puis la preuve, comme le serveur
+        // l'exigerait à la connexion : le message d'authentification, sous le
+        // genre `a`. Hors du verrou : signer, c'est attendre le porteur.
+        val local = verrou.withLock {
+            val local = compteLocal ?: throw ErreurAnnuaire.Introuvable
+            if (local.identifiant != compte) throw ErreurAnnuaire.Introuvable
+            if (parcAppareils.none { it.id == appareil && it.revoqueLe == null }) throw ErreurAnnuaire.Introuvable
+            if (clesEnrolees[appareil]?.contentEquals(signataire.clePublique) != true) throw ErreurAnnuaire.Introuvable
+            local
+        }
+        val defi = ByteArray(Messages.DEFI_OCTETS).also(alea::nextBytes)
+        val message = Messages.aSigner(appareil, defi, LIAISON_DE_CANAL)
+        val preuve = try {
+            signataire.signer(message)
+        } catch (e: NonConfirmeException) {
+            throw ErreurAnnuaire.NonConfirme
+        }
+        if (!P256.verifie(signataire.clePublique, message, preuve)) throw ErreurAnnuaire.PreuveInvalide
+        return verrou.withLock {
+            // Désormais, c'est CET appareil qui regarde l'écran.
+            for (i in parcAppareils.indices) {
+                val celuiCi = parcAppareils[i].id == appareil
+                parcAppareils[i] = parcAppareils[i].copy(estCeluiCi = celuiCi, nom = if (celuiCi) "Cet appareil" else parcAppareils[i].nom)
+            }
+            local
         }
     }
 
@@ -163,6 +196,18 @@ class AnnuaireSimule(
     // ── Appareils ─────────────────────────────────────────────────────────────
 
     override suspend fun appareils(): List<Appareil> = verrou.withLock { parcAppareils.toList() }
+
+    override suspend fun enrolerAppareil(cle: ByteArray): Appareil = verrou.withLock {
+        if (compteLocal == null) throw ErreurAnnuaire.Introuvable
+        // Le serveur vérifie que la clé est un point de la courbe ; le banc,
+        // qu'elle en a la forme. Une clé déjà enrôlée ne s'enrôle pas deux fois.
+        if (cle.size != Messages.CLE_OCTETS || (cle[0] != 0x02.toByte() && cle[0] != 0x03.toByte())) throw ErreurAnnuaire.RequeteInvalide("clé")
+        if (clesEnrolees.values.any { it.contentEquals(cle) }) throw ErreurAnnuaire.RequeteInvalide("clé déjà enrôlée")
+        val appareil = Appareil(neuf(Genre.APPAREIL), "Autre appareil", Appareil.Biometrie.EMPREINTE, horloge())
+        parcAppareils += appareil
+        clesEnrolees[appareil.id] = cle
+        appareil
+    }
 
     override suspend fun revoquerAppareil(id: Identifiant) = verrou.withLock {
         val indice = parcAppareils.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: throw ErreurAnnuaire.Introuvable

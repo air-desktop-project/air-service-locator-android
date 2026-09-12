@@ -19,7 +19,7 @@ protocole.
 
 ## L'état réel, sans fard
 
-Les **huit écrans sont écrits** (Compose, Material 3, minSdk 28) et **parlent
+Les **onze écrans sont écrits** (Compose, Material 3, minSdk 28) et **parlent
 au vrai annuaire** par le transport d'`asl-client` (`coeur-reseau`, `reel/`),
 ou au banc en mémoire (`AnnuaireSimule`) quand aucun annuaire n'est configuré
 (`README.md`, « Parler à un vrai annuaire »). Tout compile sans avertissement
@@ -45,9 +45,16 @@ Ce qui manque, dans l'ordre où ça se fera :
 3. **La capture Play Integrity** (`outils-capture/`), qui exige un projet
    Google Cloud (fait, le numéro est dans `local.properties`) et l'app dans la
    Play Console (à faire).
-4. Les écrans restants : enrôler un second appareil, détail d'un service et ses
-   candidats, expositions. Et un état de chargement au lancement : l'accueil
-   apparaît un instant avant que le compte soit relu.
+4. ~~Les écrans restants~~ — **faits** : le détail d'un service
+   (`ServiceEcran.kt`, verdict par point, candidats, ce que l'annuaire a
+   répondu au daemon), et le second appareil par échange de QR codes
+   (`coeur-modele/Invitation.kt`, `AppareilsEcrans.kt` : enrôler côté ancien,
+   rejoindre côté nouveau ; `composants/CodeQR.kt` trace avec ZXing et lit
+   avec CameraX). Les expositions restent un libellé tant que le serveur rend
+   `501`.
+5. Un état de chargement au lancement : l'accueil apparaît un instant avant
+   que le compte soit relu. Et le nom d'un service, l'état d'une clé, la liste
+   des appareils enrôlés ailleurs : dès que le serveur les rend.
 
 Tu es sur un Mac (oxygen) avec le SDK Android ; un **Fairphone 5** est branché
 en USB (`adb devices`), avec une empreinte enrôlée.

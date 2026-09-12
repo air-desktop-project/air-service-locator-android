@@ -43,5 +43,6 @@ object Icones {
     val terminal = trait("terminal", "M3 5h18v14H3z", "M7 9l3 3-3 3M12 15h5")
     val oeil = trait("oeil", "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z", "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z")
     val branche = trait("branche", "M6 3v12M6 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6zM18 3a3 3 0 1 0 0 6a3 3 0 1 0 0-6zM18 9c0 4-4 6-12 6")
+    val qr = trait("qr", "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z", "M14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z")
     val telephone = trait("telephone", "M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z", "M11 18h2")
 }

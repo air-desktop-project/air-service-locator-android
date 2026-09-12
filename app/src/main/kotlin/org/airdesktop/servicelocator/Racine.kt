@@ -9,6 +9,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -29,6 +32,8 @@ import org.airdesktop.servicelocator.ecrans.EnrolerAppareilEcran
 import org.airdesktop.servicelocator.ecrans.ExpositionsEcran
 import org.airdesktop.servicelocator.ecrans.MachineEcran
 import org.airdesktop.servicelocator.ecrans.MachinesEcran
+import org.airdesktop.servicelocator.ecrans.RejoindreEcran
+import org.airdesktop.servicelocator.ecrans.ServiceEcran
 import org.airdesktop.servicelocator.modele.Identifiant
 
 /** Les destinations. Un identifiant voyage sous sa forme canonique, et se relit à l'arrivée. */
@@ -44,6 +49,7 @@ object Routes {
     fun machine(id: Identifiant) = "machines/${id.texte}"
     fun code(id: Identifiant) = "machines/${id.texte}/code"
     fun capacites(id: Identifiant) = "machines/${id.texte}/capacites"
+    fun service(machine: Identifiant, service: Identifiant) = "machines/${machine.texte}/services/${service.texte}"
 }
 
 private data class Onglet(val route: String, val libelle: String, val icone: ImageVector)
@@ -59,8 +65,9 @@ private val onglets = listOf(
 fun Racine() {
     val session = LocalSession.current
     LaunchedEffect(Unit) { session.rafraichirCompte() }
+    var rejoindre by remember { mutableStateOf(false) }
     if (session.compte == null) {
-        AccueilEcran()
+        if (rejoindre) RejoindreEcran(retour = { rejoindre = false }) else AccueilEcran(surRejoindre = { rejoindre = true })
     } else {
         Onglets()
     }
@@ -101,6 +108,9 @@ private fun Onglets() {
             composable("machines/{id}") { MachineEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!)) }
             composable("machines/{id}/code") { CodeEnrolementEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!)) }
             composable("machines/{id}/capacites") { CapacitesEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!)) }
+            composable("machines/{id}/services/{s}") {
+                ServiceEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!), Identifiant.analyser(it.arguments!!.getString("s")!!))
+            }
             composable(Routes.ACCES) { AccesEcran(nav) }
             composable(Routes.ACCORDER) { AccorderEcran(nav) }
             composable(Routes.COMPTE) { CompteEcran(nav) }

@@ -21,6 +21,32 @@ import java.time.Instant
 
 /** Les refus de `docs/protocole.md` §2, tenus par le banc. */
 class AnnuaireSimuleEssais {
+    @Test
+    fun leBancEnroleUnAppareilDePlusEtLeLaisseRejoindre(): Unit = runBlocking {
+        val annuaire = AnnuaireSimule { instant }
+        val nouveau = CleLogicielle()
+        // Sans compte, rien à enrôler.
+        assertThrows(ErreurAnnuaire.Introuvable::class.java) { runBlocking { annuaire.enrolerAppareil(nouveau.clePublique) } }
+        val compte = annuaire.ouvrirCompte(CleLogicielle())
+        val enrole = annuaire.enrolerAppareil(nouveau.clePublique)
+        assertEquals(Genre.APPAREIL, enrole.id.genre)
+        assertTrue(!enrole.estCeluiCi)
+        assertEquals(2, annuaire.appareils().size)
+        // Deux fois la même clé, non.
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.enrolerAppareil(nouveau.clePublique) } }
+
+        // Rejoindre : le bon appareil sous la bonne clé, et la preuve tient.
+        assertEquals(compte, annuaire.rejoindre(compte.identifiant, enrole.id, nouveau))
+        val appareils = annuaire.appareils()
+        assertTrue(appareils.first { it.id == enrole.id }.estCeluiCi)
+        assertEquals(1, appareils.count { it.estCeluiCi })
+
+        // Une autre clé sous cet identifiant : introuvable, comme un 404 qui ne dit pas pourquoi.
+        assertThrows(ErreurAnnuaire.Introuvable::class.java) {
+            runBlocking { annuaire.rejoindre(compte.identifiant, enrole.id, CleLogicielle()) }
+        }
+    }
+
     private val instant = Instant.ofEpochSecond(1_700_000_000)
     private fun id(genre: Genre, octet: Int) = Identifiant(genre, ByteArray(16) { octet.toByte() })
 

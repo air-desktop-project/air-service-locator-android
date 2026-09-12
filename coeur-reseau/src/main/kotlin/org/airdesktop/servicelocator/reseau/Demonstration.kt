@@ -6,6 +6,7 @@ import org.airdesktop.servicelocator.modele.Candidat
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CodeEnrolement
 import org.airdesktop.servicelocator.modele.Compte
+import org.airdesktop.servicelocator.modele.Diagnostic
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Joignabilite
@@ -56,6 +57,7 @@ object Demonstration {
                         Candidat(PointEcoute.Protocole.TCP, "2001:db8::1c2d", 49_152, Candidat.Origine.REFLEXIF),
                         Candidat(PointEcoute.Protocole.TCP, "192.168.1.20", 49_152, Candidat.Origine.ANNONCE),
                     ),
+                    diagnostic = Diagnostic("[2001:db8::1c2d]:51840", Diagnostic.Nat.NON, 10, 30),
                 ),
                 Service(
                     id(Genre.SERVICE, 12), "sauvegarde", listOf(tcp(8_443)), Service.Etat.Annonce(ilYA(900)),

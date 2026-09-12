@@ -13,10 +13,12 @@ import org.airdesktop.servicelocator.modele.Candidat
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CodeEnrolement
 import org.airdesktop.servicelocator.modele.Compte
+import org.airdesktop.servicelocator.modele.Diagnostic
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Joignabilite
 import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.NonConfirmeException
 import org.airdesktop.servicelocator.modele.PointEcoute
 import org.airdesktop.servicelocator.modele.Service
@@ -123,10 +125,14 @@ class AnnuaireReel(
     }
 
     /** Une requête de `protocole.md` §2 : méthode, chemin, corps JSON. */
-    private fun requete(methode: String, chemin: String, corps: String? = null): Pair<Int, String> {
+    private fun requete(methode: String, chemin: String, corps: String? = null): Pair<Int, String> =
+        requete(methode, chemin, corps?.toByteArray())
+
+    /** La même, pour le seul corps qui n'est pas du JSON : la clé d'un appareil de plus. */
+    private fun requete(methode: String, chemin: String, corps: ByteArray?): Pair<Int, String> {
         val h = handleOuCreer()
         if (!connecte()) connecter()
-        val rendu = Natif.requete(h, methode, chemin, corps?.toByteArray())
+        val rendu = Natif.requete(h, methode, chemin, corps)
             ?: when (val code = Natif.dernierCode(h)) {
                 Natif.INJOIGNABLE, Natif.NON_CONNECTE -> throw ErreurAnnuaire.Reseau("la connexion est tombée")
                 else -> throw ErreurNative(code)
@@ -166,6 +172,36 @@ class AnnuaireReel(
         carnet.compte = compte
         carnet.appareil = Identifiant.analyser(rendu[1], Genre.APPAREIL)
         compte
+    }
+
+    override suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte {
+        // Le natif signe avec la clé qu'on lui a donnée à la création du
+        // handle — la même que `signataire`, celle du Keystore. Le paramètre
+        // dit où le geste est demandé, pas avec quoi.
+        surLeFil {
+            val h = handleOuCreer()
+            exiger(Natif.identite(h, appareil.texte), "identite")
+            // Se connecter sous cette identité, c'est la prouver : le natif
+            // ferme la connexion nue s'il y en a une, et rappelle la clé.
+            Log.d("annuaire", "connexion à ${reglages.adresse} en tant que ${appareil.texte}…")
+            when (val code = Natif.connecter(h).also { Log.d("annuaire", "connecter → $it") }) {
+                Natif.OK -> Unit
+                Natif.SIGNATURE_REFUSEE -> throw ErreurAnnuaire.NonConfirme
+                Natif.REFUSE -> throw ErreurAnnuaire.PreuveInvalide
+                Natif.INJOIGNABLE -> throw ErreurAnnuaire.Reseau("aucun annuaire ne répond")
+                else -> throw ErreurNative(code)
+            }
+        }
+        // La preuve tient : c'est bien la clé que l'autre téléphone a enrôlée.
+        // Le compte, lui, ne se vérifie qu'en le lisant.
+        val (statut, corps) = surLeFil { requete("GET", "/v1/utilisateurs/${compte.texte}") }
+        if (statut != 200) throw refus(statut)
+        val objet = JSONObject(corps)
+        val rejoint = Compte(compte, if (objet.has("alias")) objet.getString("alias") else null)
+        carnet.vider()
+        carnet.compte = rejoint
+        carnet.appareil = appareil
+        return rejoint
     }
 
     override suspend fun compte(): Compte? {
@@ -298,8 +334,16 @@ class AnnuaireReel(
                     else -> Joignabilite.EnCours
                 }
             }
+            // Ce que l'annuaire a répondu au daemon, tel quel.
+            val vu = objet.optJSONObject("vu_depuis")
+            val diagnostic = Diagnostic(
+                vuDepuis = vu?.let { v -> v.optString("adresse").let { a -> if (a.contains(':')) "[$a]:${v.optInt("port")}" else "$a:${v.optInt("port")}" } },
+                derriereNat = Diagnostic.Nat.entries.firstOrNull { it.libelle == objet.optString("derriere_nat") },
+                keepaliveSecondes = if (objet.has("keepalive_secondes")) objet.getInt("keepalive_secondes") else null,
+                inactiviteSecondes = if (objet.has("inactivite_secondes")) objet.getInt("inactivite_secondes") else null,
+            )
             // Le nom manque : l'annuaire ne le rend pas encore. L'identifiant abrégé tient sa place, et l'écran ne ment pas.
-            Service(id, id.abrege, points, Service.Etat.Annonce(Instant.now()), joignabilite, candidats)
+            Service(id, id.abrege, points, Service.Etat.Annonce(Instant.now()), joignabilite, candidats, diagnostic = diagnostic)
         }
     }
 
@@ -323,14 +367,33 @@ class AnnuaireReel(
                 Appareil(id, id.abrege, Appareil.Biometrie.EMPREINTE, millis(objet, "enrole_a") ?: Instant.now(), millis(objet, "revoque_a"), id == carnet.appareil)
             }
         }
-        // Le verbe n'existe pas encore : cet appareil, et lui seul.
+        // Le verbe n'existe pas encore : cet appareil, et ceux qu'il a
+        // enrôlés lui-même. Un appareil enrôlé depuis un autre téléphone n'y
+        // paraît pas, et l'écran le dit.
         val moi = carnet.appareil ?: return emptyList()
-        return listOf(Appareil(moi, "Cet appareil", Appareil.Biometrie.EMPREINTE, carnet.enroleLe ?: Instant.now(), estCeluiCi = true))
+        return listOf(Appareil(moi, "Cet appareil", Appareil.Biometrie.EMPREINTE, carnet.enroleLe ?: Instant.now(), estCeluiCi = true)) +
+            carnet.appareilsEnrolesDIci.map { Appareil(it.id, "Autre appareil", Appareil.Biometrie.EMPREINTE, it.le, it.revoqueLe) }
+    }
+
+    override suspend fun enrolerAppareil(cle: ByteArray): Appareil {
+        // Le seul corps brut de cette voie après la création du compte :
+        // trente-trois octets, la clé telle que le nouveau téléphone l'a
+        // montrée. C'est le serveur qui vérifie qu'elle est sur la courbe.
+        if (cle.size != Messages.CLE_OCTETS) throw ErreurAnnuaire.RequeteInvalide("clé")
+        val (statut, rendu) = surLeFil { requete("POST", "/v1/appareils", cle) }
+        if (statut != 201) throw refus(statut)
+        val id = Identifiant.analyser(JSONObject(rendu).getString("appareil"), Genre.APPAREIL)
+        val enrole = Carnet.AppareilEnrole(id, Instant.now(), null)
+        carnet.appareilsEnrolesDIci = carnet.appareilsEnrolesDIci + enrole
+        return Appareil(id, "Autre appareil", Appareil.Biometrie.EMPREINTE, enrole.le)
     }
 
     override suspend fun revoquerAppareil(id: Identifiant) {
         val (statut, _) = surLeFil { requete("DELETE", "/v1/appareils/${id.texte}") }
         if (statut != 204) throw refus(statut)
+        carnet.appareilsEnrolesDIci = carnet.appareilsEnrolesDIci.map {
+            if (it.id == id && it.revoqueLe == null) it.copy(revoqueLe = Instant.now()) else it
+        }
     }
 
     // ── Autorisations ─────────────────────────────────────────────────────────
@@ -413,6 +476,25 @@ class Carnet(contexte: Context) {
         }
 
     val enroleLe: Instant? get() = if (prefs.contains("enrole_le")) Instant.ofEpochMilli(prefs.getLong("enrole_le", 0)) else null
+
+    /** Un appareil que CE téléphone a enrôlé, faute de `GET /v1/appareils`. */
+    data class AppareilEnrole(val id: Identifiant, val le: Instant, val revoqueLe: Instant?)
+
+    var appareilsEnrolesDIci: List<AppareilEnrole>
+        get() = prefs.getString("appareils", null)?.let { texte ->
+            val liste = JSONArray(texte)
+            (0 until liste.length()).mapNotNull { i ->
+                val objet = liste.getJSONObject(i)
+                val id = runCatching { Identifiant.analyser(objet.getString("id"), Genre.APPAREIL) }.getOrNull() ?: return@mapNotNull null
+                AppareilEnrole(id, Instant.ofEpochMilli(objet.getLong("le")), if (objet.has("revoque_le")) Instant.ofEpochMilli(objet.getLong("revoque_le")) else null)
+            }
+        }.orEmpty()
+        set(valeur) = prefs.edit().putString("appareils", JSONArray(valeur.map { a ->
+            JSONObject().put("id", a.id.texte).put("le", a.le.toEpochMilli()).also { o -> a.revoqueLe?.let { o.put("revoque_le", it.toEpochMilli()) } }
+        }).toString()).apply()
+
+    /** Efface tout — ce qu'on fait quand on rejoint un autre compte. */
+    fun vider() = prefs.edit().clear().apply()
 
     var machines: List<Machine>
         get() = prefs.getString("machines", null)?.let { texte ->

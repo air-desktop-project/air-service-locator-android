@@ -3,12 +3,13 @@
 L'application Android d'**air-service-locator** : ouvrir un compte, déclarer ses
 machines, et voir quels daemons y écoutent — et sur quel port.
 
-> ## État : les huit écrans, sur le vrai annuaire
+> ## État : onze écrans, sur le vrai annuaire
 >
 > L'application compile (AGP 8.5.2, Kotlin 2.0, avertissements en erreurs) et
 > tourne sur un Fairphone 5. Elle porte les huit écrans arrêtés avec les
 > maquettes — accueil, machines, machine, déclaration, code d'enrôlement,
-> accès, accorder, compte — et trente-huit essais JVM.
+> accès, accorder, compte —, trois écrans de plus — le détail d'un service,
+> enrôler un second appareil, rejoindre un compte — et trente et un essais JVM.
 >
 > **Elle parle à un annuaire réel** quand on lui en donne un (voir
 > « Construire ») : HTTP/3 sur QUIC, par la pile Rust d'`asl-client`
@@ -35,9 +36,19 @@ machines, et voir quels daemons y écoutent — et sur quel port.
 > deviné : la liste des machines et des appareils vient d'un carnet local
 > (`GET /v1/machines` et `GET /v1/appareils` n'existent pas encore), un
 > service porte son identifiant abrégé en guise de nom, et l'état de clé
-> d'une machine est celui que cet appareil connaît. Deux choses sont dites
-> « pas encore possible » à l'écran plutôt que simulées : enrôler un second
-> appareil, et les expositions (`501` côté serveur).
+> d'une machine est celui que cet appareil connaît. Une chose est dite « pas
+> encore possible » à l'écran plutôt que simulée : les expositions (`501` côté
+> serveur).
+>
+> **Un second appareil s'enrôle par un échange de QR codes** (`POST
+> /v1/appareils`, `coeur-modele/Invitation.kt`) : le nouveau montre sa clé
+> publique, l'ancien la lit à la caméra — CameraX et ZXing, sans services
+> Google — ou la colle, la poste, et montre en retour le compte et
+> l'identifiant rendus ; le nouveau les lit et prouve sa clé sur sa propre
+> connexion. Rien de secret ne passe. Vérifié entre le Fairphone et le
+> simulateur iOS, dans les deux sens. C'est la seule permission que
+> l'application demande en plus de la biométrie, et elle se demande au moment
+> de lire.
 
 ## La condition de déploiement
 
@@ -73,7 +84,7 @@ clé du Keystore. La classe faible rend un booléen, et rien de plus.
 | `app` | L'activité, la navigation, les écrans Compose et leurs composants. | oui |
 | `coeur-identite` | Ce que l'appareil sait confirmer, le geste de confirmation, et la clé P-256 du Keystore. | oui |
 | `coeur-reseau` | L'interface `Annuaire`, ses erreurs ; `reel/` — le transport QUIC d'`asl-client` par JNI et le carnet local ; le banc `AnnuaireSimule` avec ses données de démonstration. | oui |
-| `coeur-modele` | Identifiant (base32 de Crockford, seize octets), code d'enrôlement, compte, appareil, machine, service, autorisation, les messages à signer et le signataire. **Kotlin pur.** | non |
+| `coeur-modele` | Identifiant (base32 de Crockford, seize octets), code d'enrôlement, compte, appareil, machine, service, autorisation, les messages à signer, le signataire, et l'invitation qu'échangent deux téléphones. **Kotlin pur.** | non |
 
 `coeur-modele` n'a pas de greffon Android, et c'est le point : ses essais
 tournent sur la JVM en quelques secondes, sans émulateur. C'est la frontière des

@@ -85,7 +85,7 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
             if (Capacite.ANNONCE in machine.capacites) {
                 item { SousTitre("Services") }
                 if (machine.services.isEmpty()) item { Aide("Aucun service annoncé pour l'instant.") }
-                items(machine.services, key = { it.id.texte }) { LigneService(it) }
+                items(machine.services, key = { it.id.texte }) { LigneService(it, Modifier.clickable { nav.navigate(Routes.service(machine.id, it.id)) }) }
                 item { Aide("« Joignable » veut dire : l'annuaire a lui-même ouvert une connexion vers ce port, à cette date. Un point d'écoute UDP ne se sonde pas.") }
             }
             item { SousTitre("Machine") }
@@ -175,8 +175,9 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
 }
 
 @Composable
-fun LigneService(service: Service) {
+fun LigneService(service: Service, modifier: Modifier = Modifier) {
     ListItem(
+        modifier = modifier,
         leadingContent = { Pastille(service.couleur, 8) },
         headlineContent = {
             Text(service.nom, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,7 +46,7 @@ import org.airdesktop.servicelocator.identite.EtatIdentite
  * — un geste biométrique, et un identifiant public en retour.
  */
 @Composable
-fun AccueilEcran() {
+fun AccueilEcran(surRejoindre: () -> Unit) {
     val session = LocalSession.current
     val activite = LocalContext.current as FragmentActivity
     val portee = rememberCoroutineScope()
@@ -106,7 +107,8 @@ fun AccueilEcran() {
                 Spacer(Modifier.size(8.dp))
                 Text("Ouvrir un compte")
             }
-            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = surRejoindre, enabled = !enCours && etat is EtatIdentite.Disponible) { Text("Rejoindre un compte existant") }
+            Spacer(Modifier.height(4.dp))
             Text(
                 pied(etat), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,

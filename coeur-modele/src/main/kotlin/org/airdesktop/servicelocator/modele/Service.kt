@@ -34,6 +34,26 @@ sealed interface Joignabilite {
     data object NonSonde : Joignabilite
 }
 
+/**
+ * Ce que l'annuaire a répondu au daemon à son annonce, et qu'aucun autre
+ * moyen ne lui apprend (`docs/protocole.md` §1.1) : sous quelle adresse il l'a
+ * vu, s'il le croit derrière un NAT, et le bail qu'il lui tient.
+ */
+data class Diagnostic(
+    /** `adresse:port` d'où l'annuaire a vu la connexion d'annonce. */
+    val vuDepuis: String? = null,
+    val derriereNat: Nat? = null,
+    val keepaliveSecondes: Int? = null,
+    val inactiviteSecondes: Int? = null,
+) {
+    /**
+     * Le verdict que l'annuaire est seul à pouvoir rendre — et **trois valeurs,
+     * pas un booléen** : sans adresse locale annoncée, il n'y a rien à
+     * comparer, et dire « non » affirmerait une chose qu'on n'a pas mesurée.
+     */
+    enum class Nat(val libelle: String) { OUI("oui"), NON("non"), INDETERMINE("indetermine") }
+}
+
 /** Ce qu'un daemon annonce. Identifié par le couple (machine, nom). */
 data class Service(
     val id: Identifiant,
@@ -43,6 +63,8 @@ data class Service(
     val joignabilite: Map<PointEcoute, Joignabilite> = emptyMap(),
     val candidats: List<Candidat> = emptyList(),
     val oscille: Boolean = false,
+    /** Ce que l'annuaire a répondu à l'annonce ; absent pour un service parti. */
+    val diagnostic: Diagnostic? = null,
 ) {
     /** La connexion EST le bail : elle est tenue, ou elle est fermée. */
     sealed interface Etat {

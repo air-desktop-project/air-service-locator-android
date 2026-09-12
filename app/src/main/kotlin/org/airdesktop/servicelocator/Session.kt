@@ -8,6 +8,7 @@ import androidx.fragment.app.FragmentActivity
 import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
 import org.airdesktop.servicelocator.modele.Compte
+import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Signataire
 import org.airdesktop.servicelocator.reseau.Annuaire
 
@@ -41,6 +42,18 @@ class Session(
      */
     suspend fun ouvrirCompte(activite: FragmentActivity) {
         compte = ouverture(signataire(activite))
+    }
+
+    /**
+     * La clé publique de cet appareil — ce que le nouveau téléphone montre à
+     * l'ancien. La lire ne demande aucun geste : seule la signature en
+     * demande un.
+     */
+    fun clePublique(activite: FragmentActivity): ByteArray = signataire(activite).clePublique
+
+    /** Rejoint un compte, depuis ce téléphone-ci, avec l'invitation que l'autre a rendue. Le geste est demandé au moment de prouver la clé. */
+    suspend fun rejoindre(activite: FragmentActivity, compte: Identifiant, appareil: Identifiant) {
+        this.compte = annuaire.rejoindre(compte, appareil, signataire(activite))
     }
 
     suspend fun definirAlias(alias: String?) {

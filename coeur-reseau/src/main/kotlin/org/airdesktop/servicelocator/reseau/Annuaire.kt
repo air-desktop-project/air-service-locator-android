@@ -56,6 +56,15 @@ interface Annuaire {
      * qu'il a.
      */
     suspend fun ouvrirCompte(signataire: Signataire): Compte
+    /**
+     * Rejoint un compte existant, **depuis le nouveau téléphone** : un appareil
+     * déjà enrôlé a posté sa clé ([enrolerAppareil]) et lui a rendu
+     * l'invitation. Rien n'est posté ici — la clé est déjà connue de
+     * l'annuaire — mais elle est **prouvée**, sur cette connexion : c'est le
+     * geste, et c'est ce qui échoue ([ErreurAnnuaire.PreuveInvalide]) si la
+     * clé n'est pas celle qu'on a enrôlée.
+     */
+    suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte
     /** Le compte de cet appareil, s'il en a un. */
     suspend fun compte(): Compte?
 
@@ -70,6 +79,12 @@ interface Annuaire {
     suspend fun revoquerCle(machine: Identifiant)
 
     suspend fun appareils(): List<Appareil>
+    /**
+     * `POST /v1/appareils` — enrôle un appareil de plus, **depuis celui-ci** :
+     * la clé que le nouveau téléphone a montrée. Rend l'appareil, dont
+     * l'identifiant à lui rendre.
+     */
+    suspend fun enrolerAppareil(cle: ByteArray): Appareil
     /** `DELETE /v1/appareils/{a}` — marqué, non effacé. Jamais soi-même. */
     suspend fun revoquerAppareil(id: Identifiant)
 
