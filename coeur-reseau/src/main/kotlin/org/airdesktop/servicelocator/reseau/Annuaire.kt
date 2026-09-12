@@ -7,6 +7,7 @@ import org.airdesktop.servicelocator.modele.CodeEnrolement
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.Signataire
 
 /** Ce que l'annuaire refuse, dans les termes de `docs/protocole.md` §2. */
 sealed class ErreurAnnuaire(message: String) : Exception(message) {
@@ -45,16 +46,16 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
  * un paramètre : c'est ce qui se passe quand une méthode d'ici est appelée.
  */
 interface Annuaire {
-    /** `GET /v1/defi` — trente-deux octets à usage unique, que la prochaine signature couvrira. */
-    suspend fun defi(): ByteArray
-    /** La liaison de canal de la connexion courante — l'exportateur TLS, que seul un transport réel sait dériver. Trente-deux octets. */
-    suspend fun liaisonDeCanal(): ByteArray
     /**
-     * `POST /v1/comptes` — crée le compte et enrôle cet appareil : sa clé
-     * publique (33 octets, SEC1 compressé) et la preuve qu'il la détient
-     * (64 octets, `r ‖ s`, sur le défi et la liaison).
+     * `POST /v1/comptes` — crée le compte et enrôle cet appareil.
+     *
+     * **C'est l'annuaire qui conduit** : il tire le défi, connaît la liaison
+     * de son canal, compose le message de possession et fait signer le
+     * signataire — un seul geste biométrique, au moment exact où la preuve est
+     * exigée. Le banc et le transport réel font la même chose, chacun avec ce
+     * qu'il a.
      */
-    suspend fun ouvrirCompte(cle: ByteArray, preuve: ByteArray): Compte
+    suspend fun ouvrirCompte(signataire: Signataire): Compte
     /** Le compte de cet appareil, s'il en a un. */
     suspend fun compte(): Compte?
 

@@ -12,6 +12,7 @@ import org.airdesktop.servicelocator.modele.Joignabilite
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.PointEcoute
 import org.airdesktop.servicelocator.modele.Service
+import org.airdesktop.servicelocator.modele.Signataire
 import java.time.Instant
 
 /**
@@ -22,8 +23,8 @@ import java.time.Instant
  */
 object Demonstration {
     /** Ouvre le compte ET pose les données, pour que la suite ait quelque chose à montrer. */
-    suspend fun ouvrirCompte(annuaire: AnnuaireSimule, cle: ByteArray, preuve: ByteArray): Compte {
-        val compte = annuaire.ouvrirCompte(cle, preuve)
+    suspend fun ouvrirCompte(annuaire: AnnuaireSimule, signataire: Signataire): Compte {
+        val compte = annuaire.ouvrirCompte(signataire)
         if (annuaire.machines().isNotEmpty()) return compte
         peupler(annuaire, compte)
         return compte

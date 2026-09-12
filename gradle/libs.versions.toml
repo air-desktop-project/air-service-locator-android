@@ -43,6 +43,8 @@ androidx-biometric = { group = "androidx.biometric", name = "biometric-ktx", ver
 # Le banc `AnnuaireSimule` est un objet à état partagé entre écrans : un mutex de
 # coroutine, et rien de plus lourd.
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+# `Dispatchers.Main` d'Android : le fil principal, où `BiometricPrompt` s'affiche.
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 # Play Integrity, pour la CAPTURE d'un jeton réel (`outils-capture/`), dans la

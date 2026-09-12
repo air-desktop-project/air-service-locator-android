@@ -19,11 +19,14 @@ protocole.
 
 ## L'état réel, sans fard
 
-Les **huit écrans sont écrits** (Compose, Material 3, minSdk 28), sur un
-**annuaire simulé** en mémoire (`coeur-reseau`, `AnnuaireSimule`) qui tient les
-règles du protocole sans réseau. Tout compile sans avertissement et les essais
-JVM passent (`./gradlew assembleDebug test`). Les maquettes validées sont dans
-`../maquettes/` (hors dépôt).
+Les **huit écrans sont écrits** (Compose, Material 3, minSdk 28) et **parlent
+au vrai annuaire** par le transport d'`asl-client` (`coeur-reseau`, `reel/`),
+ou au banc en mémoire (`AnnuaireSimule`) quand aucun annuaire n'est configuré
+(`README.md`, « Parler à un vrai annuaire »). Tout compile sans avertissement
+et les essais JVM passent (`./gradlew assembleDebug test`). Les maquettes
+validées sont dans `../maquettes/` (hors dépôt). Vérifié de bout en bout sur le
+Fairphone contre `asl-server` : compte, machine, enrôlement, annonce, service
+joignable.
 
 Ce qui manque, dans l'ordre où ça se fera :
 
@@ -31,23 +34,29 @@ Ce qui manque, dans l'ordre où ça se fera :
    `coeur-modele/P256.kt`) : StrongBox ou TEE, biométrie forte à chaque
    signature, `r ‖ s` et SEC1 compressé dépliés en Kotlin pur. Vérifiée sur le
    Fairphone 5.
-2. **Le transport** : la pile QUIC d'`asl-client` (dépôt
-   `air-service-locator-client`), étendue aux verbes d'`asl-api`, construite
-   pour `aarch64-linux-android` et liée par JNI, avec la signature par rappel.
-   `AnnuaireSimule` sera alors remplacé dans `ActivitePrincipale`, et nulle
-   part ailleurs.
+2. ~~Le transport~~ — **fait** (`reel/AnnuaireReel.kt`, `reel/Natif.kt`) : les
+   symboles JNI de la crate `asl-client-android`, la signature par rappel (le
+   natif rappelle depuis son fil ; `BiometricPrompt` s'affiche sur le fil
+   principal, dans l'activité au premier plan *au moment de signer*), la
+   connexion tenue par `ApplicationServiceLocator` — pas par l'activité, qu'une
+   rotation recrée. Ce que le serveur ne rend pas encore vient d'un `Carnet`
+   local (SharedPreferences) et l'écran le dit : les manques sont listés dans
+   le `CLAUDE.md` du dépôt client, à l'attention de speedy.
 3. **La capture Play Integrity** (`outils-capture/`), qui exige un projet
-   Google Cloud et l'app dans la Play Console.
+   Google Cloud (fait, le numéro est dans `local.properties`) et l'app dans la
+   Play Console (à faire).
 4. Les écrans restants : enrôler un second appareil, détail d'un service et ses
-   candidats, expositions.
+   candidats, expositions. Et un état de chargement au lancement : l'accueil
+   apparaît un instant avant que le compte soit relu.
 
 Tu es sur un Mac (oxygen) avec le SDK Android ; un **Fairphone 5** est branché
 en USB (`adb devices`), avec une empreinte enrôlée.
 
 ## Ce qu'il faut tenir en écrivant un écran
 
-- **Les écrans parlent à `Annuaire`, jamais au banc.** `AnnuaireSimule` n'est
-  nommé que dans la composition et les essais.
+- **Les écrans parlent à `Annuaire`, jamais au banc ni au transport.**
+  `AnnuaireSimule` et `AnnuaireReel` ne sont nommés que dans la composition
+  (`ApplicationServiceLocator`) et les essais.
 - **Le vocabulaire est celui de `modele.md` §4.2** : `annoncé`, `joignable`
   (avec sa date), `parti (volontaire / inactivité)`, UDP `non sondé`. Le mot
   « en ligne » n'apparaît nulle part.

@@ -12,7 +12,9 @@ import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.P256
+import org.airdesktop.servicelocator.modele.NonConfirmeException
 import org.airdesktop.servicelocator.modele.Service
+import org.airdesktop.servicelocator.modele.Signataire
 import java.security.SecureRandom
 import java.time.Instant
 
@@ -23,15 +25,17 @@ import java.time.Instant
  * # Pourquoi il existe, et ce qu'il n'est pas
  *
  * Le transport de ce produit — HTTP/3 sur QUIC, authentification liée au canal
- * TLS — vit dans `asl-client` et n'est pas encore embarqué ici. Attendre qu'il
- * le soit pour écrire les écrans les aurait fait attendre ; les écrire contre
- * une interface qui ment aurait produit des écrans à jeter.
+ * TLS — vit dans `asl-client` et c'est `AnnuaireReel` qui l'embarque. Les
+ * écrans ont été écrits avant lui, contre ce banc : les écrire contre une
+ * interface qui ment aurait produit des écrans à jeter. Il reste pour les
+ * essais, et pour faire tourner l'application sans annuaire sous la main.
  *
  * Cette classe tient donc **les mêmes refus que le serveur** : un appareil ne
  * se révoque pas lui-même (`403`), un alias pris rend `409`, un objet absent et
  * un objet d'un autre compte rendent le même `404`, une nouvelle annonce du
- * même nom remplace la précédente. Elle ne fait rien de plus, et surtout elle
- * **ne vérifie aucune signature** : ce n'est pas un serveur, c'est un banc.
+ * même nom remplace la précédente. Elle ne fait rien de plus, et la seule
+ * cryptographie qu'elle fait est de vérifier la preuve de possession : ce
+ * n'est pas un serveur, c'est un banc.
  *
  * **Elle part vide.** [Demonstration] la remplit de ce que les maquettes
  * montraient, pour qu'un écran ait quelque chose à afficher.
@@ -49,31 +53,41 @@ class AnnuaireSimule(
     private val autresComptes = mutableMapOf<Identifiant, String?>()
     private val alea = SecureRandom()
 
-    // ── Compte ────────────────────────────────────────────────────────────────
+    companion object {
+        /** Il n'y a pas de canal : trente-deux zéros, et le banc le dit. Un transport réel dérive cette valeur de sa connexion TLS. */
+        val LIAISON_DE_CANAL = ByteArray(Messages.LIAISON_OCTETS)
 
-    /** Le défi en cours. Un seul, et consommé par la première preuve qui le couvre : un défi rejoué n'est plus un défi. */
-    private var defiEnCours: ByteArray? = null
-
-    override suspend fun defi(): ByteArray = verrou.withLock {
-        ByteArray(Messages.DEFI_OCTETS).also(alea::nextBytes).also { defiEnCours = it }
+        /** Un alias se compare : ASCII, lettres, chiffres, tiret, 3 à 32. */
+        fun aliasValide(alias: String): Boolean =
+            alias.length in 3..32 && alias.all { it.code < 128 && (it.isLetterOrDigit() || it == '-') }
     }
 
-    /** Il n'y a pas de canal : trente-deux zéros, et le banc le dit. Un transport réel dérive cette valeur de sa connexion TLS. */
-    override suspend fun liaisonDeCanal(): ByteArray = ByteArray(Messages.LIAISON_OCTETS)
+    // ── Compte ────────────────────────────────────────────────────────────────
 
-    override suspend fun ouvrirCompte(cle: ByteArray, preuve: ByteArray): Compte = verrou.withLock {
-        compteLocal?.let { return it }
-        // Le banc vérifie la preuve comme le serveur le fera : sous la clé
-        // présentée, sur le défi qu'il a émis. C'est la seule cryptographie
-        // qu'il fait, et c'est celle qui éprouve la clé de l'appareil.
-        val defi = defiEnCours ?: throw ErreurAnnuaire.RequeteInvalide("aucun défi en cours")
-        defiEnCours = null
-        val message = Messages.dePossession(cle, defi, ByteArray(Messages.LIAISON_OCTETS))
-        if (!P256.verifie(cle, message, preuve)) throw ErreurAnnuaire.PreuveInvalide
-        val compte = Compte(neuf(Genre.UTILISATEUR))
-        compteLocal = compte
-        parcAppareils += Appareil(neuf(Genre.APPAREIL), "Cet appareil", Appareil.Biometrie.EMPREINTE, horloge(), estCeluiCi = true)
-        compte
+    override suspend fun ouvrirCompte(signataire: Signataire): Compte {
+        verrou.withLock { compteLocal }?.let { return it }
+        // Un défi neuf, à usage unique, puis la preuve — signée par le
+        // signataire, sur le message que le serveur recomposera. Hors du
+        // verrou : signer, c'est attendre le porteur.
+        val defi = ByteArray(Messages.DEFI_OCTETS).also(alea::nextBytes)
+        val cle = signataire.clePublique
+        val message = Messages.dePossession(cle, defi, LIAISON_DE_CANAL)
+        val preuve = try {
+            signataire.signer(message)
+        } catch (e: NonConfirmeException) {
+            throw ErreurAnnuaire.NonConfirme
+        }
+        return verrou.withLock {
+            compteLocal?.let { return it }
+            // Le banc vérifie la preuve comme le serveur le fera : sous la clé
+            // présentée, sur ce défi-là. C'est la seule cryptographie qu'il
+            // fait, et c'est celle qui éprouve la clé de l'appareil.
+            if (!P256.verifie(cle, message, preuve)) throw ErreurAnnuaire.PreuveInvalide
+            val compte = Compte(neuf(Genre.UTILISATEUR))
+            compteLocal = compte
+            parcAppareils += Appareil(neuf(Genre.APPAREIL), "Cet appareil", Appareil.Biometrie.EMPREINTE, horloge(), estCeluiCi = true)
+            compte
+        }
     }
 
     override suspend fun compte(): Compte? = verrou.withLock { compteLocal }
@@ -215,9 +229,4 @@ class AnnuaireSimule(
     private fun neuf(genre: Genre) = Identifiant(genre, ByteArray(16).also(alea::nextBytes))
     private fun code() = CodeEnrolement.depuisEntropie(ByteArray(8).also(alea::nextBytes), horloge())
 
-    companion object {
-        /** Un alias se compare : ASCII, lettres, chiffres, tiret, 3 à 32. */
-        fun aliasValide(alias: String): Boolean =
-            alias.length in 3..32 && alias.all { it.code < 128 && (it.isLetterOrDigit() || it == '-') }
-    }
 }

@@ -3,32 +3,41 @@
 L'application Android d'**air-service-locator** : ouvrir un compte, déclarer ses
 machines, et voir quels daemons y écoutent — et sur quel port.
 
-> ## État : les huit écrans, sur un annuaire simulé
+> ## État : les huit écrans, sur le vrai annuaire
 >
 > L'application compile (AGP 8.5.2, Kotlin 2.0, avertissements en erreurs) et
 > tourne sur un Fairphone 5. Elle porte les huit écrans arrêtés avec les
 > maquettes — accueil, machines, machine, déclaration, code d'enrôlement,
 > accès, accorder, compte — et trente-huit essais JVM.
 >
-> **Elle ne parle à aucun serveur.** Les écrans s'adressent à l'interface
-> `Annuaire` (`coeur-reseau`), et c'est `AnnuaireSimule` qui répond : un banc
-> en mémoire qui tient les refus de `docs/protocole.md` §2 — un appareil ne se
-> révoque pas lui-même, un alias pris rend `409`, un objet absent et un objet
-> d'un autre compte rendent le même `404`.
+> **Elle parle à un annuaire réel** quand on lui en donne un (voir
+> « Construire ») : HTTP/3 sur QUIC, par la pile Rust d'`asl-client`
+> embarquée en bibliothèque native et liée par JNI
+> (`coeur-reseau`, `reel/AnnuaireReel.kt`, `reel/Natif.kt`). La connexion est
+> **tenue**, au niveau du processus : un geste biométrique par connexion, pas
+> par requête, et pas par rotation d'écran. Sans annuaire configuré, c'est
+> `AnnuaireSimule` qui répond : un banc en mémoire qui tient les refus de
+> `docs/protocole.md` §2 — un appareil ne se révoque pas lui-même, un alias
+> pris rend `409`, un objet absent et un objet d'un autre compte rendent le
+> même `404`. Les écrans ne voient que l'interface `Annuaire` ; c'est
+> `ApplicationServiceLocator` qui choisit.
 >
 > **La clé de l'appareil est réelle** : P-256 dans le Keystore matériel
 > (StrongBox si l'appareil en a un, sinon le TEE), biométrie forte exigée à
 > chaque signature par `BiometricPrompt` et son `CryptoObject`. Ouvrir un compte
 > est une vraie preuve de possession — le corps de `POST /v1/comptes` : clé
-> SEC1 compressée, signature `r ‖ s` sur le défi de l'annuaire — que le banc
-> vérifie comme le serveur le fera. Le transport — la pile QUIC d'`asl-client`
-> par JNI, et la liaison de canal, qui vaut zéro d'ici là — reste à embarquer,
-> et c'est la composition dans `ActivitePrincipale` qui changera, pas les
-> écrans.
+> SEC1 compressée, signature `r ‖ s` sur le défi de l'annuaire et la liaison du
+> canal TLS — que le serveur vérifie. Vérifié de bout en bout sur le Fairphone
+> contre un serveur `asl-server` : compte, machine, enrôlement par
+> `asl enrole`, annonce, service joignable.
 >
-> Deux choses sont dites « pas encore possible » à l'écran plutôt que
-> simulées : enrôler un second appareil, et les expositions (`501` côté
-> serveur).
+> Ce que le serveur ne sait pas encore rendre s'affiche tel quel, sans être
+> deviné : la liste des machines et des appareils vient d'un carnet local
+> (`GET /v1/machines` et `GET /v1/appareils` n'existent pas encore), un
+> service porte son identifiant abrégé en guise de nom, et l'état de clé
+> d'une machine est celui que cet appareil connaît. Deux choses sont dites
+> « pas encore possible » à l'écran plutôt que simulées : enrôler un second
+> appareil, et les expositions (`501` côté serveur).
 
 ## La condition de déploiement
 
@@ -62,9 +71,9 @@ clé du Keystore. La classe faible rend un booléen, et rien de plus.
 | Module | Ce qu'il porte | Dépend d'Android ? |
 |---|---|---|
 | `app` | L'activité, la navigation, les écrans Compose et leurs composants. | oui |
-| `coeur-identite` | Ce que l'appareil sait confirmer, le geste de confirmation, et la clé matérielle à venir. | oui |
-| `coeur-reseau` | L'interface `Annuaire`, ses erreurs, et le banc `AnnuaireSimule` avec ses données de démonstration. | oui (bibliothèque), mais rien d'Android n'y est appelé |
-| `coeur-modele` | Identifiant (base32 de Crockford, seize octets), code d'enrôlement, compte, appareil, machine, service, autorisation. **Kotlin pur.** | non |
+| `coeur-identite` | Ce que l'appareil sait confirmer, le geste de confirmation, et la clé P-256 du Keystore. | oui |
+| `coeur-reseau` | L'interface `Annuaire`, ses erreurs ; `reel/` — le transport QUIC d'`asl-client` par JNI et le carnet local ; le banc `AnnuaireSimule` avec ses données de démonstration. | oui |
+| `coeur-modele` | Identifiant (base32 de Crockford, seize octets), code d'enrôlement, compte, appareil, machine, service, autorisation, les messages à signer et le signataire. **Kotlin pur.** | non |
 
 `coeur-modele` n'a pas de greffon Android, et c'est le point : ses essais
 tournent sur la JVM en quelques secondes, sans émulateur. C'est la frontière des
@@ -79,6 +88,27 @@ tournent sur la JVM en quelques secondes, sans émulateur. C'est la frontière d
 
 Il faut un JDK 17 et un SDK Android (API 34). `local.properties` n'est pas
 versionné : il porte le chemin du SDK sur *votre* machine.
+
+### Parler à un vrai annuaire
+
+Le transport est la bibliothèque native produite par le dépôt client, attendue
+à `../air-service-locator-client/target/mobile/jniLibs/arm64-v8a/libasl_client_android.so`
+(`scripts/construire-mobile.sh` là-bas). Sans elle, l'application s'installe
+mais `System.loadLibrary` échoue au premier usage du transport réel.
+
+L'annuaire se donne dans `local.properties` (non versionné) et passe dans
+`BuildConfig` :
+
+```
+asl.annuaire.adresse=192.168.1.102:6630
+asl.annuaire.nom=speedy
+asl.annuaire.racines=/chemin/vers/racine.pem
+```
+
+`nom` est le nom que porte le certificat du serveur ; `racines`, le chemin
+local de la racine qui l'a signé (son contenu est embarqué à la construction —
+une racine publique, rien de secret). Sans ces trois lignes, l'application
+tourne sur le banc en mémoire, peuplé de démonstration.
 
 ## Capturer un jeton Play Integrity
 

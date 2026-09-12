@@ -37,5 +37,6 @@ dependencies {
     // partie de ce que ce module expose.
     api(libs.androidx.biometric)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
 }

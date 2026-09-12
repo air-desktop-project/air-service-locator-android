@@ -5,7 +5,8 @@ import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CleLogicielle
-import org.airdesktop.servicelocator.modele.Messages
+import org.airdesktop.servicelocator.modele.NonConfirmeException
+import org.airdesktop.servicelocator.modele.Signataire
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
@@ -25,28 +26,34 @@ class AnnuaireSimuleEssais {
 
     private fun avecCompte(bloc: suspend (AnnuaireSimule) -> Unit) = runBlocking {
         val annuaire = AnnuaireSimule { instant }
-        val cle = CleLogicielle()
-        annuaire.ouvrirCompte(cle.clePublique, cle.prouverLaPossession(annuaire.defi(), annuaire.liaisonDeCanal()))
+        annuaire.ouvrirCompte(CleLogicielle())
         bloc(annuaire)
     }
 
+    /** Un signataire qui présente une clé et signe avec une AUTRE : sa preuve ne vérifie pas, et le banc doit le dire. */
+    private class Usurpateur : Signataire {
+        private val presentee = CleLogicielle()
+        private val signe = CleLogicielle()
+        override val clePublique get() = presentee.clePublique
+        override suspend fun signer(message: ByteArray) = signe.signerSync(message)
+    }
+
+    /** Un signataire dont le porteur ne confirme jamais. */
+    private class Refus : Signataire {
+        private val cle = CleLogicielle()
+        override val clePublique get() = cle.clePublique
+        override suspend fun signer(message: ByteArray): ByteArray = throw NonConfirmeException()
+    }
+
     @Test
-    fun ouvrirUnCompteExigeUnePreuveSurLeDefiEmis(): Unit = runBlocking {
+    fun ouvrirUnCompteExigeUnePreuveSousLaClePresentee(): Unit = runBlocking {
         val annuaire = AnnuaireSimule { instant }
-        val cle = CleLogicielle()
-        val liaison = annuaire.liaisonDeCanal()
-        // Sans défi émis : rien à couvrir.
-        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, ByteArray(64)) } }
-        // Une preuve sur un AUTRE défi ne vérifie pas.
-        annuaire.defi()
-        val fausse = cle.prouverLaPossession(ByteArray(32) { 7 }, liaison)
-        assertThrows(ErreurAnnuaire.PreuveInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, fausse) } }
-        // Un défi ne sert qu'une fois : consommé par l'essai raté.
-        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, fausse) } }
-        // Une preuve sous une autre clé que celle présentée ne vérifie pas non plus.
-        val defi = annuaire.defi()
-        val usurpee = CleLogicielle().signer(Messages.dePossession(cle.clePublique, defi, liaison))
-        assertThrows(ErreurAnnuaire.PreuveInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(cle.clePublique, usurpee) } }
+        assertThrows(ErreurAnnuaire.PreuveInvalide::class.java) { runBlocking { annuaire.ouvrirCompte(Usurpateur()) } }
+        assertThrows(ErreurAnnuaire.NonConfirme::class.java) { runBlocking { annuaire.ouvrirCompte(Refus()) } }
+        val compte = annuaire.ouvrirCompte(CleLogicielle())
+        assertEquals(Genre.UTILISATEUR, compte.identifiant.genre)
+        // Une seconde ouverture rend le même compte, sans redemander de preuve.
+        assertEquals(compte, annuaire.ouvrirCompte(Refus()))
     }
 
     @Test

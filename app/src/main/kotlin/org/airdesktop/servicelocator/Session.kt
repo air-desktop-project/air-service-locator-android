@@ -7,11 +7,9 @@ import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
 import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
-import org.airdesktop.servicelocator.identite.NonConfirmeException
-import org.airdesktop.servicelocator.identite.Signataire
 import org.airdesktop.servicelocator.modele.Compte
+import org.airdesktop.servicelocator.modele.Signataire
 import org.airdesktop.servicelocator.reseau.Annuaire
-import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
 
 /**
  * Ce que tous les écrans partagent : l'annuaire à qui parler, et le compte de
@@ -23,7 +21,7 @@ class Session(
     /** D'où vient la clé : le Keystore sur un appareil, une clé logicielle dans un essai. */
     private val signataire: (FragmentActivity) -> Signataire = { CleAppareil.ouOuvrir().avec(it) },
     /** Comment on ouvre un compte — séparé de l'annuaire parce qu'en démonstration, l'ouverture peuple aussi l'annuaire. */
-    private val ouverture: suspend (cle: ByteArray, preuve: ByteArray) -> Compte,
+    private val ouverture: suspend (Signataire) -> Compte,
 ) {
     var compte: Compte? by mutableStateOf(null)
         private set
@@ -42,15 +40,7 @@ class Session(
      * et rien ne part.
      */
     suspend fun ouvrirCompte(activite: FragmentActivity) {
-        val cle = signataire(activite)
-        val defi = annuaire.defi()
-        val liaison = annuaire.liaisonDeCanal()
-        val preuve = try {
-            cle.prouverLaPossession(defi, liaison)
-        } catch (e: NonConfirmeException) {
-            throw ErreurAnnuaire.NonConfirme
-        }
-        compte = ouverture(cle.clePublique, preuve)
+        compte = ouverture(signataire(activite))
     }
 
     suspend fun definirAlias(alias: String?) {

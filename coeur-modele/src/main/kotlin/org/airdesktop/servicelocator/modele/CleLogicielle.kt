@@ -11,10 +11,10 @@ import java.security.spec.ECGenParameterSpec
  * appareil : elle n'est protégée par rien. Elle vit ici, en Kotlin pur, pour
  * que les essais JVM signent sans Keystore.
  */
-class CleLogicielle {
+class CleLogicielle : Signataire {
     private val privee: PrivateKey
     /** SEC1 compressé, 33 octets. */
-    val clePublique: ByteArray
+    override val clePublique: ByteArray
 
     init {
         val paire = KeyPairGenerator.getInstance("EC").run {
@@ -25,12 +25,12 @@ class CleLogicielle {
         clePublique = P256.compresser(paire.public as ECPublicKey)
     }
 
-    /** ECDSA P-256 sur SHA-256, `r ‖ s`. */
-    fun signer(message: ByteArray): ByteArray = Signature.getInstance("SHA256withECDSA").run {
+    /** ECDSA P-256 sur SHA-256, `r ‖ s`. Synchrone : aucune biométrie ici. */
+    fun signerSync(message: ByteArray): ByteArray = Signature.getInstance("SHA256withECDSA").run {
         initSign(privee)
         update(message)
         P256.deplierDER(sign())
     }
 
-    fun prouverLaPossession(defi: ByteArray, liaison: ByteArray): ByteArray = signer(Messages.dePossession(clePublique, defi, liaison))
+    override suspend fun signer(message: ByteArray): ByteArray = signerSync(message)
 }

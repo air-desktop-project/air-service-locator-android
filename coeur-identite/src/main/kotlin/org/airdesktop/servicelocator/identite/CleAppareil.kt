@@ -8,10 +8,12 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.airdesktop.servicelocator.modele.Identifiant
-import org.airdesktop.servicelocator.modele.Messages
+import kotlinx.coroutines.withContext
+import org.airdesktop.servicelocator.modele.NonConfirmeException
 import org.airdesktop.servicelocator.modele.P256
+import org.airdesktop.servicelocator.modele.Signataire
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
@@ -19,33 +21,6 @@ import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 import kotlin.coroutines.resume
-
-/**
- * Ce qu'une clé d'appareil sait faire — et la seule chose que les écrans en
- * voient. Le Keystore matériel la met en œuvre sur un appareil ; une clé
- * logicielle la met en œuvre dans un essai.
- */
-interface Signataire {
-    /** La clé publique, SEC1 compressée : `02` ou `03` ‖ x — 33 octets. */
-    val clePublique: ByteArray
-
-    /**
-     * Signe en ECDSA P-256 sur SHA-256, et rend `r ‖ s` — 64 octets. C'est ici
-     * que la biométrie est demandée, et c'est pourquoi c'est `suspend`.
-     */
-    suspend fun signer(message: ByteArray): ByteArray
-
-    /** La preuve de possession de `POST /v1/comptes` : la clé signe le message qui la contient. */
-    suspend fun prouverLaPossession(defi: ByteArray, liaison: ByteArray): ByteArray =
-        signer(Messages.dePossession(clePublique, defi, liaison))
-
-    /** La signature d'authentification d'un appareil enrôlé. */
-    suspend fun authentifier(appareil: Identifiant, defi: ByteArray, liaison: ByteArray): ByteArray =
-        signer(Messages.aSigner(appareil, defi, liaison))
-}
-
-/** L'appareil n'a pas confirmé l'identité de son porteur : la clé n'a pas signé. */
-class NonConfirmeException : Exception("identité non confirmée")
 
 /**
  * La clé P-256 de cet appareil, dans le Keystore matériel, sous contrôle
@@ -126,13 +101,32 @@ class CleAppareil private constructor(private val privee: PrivateKey, val clePub
         }
     }
 
-    /** Le signataire, lié à l'activité qui affichera le prompt. */
-    fun avec(activite: FragmentActivity): Signataire = object : Signataire {
+    /** Le signataire, lié à l'activité qui affichera le prompt. Pour un geste unique, dans cette activité-là. */
+    fun avec(activite: FragmentActivity): Signataire = avec { activite }
+
+    /**
+     * Le signataire, qui demande **au moment de signer** quelle activité est
+     * devant le porteur.
+     *
+     * Un transport tenu vit plus longtemps qu'une activité : une rotation
+     * d'écran la détruit et la recrée, et une signature demandée après coup
+     * doit s'afficher dans la nouvelle. Lier le signataire à une activité
+     * précise l'aurait lié à une fenêtre morte. Sans activité au premier plan
+     * (l'application est derrière), il n'y a personne à qui demander : la clé
+     * ne signe pas, comme si le porteur avait refusé.
+     */
+    fun avec(activiteAuPremierPlan: () -> FragmentActivity?): Signataire = object : Signataire {
         override val clePublique = this@CleAppareil.clePublique
 
         override suspend fun signer(message: ByteArray): ByteArray {
             val signature = Signature.getInstance("SHA256withECDSA").apply { initSign(privee) }
-            val debloquee = confirmer(activite, signature) ?: throw NonConfirmeException()
+            // `BiometricPrompt` s'affiche depuis le fil principal, et de nulle
+            // part ailleurs ; la signature, elle, se fait où l'on est — le
+            // transport nous rappelle depuis un fil à lui.
+            val debloquee = withContext(Dispatchers.Main) {
+                val activite = activiteAuPremierPlan() ?: return@withContext null
+                confirmer(activite, signature)
+            } ?: throw NonConfirmeException()
             debloquee.update(message)
             return P256.deplierDER(debloquee.sign())
         }

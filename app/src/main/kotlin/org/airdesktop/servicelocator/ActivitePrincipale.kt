@@ -5,26 +5,16 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.fragment.app.FragmentActivity
 import org.airdesktop.servicelocator.composants.ThemeServiceLocator
-import org.airdesktop.servicelocator.identite.IdentiteLocale
-import org.airdesktop.servicelocator.reseau.AnnuaireSimule
-import org.airdesktop.servicelocator.reseau.Demonstration
 
 /**
- * Le point d'entrée.
- *
- * **L'annuaire est simulé** ([AnnuaireSimule]) tant que le transport de
- * `asl-client` n'est pas embarqué : les écrans parlent à l'interface
- * `Annuaire`, et c'est ici, et nulle part ailleurs, que l'on choisit qui
- * répond. Le jour où le client Rust arrive, cette composition change ; les
- * écrans, non.
+ * Le point d'entrée : une fenêtre sur la session, qui, elle, vit dans
+ * [ApplicationServiceLocator] — c'est là que l'on choisit qui répond aux
+ * écrans, et là que le transport survit à une rotation.
  *
  * `FragmentActivity` et non `ComponentActivity` : `BiometricPrompt` l'exige.
  */
 class ActivitePrincipale : FragmentActivity() {
-    private val session: Session by lazy {
-        val simule = AnnuaireSimule()
-        Session(simule, IdentiteLocale(this)) { cle, preuve -> Demonstration.ouvrirCompte(simule, cle, preuve) }
-    }
+    private val session: Session get() = (application as ApplicationServiceLocator).session
 
     override fun onCreate(etatSauvegarde: Bundle?) {
         super.onCreate(etatSauvegarde)

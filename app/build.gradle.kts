@@ -75,8 +75,39 @@ android {
         getByName("debug") {
             java.srcDirs("src/debug/kotlin", "../outils-capture")
         }
+        // ── LE TRANSPORT, EN OBJET PARTAGÉ, DEPUIS LE DÉPÔT CLIENT ────────────
+        //
+        // `libasl_client_android.so` est PRODUIT par `scripts/construire-mobile.sh`
+        // du dépôt `air-service-locator-client`, cloné à côté de celui-ci, et
+        // n'est versionné nulle part : c'est une sortie. `arm64-v8a` seulement —
+        // c'est ce qu'un téléphone est.
+        getByName("main") {
+            jniLibs.srcDirs("../../air-service-locator-client/target/mobile/jniLibs")
+        }
     }
 }
+
+// ── L'ANNUAIRE DE TEST VIENT DE `local.properties` ───────────────────────────
+//
+// Une adresse sur un réseau, le nom d'un certificat, et la racine qui l'a
+// signé : propres à une machine, jamais versionnés. Absents, l'application
+// tourne sur le banc en mémoire.
+//
+//     asl.annuaire.adresse=192.0.2.1:6630
+//     asl.annuaire.nom=annuaire
+//     asl.annuaire.racines=/chemin/vers/racine.pem
+val annuaireDeTest: Triple<String, String, String> = run {
+    val fichier = rootProject.file("local.properties")
+    if (!fichier.exists()) return@run Triple("", "", "")
+    val proprietes = Properties().apply { fichier.inputStream().use { load(it) } }
+    val racines = proprietes.getProperty("asl.annuaire.racines", "").let { chemin ->
+        if (chemin.isEmpty()) "" else file(chemin).takeIf { it.exists() }?.readText().orEmpty()
+    }
+    Triple(proprietes.getProperty("asl.annuaire.adresse", ""), proprietes.getProperty("asl.annuaire.nom", ""), racines)
+}
+android.defaultConfig.buildConfigField("String", "ANNUAIRE_ADRESSE", "\"${annuaireDeTest.first}\"")
+android.defaultConfig.buildConfigField("String", "ANNUAIRE_NOM", "\"${annuaireDeTest.second}\"")
+android.defaultConfig.buildConfigField("String", "ANNUAIRE_RACINES", "\"${annuaireDeTest.third.replace("\n", "\\n")}\"")
 
 // ── LE NUMÉRO DU PROJET GOOGLE CLOUD VIENT DE `local.properties` ─────────────
 //

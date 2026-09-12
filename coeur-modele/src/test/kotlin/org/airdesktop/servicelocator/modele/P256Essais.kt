@@ -63,7 +63,7 @@ class P256Essais {
     fun uneSignatureEstRSSurSoixanteQuatreOctetsEtVerifieSousLaCle() {
         val cle = CleLogicielle()
         val message = "un message quelconque".toByteArray()
-        val signature = cle.signer(message)
+        val signature = cle.signerSync(message)
         assertEquals(64, signature.size)
         assertTrue(P256.verifie(cle.clePublique, message, signature))
         assertFalse(P256.verifie(cle.clePublique, message + 0, signature))
@@ -88,7 +88,7 @@ class P256Essais {
     fun laSignatureCouvreLeSHA256DuMessage() {
         val cle = CleLogicielle()
         val message = "air-service-locator".toByteArray()
-        val signature = cle.signer(message)
+        val signature = cle.signerSync(message)
         val condensat = MessageDigest.getInstance("SHA-256").digest(message)
         val ok = Signature.getInstance("NONEwithECDSA").run {
             initVerify(P256.decompresser(cle.clePublique))
