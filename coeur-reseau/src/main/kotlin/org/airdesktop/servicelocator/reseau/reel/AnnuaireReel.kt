@@ -64,7 +64,44 @@ class AnnuaireReel(
     private val signataire: () -> Signataire,
 ) : Annuaire {
     /** Où est l'annuaire, sous quel nom, et qui a signé son certificat. */
+    /**
+     * Où est l'annuaire, sous quel nom, et qui a signé son certificat.
+     *
+     * `adresse` est `hôte:port` — l'hôte est une adresse littérale ou un nom.
+     * Un nom se résout ICI, par le résolveur du téléphone : la bibliothèque
+     * n'embarque pas de client DNS (`annuaires.md`), et ne prend que des
+     * adresses littérales. `nom` est celui qu'on EXIGE du certificat, jamais
+     * déduit de l'adresse.
+     */
     data class Reglages(val adresse: String, val nom: String, val racinesPEM: ByteArray)
+
+    companion object {
+        /**
+         * Les adresses littérales de l'annuaire, IPv6 d'abord : celle donnée si
+         * c'en est une, sinon ce que le résolveur rend pour le nom. Aucune
+         * adresse est une faute de réglage, dite comme telle.
+         */
+        fun adressesLitterales(hotePort: String): List<String> {
+            val deuxPoints = hotePort.lastIndexOf(':').takeIf { it > 0 }
+                ?: throw ErreurAnnuaire.RequeteInvalide("adresse d'annuaire « $hotePort » : hôte:port attendu")
+            val port = hotePort.substring(deuxPoints + 1).toIntOrNull()
+                ?: throw ErreurAnnuaire.RequeteInvalide("adresse d'annuaire « $hotePort » : port invalide")
+            val hote = hotePort.substring(0, deuxPoints).removePrefix("[").removeSuffix("]")
+            if (hote.contains(':') || hote.all { it.isDigit() || it == '.' }) {
+                return listOf(if (hote.contains(':')) "[$hote]:$port" else "$hote:$port")
+            }
+            val adresses = try {
+                java.net.InetAddress.getAllByName(hote).toList()
+            } catch (e: java.net.UnknownHostException) {
+                throw ErreurAnnuaire.Reseau("« $hote » ne se résout pas")
+            }
+            // IPv6 d'abord ; et le résolveur peut rendre deux fois la même.
+            return (adresses.filterIsInstance<java.net.Inet6Address>() + adresses.filterIsInstance<java.net.Inet4Address>())
+                .mapNotNull { a -> a.hostAddress?.let { if (a is java.net.Inet6Address) "[${it.substringBefore('%')}]:$port" else "$it:$port" } }
+                .distinct()
+                .ifEmpty { throw ErreurAnnuaire.Reseau("« $hote » ne rend aucune adresse") }
+        }
+    }
 
     class ErreurNative(val code: Int) : Exception("natif : ${Natif.fauteTexte(code)} ($code)")
 
@@ -91,7 +128,10 @@ class AnnuaireReel(
             Log.e("annuaire", Natif.diagnostic())
             throw ErreurNative(Natif.INTERNE)
         }
-        exiger(Natif.annuaire(neuf, reglages.adresse, reglages.nom), "annuaire")
+        for (adresse in adressesLitterales(reglages.adresse)) {
+            Log.d("annuaire", "annuaire $adresse (nom exigé ${reglages.nom})")
+            exiger(Natif.annuaire(neuf, adresse, reglages.nom), "annuaire")
+        }
         exiger(Natif.racines(neuf, reglages.racinesPEM), "racines")
         val cle = signataire()
         cleCourante = cle
