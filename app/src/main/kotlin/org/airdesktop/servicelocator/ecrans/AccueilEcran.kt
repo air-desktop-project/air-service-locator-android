@@ -21,6 +21,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import org.airdesktop.servicelocator.R
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -136,13 +140,13 @@ private fun Argument(icone: ImageVector, titre: String, texte: String) {
     }
 }
 
-/** PROVISOIRE : aucun logo « Air » n'existe encore. Une pastille, en attendant. */
+/** L'icône de l'application, telle que le lanceur la montre : le fond et le motif de l'icône adaptative, sous les coins arrondis. */
 @Composable
 fun Logo(taille: androidx.compose.ui.unit.Dp) {
-    Box(
-        Modifier.size(taille).background(Couleurs.accent, RoundedCornerShape(taille * 0.22f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(Icones.machine, null, tint = Color.White, modifier = Modifier.size(taille * 0.5f))
+    Box(Modifier.size(taille).clip(RoundedCornerShape(taille * 0.22f))) {
+        // L'icône adaptative fait 108 dp pour 72 dp de zone sûre : on l'agrandit
+        // de 1,5 pour que le motif occupe la case, comme le lanceur le fait.
+        Image(painterResource(R.drawable.ic_launcher_background), null, Modifier.size(taille * 1.5f).align(Alignment.Center))
+        Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(taille * 1.5f).align(Alignment.Center))
     }
 }

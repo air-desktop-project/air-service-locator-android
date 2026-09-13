@@ -90,6 +90,13 @@ clé du Keystore. La classe faible rend un booléen, et rien de plus.
 tournent sur la JVM en quelques secondes, sans émulateur. C'est la frontière des
 étages 1 et 2 du dépôt serveur, appliquée ici.
 
+## L'icône
+
+Elle vient du dépôt iOS, `Outils/Icone/generer.py` : un seul dessin pour
+iOS, macOS et Android. Les deux VectorDrawable de `res/drawable/`
+(`ic_launcher_foreground.xml`, `ic_launcher_background.xml`) en sont la
+sortie, copiée telle quelle — on la retouche là-bas, jamais ici.
+
 ## Construire
 
 ```sh
