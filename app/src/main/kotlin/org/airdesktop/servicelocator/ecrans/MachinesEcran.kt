@@ -85,7 +85,8 @@ private fun LigneEnAttente(machine: Machine, ouvrir: () -> Unit) {
     var maintenant by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) { while (true) { delay(1_000); maintenant = Instant.now() } }
     val sous = when (val cle = machine.cle) {
-        is Machine.Cle.Attendue -> sousTitreCode(cle.code, maintenant)
+        // Déclarée d'un autre appareil : le code n'est connu que de lui.
+        is Machine.Cle.Attendue -> cle.code?.let { sousTitreCode(it, maintenant) } ?: "Pas de clé — émettez un code d'enrôlement"
         is Machine.Cle.Revoquee -> cle.code?.let { sousTitreCode(it, maintenant) } ?: "Clé révoquée — émettez un code pour ré-enrôler"
         is Machine.Cle.Enrolee -> ""
     }

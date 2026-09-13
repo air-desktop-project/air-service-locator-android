@@ -77,16 +77,34 @@ fun CompteEcran(nav: NavController) {
             }
             item { SousTitre("Appareils") }
             items(appareils, key = { it.id.texte }) { appareil ->
-                val icone = if (appareil.biometrie == Appareil.Biometrie.VISAGE) Icones.visage else Icones.empreinte
+                val icone = when (appareil.biometrie) {
+                    Appareil.Biometrie.VISAGE -> Icones.visage
+                    Appareil.Biometrie.EMPREINTE -> Icones.empreinte
+                    null -> Icones.telephone
+                }
                 val teinte = if (appareil.estRevoque) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant
                 // L'annuaire ne connaît aucun nom : celui de cet appareil vient du téléphone lui-même.
                 val nom = if (appareil.estCeluiCi) "${Build.MANUFACTURER} ${Build.MODEL}" else appareil.nom
-                val sous = appareil.revoqueLe?.let { "Révoqué le ${Formats.jour(it)}" }
-                    ?: buildString {
-                        if (appareil.estCeluiCi) append("Cet appareil · ")
-                        append("enrôlé le ${Formats.jour(appareil.enroleLe)} · ")
-                        append(if (appareil.biometrie == Appareil.Biometrie.VISAGE) "visage" else "empreinte")
-                    }
+                // Ce que l'on sait, et rien de plus : une date quand cet appareil l'a vue, l'attestation quand l'annuaire l'a rendue.
+                val sous = if (appareil.estRevoque) {
+                    appareil.revoqueLe?.let { "Révoqué le ${Formats.jour(it)}" } ?: "Révoqué"
+                } else {
+                    buildList {
+                        if (appareil.estCeluiCi) add("Cet appareil")
+                        add(appareil.enroleLe?.let { "enrôlé le ${Formats.jour(it)}" } ?: "enrôlé")
+                        when (appareil.biometrie) {
+                            Appareil.Biometrie.VISAGE -> add("visage")
+                            Appareil.Biometrie.EMPREINTE -> add("empreinte")
+                            null -> Unit
+                        }
+                        when (appareil.attestation) {
+                            Appareil.Attestation.APPLE -> add("attesté par Apple")
+                            Appareil.Attestation.GOOGLE -> add("attesté par Google")
+                            Appareil.Attestation.AUCUNE -> add("sans attestation")
+                            null -> Unit
+                        }
+                    }.joinToString(" · ")
+                }
                 ListItem(
                     leadingContent = { Icon(icone, null, tint = teinte) },
                     headlineContent = { Text(nom, color = if (appareil.estRevoque) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface) },

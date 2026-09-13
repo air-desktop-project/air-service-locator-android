@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -209,6 +211,11 @@ fun ReceptionInvitation(attendu: String, surInvitation: (Invitation) -> Unit) {
             value = texte, onValueChange = { texte = it }, label = { Text("ou collez-le ici") },
             modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4,
             textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            // Un code, pas une phrase : le clavier n'a rien à y corriger — il
+            // ferait de `cle` un `clé`. `Uri` est le type que les claviers
+            // respectent vraiment sur ce point ; `autoCorrect = false` seul
+            // ne suffit pas à Gboard.
+            keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Uri),
             isError = refus != null, supportingText = { Text(refus ?: attendu) },
         )
         if (texte.isNotBlank()) {

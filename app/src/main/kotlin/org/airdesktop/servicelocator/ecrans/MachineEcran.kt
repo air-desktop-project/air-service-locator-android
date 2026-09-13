@@ -200,7 +200,7 @@ fun LigneService(service: Service, modifier: Modifier = Modifier) {
 @Composable
 private fun LigneCle(machine: Machine) {
     val (icone, teinte, texte) = when (val cle = machine.cle) {
-        is Machine.Cle.Enrolee -> Triple(Icones.coche, Couleurs.joignable, "enrôlée ${Formats.relatif(cle.le)}")
+        is Machine.Cle.Enrolee -> Triple(Icones.coche, Couleurs.joignable, cle.le?.let { "enrôlée ${Formats.relatif(it)}" } ?: "enrôlée")
         is Machine.Cle.Attendue -> Triple(Icones.horloge, Couleurs.attention, "pas encore enrôlée")
         is Machine.Cle.Revoquee -> Triple(Icones.croix, Couleurs.erreur, "révoquée ${Formats.relatif(cle.le)}")
     }

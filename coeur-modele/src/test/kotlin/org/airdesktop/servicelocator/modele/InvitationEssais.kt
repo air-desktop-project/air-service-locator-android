@@ -40,6 +40,8 @@ class InvitationEssais {
         assertTrue(montree.texte.startsWith("asl:cle:"))
         assertEquals(montree, Invitation.analyser(montree.texte))
         assertEquals(montree, Invitation.analyser(" " + montree.texte.lowercase() + "\n"))
+        // Un clavier a « corrigé » le préfixe : on lit quand même.
+        assertEquals(montree, Invitation.analyser(montree.texte.replace("asl:cle:", "asl:clé:")))
 
         val compte = Identifiant(Genre.UTILISATEUR, ByteArray(16) { 3 })
         val appareil = Identifiant(Genre.APPAREIL, ByteArray(16) { 9 })

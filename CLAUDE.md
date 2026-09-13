@@ -39,9 +39,10 @@ Ce qui manque, dans l'ordre où ça se fera :
    natif rappelle depuis son fil ; `BiometricPrompt` s'affiche sur le fil
    principal, dans l'activité au premier plan *au moment de signer*), la
    connexion tenue par `ApplicationServiceLocator` — pas par l'activité, qu'une
-   rotation recrée. Ce que le serveur ne rend pas encore vient d'un `Carnet`
-   local (SharedPreferences) et l'écran le dit : les manques sont listés dans
-   le `CLAUDE.md` du dépôt client, à l'attention de speedy.
+   rotation recrée. Le serveur (`2cf05dc`) rend les machines, les appareils,
+   les services nommés avec leur état ; le `Carnet` local (SharedPreferences)
+   ne garde que ce qu'il ne range pas — dates, code en cours, révocation — et
+   l'écran dit « inconnu » plutôt qu'une date inventée.
 3. **La capture Play Integrity** (`outils-capture/`), qui exige un projet
    Google Cloud (fait, le numéro est dans `local.properties`) et l'app dans la
    Play Console (à faire).
@@ -53,8 +54,7 @@ Ce qui manque, dans l'ordre où ça se fera :
    avec CameraX). Les expositions restent un libellé tant que le serveur rend
    `501`.
 5. Un état de chargement au lancement : l'accueil apparaît un instant avant
-   que le compte soit relu. Et le nom d'un service, l'état d'une clé, la liste
-   des appareils enrôlés ailleurs : dès que le serveur les rend.
+   que le compte soit relu.
 
 Tu es sur un Mac (oxygen) avec le SDK Android ; un **Fairphone 5** est branché
 en USB (`adb devices`), avec une empreinte enrôlée.

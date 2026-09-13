@@ -188,7 +188,11 @@ val Service.libelleEtat: String
 val Service.detailEtat: String
     get() = when (val e = etat) {
         is Service.Etat.Annonce -> resume?.detail ?: ""
-        is Service.Etat.Parti -> "${if (e.volontaire) "arrêt volontaire" else "inactivité"}, ${Formats.relatif(e.le)}"
+        // La date n'est connue que si l'on a vu le départ, et le motif pas toujours : l'annuaire n'en range ni l'un ni l'autre.
+        is Service.Etat.Parti -> listOfNotNull(
+            e.volontaire?.let { if (it) "arrêt volontaire" else "inactivité" } ?: "motif inconnu",
+            e.le?.let { Formats.relatif(it) },
+        ).joinToString(", ")
     }
 
 /** Le point dit si la machine tient une connexion à l'annuaire. Il ne dit pas qu'un service est joignable. */

@@ -23,17 +23,31 @@ data class Machine(
     val cle: Cle,
     val services: List<Service> = emptyList(),
 ) {
-    /** Ce que l'annuaire sait de la clé Ed25519 de la machine. */
+    /**
+     * Ce que l'annuaire sait de la clé Ed25519 de la machine.
+     *
+     * # Ce que l'annuaire dit, et ce que cet appareil sait en plus
+     *
+     * L'annuaire rend deux états — `attendue`, `enrolee` — et rien d'autre : il
+     * ne range ni horodatage, ni le code en cours (gardé par son empreinte
+     * seulement), ni la trace d'une révocation. Le code n'est donc connu que du
+     * téléphone qui l'a fait émettre ; la date d'enrôlement, la révocation, de
+     * celui qui a agi. D'où les `null` : « cet appareil ne le sait pas », jamais
+     * « ça n'a pas eu lieu ».
+     */
     sealed interface Cle {
         /**
          * Déclarée, pas encore enrôlée : la clé n'existe pas encore. Elle sera
-         * générée SUR la machine, et sa partie privée n'en sortira jamais.
+         * générée SUR la machine, et sa partie privée n'en sortira jamais. Le
+         * code est celui émis d'ici, s'il y en a un.
          */
-        data class Attendue(val code: CodeEnrolement) : Cle
-        data class Enrolee(val le: Instant) : Cle
+        data class Attendue(val code: CodeEnrolement? = null) : Cle
+        data class Enrolee(val le: Instant? = null) : Cle
         /**
          * Révoquée depuis l'application : connexions fermées, baux tombés. La
          * machine reste — nom, capacités, services — et attend un nouveau code.
+         * L'annuaire ne distingue pas une clé révoquée d'une clé jamais posée ;
+         * seul l'appareil qui a révoqué le sait, et depuis quand.
          */
         data class Revoquee(val le: Instant, val code: CodeEnrolement? = null) : Cle
     }

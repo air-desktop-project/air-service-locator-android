@@ -32,13 +32,13 @@ machines, et voir quels daemons y écoutent — et sur quel port.
 > contre un serveur `asl-server` : compte, machine, enrôlement par
 > `asl enrole`, annonce, service joignable.
 >
-> Ce que le serveur ne sait pas encore rendre s'affiche tel quel, sans être
-> deviné : la liste des machines et des appareils vient d'un carnet local
-> (`GET /v1/machines` et `GET /v1/appareils` n'existent pas encore), un
-> service porte son identifiant abrégé en guise de nom, et l'état de clé
-> d'une machine est celui que cet appareil connaît. Une chose est dite « pas
-> encore possible » à l'écran plutôt que simulée : les expositions (`501` côté
-> serveur).
+> **Le serveur fait foi** : la liste des machines, des appareils, des
+> services avec leur nom et leur état viennent de lui (serveur `2cf05dc`).
+> Ce qu'il ne range pas — les dates, le code d'enrôlement en cours, la trace
+> d'une révocation — n'est connu que du téléphone qui a agi, et s'affiche
+> quand il le sait, jamais inventé : « enrôlée » sans date vaut « enrôlée
+> depuis un autre appareil ». Une chose est dite « pas encore possible » à
+> l'écran plutôt que simulée : les expositions (`501` côté serveur).
 >
 > **Un second appareil s'enrôle par un échange de QR codes** (`POST
 > /v1/appareils`, `coeur-modele/Invitation.kt`) : le nouveau montre sa clé

@@ -49,7 +49,11 @@ sealed interface Invitation {
         /** Lit une invitation, ou rend `null` : un QR étranger, une faute de frappe. */
         fun analyser(texte: String): Invitation? {
             val propre = texte.trim()
-            val minuscules = propre.lowercase()
+            // Un clavier trop zélé fait de `cle` un `clé` : le préfixe se lit
+            // sans ses accents, le corps ne peut pas en porter.
+            // (Un `é` composé occupe un caractère, comme le `e` qu'il remplace :
+            // les positions ne bougent pas.)
+            val minuscules = java.text.Normalizer.normalize(propre.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}"), "")
             if (minuscules.startsWith(PREFIXE_CLE)) {
                 val octets = Crockford.octets(propre.substring(PREFIXE_CLE.length), Messages.CLE_OCTETS) ?: return null
                 if (octets[0] != 0x02.toByte() && octets[0] != 0x03.toByte()) return null

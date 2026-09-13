@@ -111,10 +111,10 @@ class AnnuaireSimuleEssais {
     @Test
     fun declarerRendUnCodeEtPasDeCle() = avecCompte { annuaire ->
         val machine = annuaire.declarerMachine("grenier", setOf(Capacite.ANNONCE))
-        val cle = machine.cle as Machine.Cle.Attendue
-        assertEquals(10, cle.code.symboles.length)
-        assertTrue(cle.code.estValide(instant.plusSeconds(599)))
-        assertTrue(!cle.code.estValide(instant.plusSeconds(600)))
+        val code = (machine.cle as Machine.Cle.Attendue).code ?: error("une machine déclarée attend son code")
+        assertEquals(10, code.symboles.length)
+        assertTrue(code.estValide(instant.plusSeconds(599)))
+        assertTrue(!code.estValide(instant.plusSeconds(600)))
     }
 
     @Test

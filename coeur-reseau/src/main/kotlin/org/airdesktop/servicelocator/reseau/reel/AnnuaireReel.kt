@@ -47,13 +47,16 @@ import java.time.Instant
  * bloque le fil qui l'a provoqué le temps du geste. Tout passe donc par un
  * verrou, sur `Dispatchers.IO`.
  *
- * # Ce que le serveur ne sert pas encore, et comment on l'attend
+ * # Ce que le serveur rend, et ce que le carnet sait en plus
  *
- * `GET /v1/machines` et `GET /v1/appareils` n'existent pas encore côté serveur
- * (voir `CLAUDE.md` du dépôt client). Les machines que CET appareil a
- * déclarées sont donc retenues localement ([Carnet]) : un second appareil du
- * même compte ne les verrait pas. Le jour où le verbe existe, [machines] le
- * préfère, et le carnet n'est plus qu'un cache.
+ * `GET /v1/machines` et `GET /v1/appareils` rendent ce qui est RANGÉ, et le
+ * serveur ne range ni horodatage, ni code d'enrôlement, ni la trace d'une
+ * révocation (voir `CLAUDE.md` du dépôt client, « résolu »). **Le serveur fait
+ * foi pour ce qu'il rend** — la liste, les noms, les capacités, la clé posée ou
+ * non — et le [Carnet] local complète avec ce que CE téléphone a vu faire : le
+ * code qu'il a fait émettre, la date à laquelle il a révoqué une clé ou enrôlé
+ * un appareil. Ce que ni l'un ni l'autre ne sait reste `null`, et l'écran le
+ * dit.
  */
 class AnnuaireReel(
     contexte: Context,
@@ -231,25 +234,48 @@ class AnnuaireReel(
 
     override suspend fun machines(): List<Machine> {
         val (statut, corps) = surLeFil { requete("GET", "/v1/machines") }
-        val machines = if (statut == 200) {
-            val liste = JSONArray(corps)
-            (0 until liste.length()).mapNotNull { machine(liste.getJSONObject(it)) }.also { carnet.machines = it }
-        } else {
-            // Le verbe n'existe pas encore : ce que cet appareil a déclaré.
-            carnet.machines
-        }
+        if (statut != 200) throw refus(statut)
+        val connues = carnet.machines
+        val liste = JSONArray(corps)
+        val machines = (0 until liste.length()).mapNotNull { machine(liste.getJSONObject(it)) }
+            .map { rendue -> connues.firstOrNull { it.id == rendue.id }?.let { completer(rendue, it) } ?: rendue }
+        // Le serveur fait foi : une machine qu'il ne rend plus n'est plus.
+        carnet.machines = machines
         return machines.map { it.copy(services = runCatching { services(it.id) }.getOrDefault(emptyList())) }
     }
 
+    /**
+     * Une machine telle que `GET /v1/machines` la rend : `enrolee` ou
+     * `attendue`, sans date ni code. Les champs plus riches que le protocole
+     * décrit sont lus s'ils viennent un jour, jamais inventés.
+     */
     private fun machine(objet: JSONObject): Machine? {
         val id = runCatching { Identifiant.analyser(objet.getString("machine"), Genre.MACHINE) }.getOrNull() ?: return null
         val capacites = objet.optJSONArray("capacites")?.let { c -> (0 until c.length()).mapNotNull { i -> Capacite.entries.firstOrNull { it.libelle == c.getString(i) } } }.orEmpty().toSet()
         val cle = when (objet.optString("cle")) {
-            "enrolee" -> Machine.Cle.Enrolee(millis(objet, "enrolee_a") ?: Instant.now())
+            "enrolee" -> Machine.Cle.Enrolee(millis(objet, "enrolee_a"))
             "revoquee" -> Machine.Cle.Revoquee(millis(objet, "revoquee_a") ?: Instant.now(), code(objet))
-            else -> Machine.Cle.Attendue(code(objet) ?: CodeEnrolement("0000000000", Instant.EPOCH))
+            else -> Machine.Cle.Attendue(code(objet))
         }
         return Machine(id, objet.getString("nom"), capacites, cle)
+    }
+
+    /**
+     * Ce que le serveur rend, complété de ce que cet appareil sait : le code
+     * qu'il a fait émettre tant qu'il vaut, la révocation qu'il a faite, la date
+     * d'enrôlement s'il l'a vue. Le serveur ne distingue pas « révoquée » de
+     * « jamais posée » : quand il dit `attendue` et que le carnet dit
+     * `revoquee`, le carnet en sait plus.
+     */
+    private fun completer(rendue: Machine, connue: Machine): Machine {
+        val cle = rendue.cle
+        val locale = connue.cle
+        return when {
+            cle is Machine.Cle.Attendue && cle.code == null && locale is Machine.Cle.Attendue -> rendue.copy(cle = locale)
+            cle is Machine.Cle.Attendue && cle.code == null && locale is Machine.Cle.Revoquee -> rendue.copy(cle = locale)
+            cle is Machine.Cle.Enrolee && cle.le == null && locale is Machine.Cle.Enrolee -> rendue.copy(cle = locale)
+            else -> rendue
+        }
     }
 
     /** Le code que l'annuaire rend : dix symboles, groupés ou non, et sa date. */
@@ -306,14 +332,27 @@ class AnnuaireReel(
         carnet.machines.firstOrNull { it.id == machine }?.let { carnet.remplacer(it.copy(cle = Machine.Cle.Revoquee(Instant.now()))) }
     }
 
-    /** `GET /v1/machines/{m}/services` — ce que l'annuaire en rend aujourd'hui : les réponses d'annonce des services vivants, sans leur nom. */
+    /**
+     * `GET /v1/machines/{m}/services` — chaque service déclaré, avec son nom et
+     * son état ; pour un service vivant, la réponse d'annonce du serveur,
+     * réémise telle quelle sous `annonce` (c'est le même objet que `GET /v1/ou`,
+     * et il n'est pas aplati pour ne pas exister deux fois). Aucune date : le
+     * serveur n'en range pas.
+     */
     private suspend fun services(machine: Identifiant): List<Service> {
         val (statut, corps) = surLeFil { requete("GET", "/v1/machines/${machine.texte}/services") }
         if (statut != 200) return emptyList()
         val liste = JSONArray(corps)
         return (0 until liste.length()).mapNotNull { i ->
-            val objet = liste.getJSONObject(i)
-            val id = runCatching { Identifiant.analyser(objet.getString("service"), Genre.SERVICE) }.getOrNull() ?: return@mapNotNull null
+            val enveloppe = liste.getJSONObject(i)
+            val id = runCatching { Identifiant.analyser(enveloppe.getString("service"), Genre.SERVICE) }.getOrNull() ?: return@mapNotNull null
+            val nom = enveloppe.optString("nom").ifEmpty { id.abrege }
+            val objet = enveloppe.optJSONObject("annonce")
+            if (enveloppe.optString("etat") != "annonce" || objet == null) {
+                // Parti — et le serveur ne sait plus toujours si c'était voulu.
+                val volontaire = if (enveloppe.isNull("volontaire")) null else enveloppe.optBoolean("volontaire")
+                return@mapNotNull Service(id, nom, emptyList(), Service.Etat.Parti(volontaire, millis(enveloppe, "parti_a")))
+            }
             val points = mutableListOf<PointEcoute>()
             val joignabilite = mutableMapOf<PointEcoute, Joignabilite>()
             val candidats = mutableListOf<Candidat>()
@@ -342,8 +381,7 @@ class AnnuaireReel(
                 keepaliveSecondes = if (objet.has("keepalive_secondes")) objet.getInt("keepalive_secondes") else null,
                 inactiviteSecondes = if (objet.has("inactivite_secondes")) objet.getInt("inactivite_secondes") else null,
             )
-            // Le nom manque : l'annuaire ne le rend pas encore. L'identifiant abrégé tient sa place, et l'écran ne ment pas.
-            Service(id, id.abrege, points, Service.Etat.Annonce(Instant.now()), joignabilite, candidats, diagnostic = diagnostic)
+            Service(id, nom, points, Service.Etat.Annonce(millis(enveloppe, "annonce_a") ?: Instant.now()), joignabilite, candidats, diagnostic = diagnostic)
         }
     }
 
@@ -357,22 +395,45 @@ class AnnuaireReel(
 
     // ── Appareils ─────────────────────────────────────────────────────────────
 
+    /**
+     * `GET /v1/appareils` — l'identifiant, l'attestation, révoqué ou non ; pas
+     * de date. Cet appareil-ci et ceux qu'il a enrôlés portent en plus ce que
+     * le carnet en a retenu. L'index du serveur ne remonte pas avant sa mise en
+     * place : un appareil absent de sa liste mais connu d'ici est ajouté, parce
+     * qu'il existe — on est dessus, ou on l'a enrôlé.
+     */
     override suspend fun appareils(): List<Appareil> {
         val (statut, corps) = surLeFil { requete("GET", "/v1/appareils") }
-        if (statut == 200) {
-            val liste = JSONArray(corps)
-            return (0 until liste.length()).mapNotNull { i ->
-                val objet = liste.getJSONObject(i)
-                val id = runCatching { Identifiant.analyser(objet.getString("appareil"), Genre.APPAREIL) }.getOrNull() ?: return@mapNotNull null
-                Appareil(id, id.abrege, Appareil.Biometrie.EMPREINTE, millis(objet, "enrole_a") ?: Instant.now(), millis(objet, "revoque_a"), id == carnet.appareil)
+        if (statut != 200) throw refus(statut)
+        val liste = JSONArray(corps)
+        val appareils = (0 until liste.length()).mapNotNull { i ->
+            val objet = liste.getJSONObject(i)
+            val id = runCatching { Identifiant.analyser(objet.getString("appareil"), Genre.APPAREIL) }.getOrNull() ?: return@mapNotNull null
+            Appareil(
+                id, "Autre appareil", enroleLe = millis(objet, "enrole_a"), revoqueLe = millis(objet, "revoque_a"),
+                attestation = Appareil.Attestation.entries.firstOrNull { it.libelle == objet.optString("attestation") },
+            ).revoque(objet.optBoolean("revoque", false))
+        }.toMutableList()
+        carnet.appareil?.let { moi ->
+            val indice = appareils.indexOfFirst { it.id == moi }
+            val local = Appareil(moi, "Cet appareil", Appareil.Biometrie.EMPREINTE, carnet.enroleLe, estCeluiCi = true)
+            if (indice >= 0) {
+                val rendu = appareils[indice]
+                appareils[indice] = rendu.copy(nom = local.nom, biometrie = local.biometrie, enroleLe = rendu.enroleLe ?: local.enroleLe, estCeluiCi = true)
+            } else {
+                appareils.add(0, local)
             }
         }
-        // Le verbe n'existe pas encore : cet appareil, et ceux qu'il a
-        // enrôlés lui-même. Un appareil enrôlé depuis un autre téléphone n'y
-        // paraît pas, et l'écran le dit.
-        val moi = carnet.appareil ?: return emptyList()
-        return listOf(Appareil(moi, "Cet appareil", Appareil.Biometrie.EMPREINTE, carnet.enroleLe ?: Instant.now(), estCeluiCi = true)) +
-            carnet.appareilsEnrolesDIci.map { Appareil(it.id, "Autre appareil", Appareil.Biometrie.EMPREINTE, it.le, it.revoqueLe) }
+        for (enrole in carnet.appareilsEnrolesDIci) {
+            val indice = appareils.indexOfFirst { it.id == enrole.id }
+            if (indice >= 0) {
+                val rendu = appareils[indice]
+                appareils[indice] = rendu.copy(enroleLe = rendu.enroleLe ?: enrole.le, revoqueLe = rendu.revoqueLe ?: enrole.revoqueLe)
+            } else {
+                appareils += Appareil(enrole.id, "Autre appareil", enroleLe = enrole.le, revoqueLe = enrole.revoqueLe)
+            }
+        }
+        return appareils
     }
 
     override suspend fun enrolerAppareil(cle: ByteArray): Appareil {
@@ -385,7 +446,7 @@ class AnnuaireReel(
         val id = Identifiant.analyser(JSONObject(rendu).getString("appareil"), Genre.APPAREIL)
         val enrole = Carnet.AppareilEnrole(id, Instant.now(), null)
         carnet.appareilsEnrolesDIci = carnet.appareilsEnrolesDIci + enrole
-        return Appareil(id, "Autre appareil", Appareil.Biometrie.EMPREINTE, enrole.le)
+        return Appareil(id, "Autre appareil", enroleLe = enrole.le)
     }
 
     override suspend fun revoquerAppareil(id: Identifiant) {
@@ -435,8 +496,9 @@ class AnnuaireReel(
             is Autorisation.Portee.Machine -> portee.id.texte
             is Autorisation.Portee.Service -> portee.id.texte
         }
-        // `etiquette` n'est pas encore un champ du serveur ; elle ne part pas.
-        val corps = JSONObject().put("a", beneficiaire.texte).put("portee", porteeTexte)
+        // L'étiquette est REQUISE par le serveur : c'est ce qu'on relira le
+        // jour où l'on révoque (`modele.md` §2.5).
+        val corps = JSONObject().put("a", beneficiaire.texte).put("portee", porteeTexte).put("etiquette", etiquette)
         val (statut, rendu) = surLeFil { requete("POST", "/v1/autorisations", corps.toString()) }
         if (statut != 201) throw refus(statut)
         val compte = carnet.compte ?: throw ErreurAnnuaire.Introuvable
@@ -512,8 +574,8 @@ class Carnet(contexte: Context) {
         put("nom", machine.nom)
         put("capacites", JSONArray(machine.capacites.map { it.libelle }))
         when (val cle = machine.cle) {
-            is Machine.Cle.Attendue -> { put("cle", "attendue"); put("code", cle.code.symboles); put("expire_le", cle.code.expireLe.toEpochMilli()) }
-            is Machine.Cle.Enrolee -> { put("cle", "enrolee"); put("enrolee_le", cle.le.toEpochMilli()) }
+            is Machine.Cle.Attendue -> { put("cle", "attendue"); cle.code?.let { put("code", it.symboles); put("expire_le", it.expireLe.toEpochMilli()) } }
+            is Machine.Cle.Enrolee -> { put("cle", "enrolee"); cle.le?.let { put("enrolee_le", it.toEpochMilli()) } }
             is Machine.Cle.Revoquee -> {
                 put("cle", "revoquee"); put("revoquee_le", cle.le.toEpochMilli())
                 cle.code?.let { put("code", it.symboles); put("expire_le", it.expireLe.toEpochMilli()) }
@@ -526,9 +588,9 @@ class Carnet(contexte: Context) {
         val capacites = objet.getJSONArray("capacites").let { c -> (0 until c.length()).mapNotNull { i -> Capacite.entries.firstOrNull { it.libelle == c.getString(i) } } }.toSet()
         val code = if (objet.has("code")) CodeEnrolement(objet.getString("code"), Instant.ofEpochMilli(objet.getLong("expire_le"))) else null
         val cle = when (objet.getString("cle")) {
-            "enrolee" -> Machine.Cle.Enrolee(Instant.ofEpochMilli(objet.getLong("enrolee_le")))
+            "enrolee" -> Machine.Cle.Enrolee(if (objet.has("enrolee_le")) Instant.ofEpochMilli(objet.getLong("enrolee_le")) else null)
             "revoquee" -> Machine.Cle.Revoquee(Instant.ofEpochMilli(objet.getLong("revoquee_le")), code)
-            else -> Machine.Cle.Attendue(code ?: CodeEnrolement("0000000000", Instant.EPOCH))
+            else -> Machine.Cle.Attendue(code)
         }
         return Machine(id, objet.getString("nom"), capacites, cle)
     }

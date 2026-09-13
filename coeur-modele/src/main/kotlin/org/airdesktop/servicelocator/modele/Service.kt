@@ -72,9 +72,11 @@ data class Service(
         /**
          * Proprement — le daemon l'a dit — ou par expiration du délai
          * d'inactivité. Un arrêt volontaire et une coupure n'appellent pas la
-         * même réaction chez celui qui regarde.
+         * même réaction chez celui qui regarde. La date n'est connue que si l'on
+         * a vu le départ — l'annuaire n'en range pas —, et le motif pas
+         * toujours : `null` dit « inconnu », jamais autre chose.
          */
-        data class Parti(val volontaire: Boolean, val le: Instant) : Etat
+        data class Parti(val volontaire: Boolean?, val le: Instant?) : Etat
     }
 
     val pointsTexte: String get() = points.joinToString(" · ") { it.texte }
