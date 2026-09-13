@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Manifeste de la variante de DÉBOGAGE : il ajoute l'activité de capture, et
+  rien d'autre. Elle n'a pas de lanceur — on l'ouvre par `adb` :
+
+      adb shell am start -n org.airdesktop.servicelocator/.capture.ActiviteCapture
+
+  Une variante `release` ne la contient pas.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".capture.ActiviteCapture"
+            android:exported="true"
+            android:label="Capture Play Integrity" />
+    </application>
+</manifest>

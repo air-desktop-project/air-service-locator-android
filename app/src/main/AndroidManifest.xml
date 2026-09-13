@@ -23,8 +23,21 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      LA CAMÉRA NE SERT QU'À LIRE UN CODE : le QR code que l'autre téléphone
+      affiche pour enrôler un second appareil. Aucune image n'est gardée ni
+      envoyée ; la caméra se ferme dès que le code est lu. Sans permission, ou
+      sans caméra (`required="false"` : le catalogue ne filtre pas là-dessus),
+      le même code se colle dans un champ texte.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
+        android:name=".ApplicationServiceLocator"
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/nom_application"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">

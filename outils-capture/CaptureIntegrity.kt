@@ -12,12 +12,15 @@
 //   • l'app liée à ce projet dans la Google Play Console (App integrity), avec
 //     les CLÉS DE CHIFFREMENT DE RÉPONSE en mode « gérées et téléchargées par
 //     moi » — c'est ce qui permet de déchiffrer le jeton SANS appeler Google.
-//   • la dépendance Gradle :
-//         implementation("com.google.android.play:integrity:1.4.0")
+//   • la dépendance Gradle `com.google.android.play:integrity` — déclarée dans
+//     `app/build.gradle.kts` pour la variante de débogage, qui compile ce
+//     fichier à sa place ; l'activité `ActiviteCapture` (src/debug) l'appelle.
 //
 // CE QU'IL FAUT NOTER pour le serveur : le jeton (imprimé), le défi (imprimé),
 // et — depuis la Play Console, une seule fois — les deux clés de chiffrement de
 // réponse et le nom du paquet.
+
+package org.airdesktop.servicelocator.capture
 
 import android.content.Context
 import android.util.Base64
@@ -26,14 +29,21 @@ import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.IntegrityTokenRequest
 import java.security.SecureRandom
 
-// Le NUMÉRO du projet Google Cloud (pas son identifiant textuel).
-private const val NUMERO_PROJET_CLOUD = 0L // ← à remplir
-
 /// Fabrique un jeton et imprime de quoi le vérifier côté serveur.
 ///
 /// À appeler UNE FOIS, par exemple depuis un bouton. Le résultat part dans
-/// Logcat, étiquette « CAPTURE ».
-fun capturerUnJeton(contexte: Context) {
+/// Logcat, étiquette « CAPTURE », et dans `rendu` si on veut l'afficher.
+///
+/// `numeroProjetCloud` est le NUMÉRO du projet Google Cloud (pas son
+/// identifiant textuel). Dans l'application, il vient de `local.properties`
+/// via `BuildConfig` — jamais d'une constante commise.
+fun capturerUnJeton(contexte: Context, numeroProjetCloud: Long, rendu: (String) -> Unit = {}) {
+    if (numeroProjetCloud == 0L) {
+        val message = "NUMERO_PROJET_CLOUD manque : posez `asl.numeroProjetCloud=` dans local.properties."
+        Log.e("CAPTURE", message)
+        rendu(message)
+        return
+    }
     // 1. LE DÉFI. Trente-deux octets d'aléa, encodés en base64 URL-safe sans
     //    remplissage — la forme qu'un nonce Play Integrity accepte. On le
     //    RÉUTILISERA tel quel côté serveur, donc on l'imprime.
@@ -47,18 +57,23 @@ fun capturerUnJeton(contexte: Context) {
         .requestIntegrityToken(
             IntegrityTokenRequest.builder()
                 .setNonce(defi)
-                .setCloudProjectNumber(NUMERO_PROJET_CLOUD)
+                .setCloudProjectNumber(numeroProjetCloud)
                 .build()
         )
         .addOnSuccessListener { reponse ->
             // 3. LE JETON — un JWE compact, déjà du texte base64url.
-            Log.i("CAPTURE", "──────── CAPTURE PLAY INTEGRITY ────────")
-            Log.i("CAPTURE", "JETON=${reponse.token()}")
-            Log.i("CAPTURE", "DEFI=$defi")
-            Log.i("CAPTURE", "PAQUET=${contexte.packageName}")
-            Log.i("CAPTURE", "────────────────────────────────────────")
+            val bloc = """
+                |──────── CAPTURE PLAY INTEGRITY ────────
+                |JETON=${reponse.token()}
+                |DEFI=$defi
+                |PAQUET=${contexte.packageName}
+                |────────────────────────────────────────
+            """.trimMargin()
+            bloc.lines().forEach { Log.i("CAPTURE", it) }
+            rendu(bloc)
         }
         .addOnFailureListener { faute ->
             Log.e("CAPTURE", "la demande a échoué : $faute")
+            rendu("la demande a échoué : $faute")
         }
 }

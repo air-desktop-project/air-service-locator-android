@@ -19,31 +19,62 @@ protocole.
 
 ## L'état réel, sans fard
 
-Le dépôt porte une **arborescence** Gradle (`app`, `coeur-identite`,
-`coeur-modele`, `coeur-reseau`) et sa CI. Il a été posé depuis une machine
-Linux ; la construction complète sur un vrai environnement Android reste à
-passer. Tu es sur un Mac (oxygene) avec Android Studio : **fais d'abord compiler
-et tourner les tests**, corrige ce qui bloque, avant d'ajouter du code.
+Les **onze écrans sont écrits** (Compose, Material 3, minSdk 28) et **parlent
+au vrai annuaire** par le transport d'`asl-client` (`coeur-reseau`, `reel/`),
+ou au banc en mémoire (`AnnuaireSimule`) quand aucun annuaire n'est configuré
+(`README.md`, « Parler à un vrai annuaire »). Tout compile sans avertissement
+et les essais JVM passent (`./gradlew assembleDebug test`). Les maquettes
+validées sont dans `../maquettes/` (hors dépôt). Vérifié de bout en bout sur le
+Fairphone contre `asl-server` : compte, machine, enrôlement, annonce, service
+joignable.
 
-## Ta première tâche, concrète
+Ce qui manque, dans l'ordre où ça se fera :
 
-**Faire compiler et produire un jeton Play Integrity réel**, dans cet ordre :
+1. ~~La clé P-256 dans le Keystore~~ — **faite** (`coeur-identite/CleAppareil.kt`,
+   `coeur-modele/P256.kt`) : StrongBox ou TEE, biométrie forte à chaque
+   signature, `r ‖ s` et SEC1 compressé dépliés en Kotlin pur. Vérifiée sur le
+   Fairphone 5.
+2. ~~Le transport~~ — **fait** (`reel/AnnuaireReel.kt`, `reel/Natif.kt`) : les
+   symboles JNI de la crate `asl-client-android`, la signature par rappel (le
+   natif rappelle depuis son fil ; `BiometricPrompt` s'affiche sur le fil
+   principal, dans l'activité au premier plan *au moment de signer*), la
+   connexion tenue par `ApplicationServiceLocator` — pas par l'activité, qu'une
+   rotation recrée. Le serveur (`2cf05dc`) rend les machines, les appareils,
+   les services nommés avec leur état ; le `Carnet` local (SharedPreferences)
+   ne garde que ce qu'il ne range pas — dates, code en cours, révocation — et
+   l'écran dit « inconnu » plutôt qu'une date inventée.
+3. **La capture Play Integrity** (`outils-capture/`), qui exige un projet
+   Google Cloud (fait, le numéro est dans `local.properties`) et l'app dans la
+   Play Console (à faire).
+4. ~~Les écrans restants~~ — **faits** : le détail d'un service
+   (`ServiceEcran.kt`, verdict par point, candidats, ce que l'annuaire a
+   répondu au daemon), et le second appareil par échange de QR codes
+   (`coeur-modele/Invitation.kt`, `AppareilsEcrans.kt` : enrôler côté ancien,
+   rejoindre côté nouveau ; `composants/CodeQR.kt` trace avec ZXing et lit
+   avec CameraX). Les expositions restent un libellé tant que le serveur rend
+   `501`.
+5. Un état de chargement au lancement : l'accueil apparaît un instant avant
+   que le compte soit relu.
 
-1. Ouvrir le projet dans Android Studio, le faire **compiler** et passer ses
-   tests (`./gradlew build`).
-2. Intégrer [`outils-capture/CaptureIntegrity.kt`](outils-capture/CaptureIntegrity.kt) :
-   il pose un défi, demande un jeton d'intégrité (API classique), et l'imprime
-   dans Logcat. Il exige la dépendance `com.google.android.play:integrity` et un
-   projet Google Cloud (voir le mode d'emploi).
-3. Lancer sur un **appareil réel** avec les services Google Play, **récupérer le
-   bloc imprimé** et les deux clés de chiffrement de réponse de la Play Console,
-   et les rendre à Thierry. Ce jeton débloque la vérification côté serveur :
-   `asl-play` est écrit d'après la documentation de Google et n'a jamais vu de
-   vrai jeton ; cette capture confirme (ou corrige) nos hypothèses et révèle la
-   forme du verdict.
+Tu es sur un Mac (oxygen) avec le SDK Android ; un **Fairphone 5** est branché
+en USB (`adb devices`), avec une empreinte enrôlée.
 
-Le mode d'emploi complet — projet Cloud, clés à télécharger, ce qu'il faut
-noter — est dans le serveur : `docs/attestation/capture-play.md`.
+## Ce qu'il faut tenir en écrivant un écran
+
+- **Les écrans parlent à `Annuaire`, jamais au banc ni au transport.**
+  `AnnuaireSimule` et `AnnuaireReel` ne sont nommés que dans la composition
+  (`ApplicationServiceLocator`) et les essais.
+- **Le vocabulaire est celui de `modele.md` §4.2** : `annoncé`, `joignable`
+  (avec sa date), `parti (volontaire / inactivité)`, UDP `non sondé`. Le mot
+  « en ligne » n'apparaît nulle part.
+- **Un identifiant se compare sur ses octets** (`Identifiant`), jamais comme
+  une chaîne ; il ne s'affiche que par `texte` ou `abrege`, et voyage dans une
+  route de navigation sous sa forme canonique.
+- **Ce que l'on ne sait pas faire se dit à l'écran**, on ne le simule pas.
+- Les dates s'affichent en français quel que soit le réglage du téléphone
+  (`Formats.relatif`, `Formats.jour`).
+- Les icônes sont tracées dans `Icones.kt`, pas tirées de
+  `material-icons-extended`.
 
 ## Le protocole, l'essentiel que l'app devra tenir
 
@@ -61,9 +92,6 @@ noter — est dans le serveur : `docs/attestation/capture-play.md`.
   donnée envoyée.
 - **Aucune donnée personnelle** hébergée, hormis un alias public facultatif.
 
-N'écris PAS les écrans tant que le modèle n'est pas arrêté : des vues sur des
-données supposées sont des vues à jeter. Concentre-toi sur le noyau (identité,
-clé, réseau) et la capture.
 
 ## Les règles qui ne se négocient pas
 
