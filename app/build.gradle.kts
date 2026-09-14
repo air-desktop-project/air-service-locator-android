@@ -32,8 +32,16 @@ android {
         minSdk = 28
         targetSdk = 34
 
-        versionCode = 1
-        versionName = "0.1.0"
+        // ── LA VERSION, EN UN SEUL ENDROIT ───────────────────────────────
+        //
+        // Semver, `MAJEURE.MINEURE.CORRECTIF`. **Chaque PR la change**, dans le
+        // commit qui porte le changement — la CI compare ces deux lignes à
+        // celles de `main` et refuse une PR qui ne les a pas touchées. Elle se
+        // lit à l'écran (Compte › Annuaire), et c'est ce qu'un utilisateur
+        // cite quand il rapporte quelque chose. `versionCode` est l'entier
+        // croissant que le Play Store exige distinct à chaque envoi.
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {

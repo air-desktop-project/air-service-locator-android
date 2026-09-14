@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import org.airdesktop.servicelocator.BuildConfig
 import org.airdesktop.servicelocator.LocalSession
 import org.airdesktop.servicelocator.Routes
 import org.airdesktop.servicelocator.composants.Aide
@@ -140,6 +141,13 @@ fun CompteEcran(nav: NavController) {
             item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; appui long pour en révoquer un autre, qui reste alors dans la liste. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme.") }
             item { SousTitre("Annuaire") }
             item { ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text("racines air-desktop-project") }) }
+            // La version de l'application, lisible ici parce que c'est l'écran où l'on va quand quelque chose ne va pas.
+            item {
+                ListItem(
+                    headlineContent = { Text("Version") },
+                    supportingContent = { Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", fontFamily = FontFamily.Monospace) },
+                )
+            }
             item {
                 ListItem(
                     headlineContent = { Text("Ce qui est exposé de moi") },
