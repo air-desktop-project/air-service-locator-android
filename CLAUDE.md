@@ -95,6 +95,13 @@ en USB (`adb devices`), avec une empreinte enrôlée.
 
 ## Les règles qui ne se négocient pas
 
+- **Chaque PR change la version semver** de l'application — `versionName`
+  dans `app/build.gradle.kts`, `MAJEURE.MINEURE.CORRECTIF`, et `versionCode`
+  qui augmente — dans le commit qui porte le changement. Correctif →
+  CORRECTIF ; ajout → MINEURE ; rupture (protocole, carnet local qui ne se
+  relit plus) → MAJEURE. La CI compare à `main` et refuse une PR qui ne l'a
+  pas touchée (`scripts/check-version.sh`). La version se lit à l'écran :
+  Compte › Annuaire (`BuildConfig.VERSION_NAME`).
 - **Ce dépôt est PUBLIC.** Aucun secret dans un commit, un message, un fichier :
   ni clé privée, ni jeton, ni CLÉ DE CHIFFREMENT de la Play Console. Ces clés
   vont dans les réglages du serveur, jamais dans le code ni l'historique.
