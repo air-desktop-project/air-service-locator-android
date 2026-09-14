@@ -95,6 +95,8 @@ interface Annuaire {
 
     /** `GET /v1/autorisations` — les deux sens, révoquées comprises. */
     suspend fun autorisations(): List<Autorisation>
+    /** `GET /v1/version` — la version de l'annuaire qui répond, sans rien prouver. `null` si l'annuaire est trop ancien pour la dire (`404`). */
+    suspend fun version(): String?
     /** `GET /v1/utilisateurs/{u}` — confirme qu'un identifiant existe, et rien d'autre. */
     suspend fun utilisateurExiste(id: Identifiant): Boolean
     /** `GET /v1/alias/{alias}` — rend l'identifiant, et rien d'autre. */

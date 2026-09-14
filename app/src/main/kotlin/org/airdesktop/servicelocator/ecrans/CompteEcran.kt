@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,7 @@ import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.reseau.AnnuaireSimule
+import java.util.Optional
 
 /** Le compte : son identifiant public, son alias, ses appareils, son annuaire. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -57,9 +59,13 @@ fun CompteEcran(nav: NavController) {
     val portee = rememberCoroutineScope()
     val chargement = rememberChargement { session.rafraichirCompte(); session.annuaire.appareils() }
     val appareils = chargement.valeur ?: emptyList()
+    // La version de l'annuaire ne conditionne rien : si elle manque, l'écran le dit, sans en faire une erreur de la page.
+    // `null` tant qu'on n'a pas demandé, `Optional.empty()` si l'annuaire ne sait pas la dire.
+    var versionAnnuaire by remember { mutableStateOf<Optional<String>?>(null) }
     var aRevoquer by remember { mutableStateOf<Appareil?>(null) }
     var erreur by remember { mutableStateOf<String?>(null) }
     val compte = session.compte
+    LaunchedEffect(compte) { if (compte != null) versionAnnuaire = Optional.ofNullable(runCatching { session.annuaire.version() }.getOrNull()) }
 
     Scaffold(topBar = { Barre("Compte") }) { marges ->
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {
@@ -141,11 +147,22 @@ fun CompteEcran(nav: NavController) {
             item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; appui long pour en révoquer un autre, qui reste alors dans la liste. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme.") }
             item { SousTitre("Annuaire") }
             item { ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text("racines air-desktop-project") }) }
-            // La version de l'application, lisible ici parce que c'est l'écran où l'on va quand quelque chose ne va pas.
+            // Les deux versions, l'application et l'annuaire, lisibles ici parce que c'est l'écran où l'on va quand
+            // quelque chose ne va pas — et qu'un écart entre les deux est souvent la réponse.
             item {
                 ListItem(
-                    headlineContent = { Text("Version") },
+                    headlineContent = { Text("Version de l'application") },
                     supportingContent = { Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", fontFamily = FontFamily.Monospace) },
+                )
+            }
+            item {
+                val texte = when (val v = versionAnnuaire) {
+                    null -> "…"
+                    else -> v.orElse("ne la dit pas")
+                }
+                ListItem(
+                    headlineContent = { Text("Version de l'annuaire") },
+                    supportingContent = { Text(texte, fontFamily = FontFamily.Monospace) },
                 )
             }
             item {
