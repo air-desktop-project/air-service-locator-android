@@ -100,8 +100,11 @@ object Demonstration {
         )
         for (machine in listOf(cave, grenier, bureau, portable, nas)) annuaire.poser(machine)
 
-        annuaire.poser(Appareil(id(Genre.APPAREIL, 60), "iPhone de Thierry", Appareil.Biometrie.VISAGE, ilYA(5 * jour)))
-        annuaire.poser(Appareil(id(Genre.APPAREIL, 61), "iPad", Appareil.Biometrie.EMPREINTE, ilYA(40 * jour), revoqueLe = ilYA(3 * jour)))
+        // L'un s'est décrit, l'autre non : la démonstration montre les deux
+        // formes de la liste — le modèle que l'annuaire rend, et le repli.
+        annuaire.poser(Appareil(id(Genre.APPAREIL, 60), "Autre appareil", Appareil.Biometrie.VISAGE, ilYA(5 * jour),
+                                description = Appareil.Description(Appareil.Plateforme.IOS, "iPhone18,1")))
+        annuaire.poser(Appareil(id(Genre.APPAREIL, 61), "Autre appareil", Appareil.Biometrie.EMPREINTE, ilYA(40 * jour), revoqueLe = ilYA(3 * jour)))
 
         val moi = compte.identifiant
         annuaire.recevoir(Autorisation(id(Genre.AUTORISATION, 70), moi, vero, Autorisation.Portee.Tout, "maison", ilYA(20 * jour)))

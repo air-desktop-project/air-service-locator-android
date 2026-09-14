@@ -87,6 +87,11 @@ interface Annuaire {
     suspend fun enrolerAppareil(cle: ByteArray): Appareil
     /** `DELETE /v1/appareils/{a}` — marqué, non effacé. Jamais soi-même. */
     suspend fun revoquerAppareil(id: Identifiant)
+    /**
+     * `PUT /v1/appareils/{moi}/description` — ce que CET appareil est. **Pour soi seulement**, comme le jeton de
+     * poussée ; posé juste après la preuve, reposé quand il change.
+     */
+    suspend fun decrire(description: Appareil.Description)
 
     /** `GET /v1/autorisations` — les deux sens, révoquées comprises. */
     suspend fun autorisations(): List<Autorisation>

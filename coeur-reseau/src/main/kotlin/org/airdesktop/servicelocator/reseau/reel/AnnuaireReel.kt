@@ -449,9 +449,14 @@ class AnnuaireReel(
         val appareils = (0 until liste.length()).mapNotNull { i ->
             val objet = liste.getJSONObject(i)
             val id = runCatching { Identifiant.analyser(objet.getString("appareil"), Genre.APPAREIL) }.getOrNull() ?: return@mapNotNull null
+            // Plate-forme et modèle viennent ensemble, ou pas du tout : absents
+            // tant que l'appareil ne les a pas posés (`protocole.md` §2.2).
+            val plateforme = Appareil.Plateforme.entries.firstOrNull { it.libelle == objet.optString("plateforme") }
+            val description = if (plateforme != null && objet.has("modele")) Appareil.Description(plateforme, objet.getString("modele")) else null
             Appareil(
                 id, "Autre appareil", enroleLe = millis(objet, "enrole_a"), revoqueLe = millis(objet, "revoque_a"),
                 attestation = Appareil.Attestation.entries.firstOrNull { it.libelle == objet.optString("attestation") },
+                description = description,
             ).revoque(objet.optBoolean("revoque", false))
         }.toMutableList()
         carnet.appareil?.let { moi ->
@@ -487,6 +492,22 @@ class AnnuaireReel(
         val enrole = Carnet.AppareilEnrole(id, Instant.now(), null)
         carnet.appareilsEnrolesDIci = carnet.appareilsEnrolesDIci + enrole
         return Appareil(id, "Autre appareil", enroleLe = enrole.le)
+    }
+
+    /**
+     * Pour soi seulement : l'identifiant visé est celui du carnet, jamais un
+     * autre. Ce qui a déjà été posé tel quel ne repart pas — l'annuaire le
+     * range, et le reposer à chaque lancement serait du bruit ; ce qui change
+     * (une mise à jour du système) repart.
+     */
+    override suspend fun decrire(description: Appareil.Description) {
+        val moi = carnet.appareil ?: throw ErreurAnnuaire.Introuvable
+        val empreinte = "${description.plateforme.libelle}:${description.modele}"
+        if (carnet.descriptionPosee == empreinte) return
+        val corps = JSONObject().put("plateforme", description.plateforme.libelle).put("modele", description.modele).toString()
+        val (statut, _) = surLeFil { requete("PUT", "/v1/appareils/${moi.texte}/description", corps) }
+        if (statut != 204) throw refus(statut)
+        carnet.descriptionPosee = empreinte
     }
 
     override suspend fun revoquerAppareil(id: Identifiant) {
@@ -578,6 +599,11 @@ class Carnet(contexte: Context) {
         }
 
     val enroleLe: Instant? get() = if (prefs.contains("enrole_le")) Instant.ofEpochMilli(prefs.getLong("enrole_le", 0)) else null
+
+    /** La dernière description que cet appareil a posée, telle quelle, pour ne pas la reposer à chaque lancement. */
+    var descriptionPosee: String?
+        get() = prefs.getString("description_posee", null)
+        set(valeur) = prefs.edit().putString("description_posee", valeur).apply()
 
     /** Un appareil que CE téléphone a enrôlé, faute de `GET /v1/appareils`. */
     data class AppareilEnrole(val id: Identifiant, val le: Instant, val revoqueLe: Instant?)
