@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Généré par Outils/Icone/generer.py du dépôt iOS : ne pas retoucher à la main. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M44.58,59.34 a4.08,4.08 0 1,0 8.16,0 a4.08,4.08 0 1,0 -8.16,0z"/>
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="4.64" android:fillColor="#00000000" android:pathData="M39.87,59.34 a8.79,8.79 0 1,0 17.58,0 a8.79,8.79 0 1,0 -17.58,0z"/>
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="4.64" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M54.72,40.69 A19.62,19.62 0 0,1 67.31,53.28"/>
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="4.64" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M57.76,31.32 A29.46,29.46 0 0,1 76.68,50.24"/>
+</vector>
