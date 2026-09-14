@@ -227,6 +227,9 @@ class AnnuaireSimule(
 
     override suspend fun autorisations(): List<Autorisation> = verrou.withLock { aretes.toList() }
 
+    /** Le banc dit ce qu'il est, pour que l'écran ne confonde jamais une démonstration avec un annuaire. */
+    override suspend fun version(): String? = "banc en mémoire"
+
     override suspend fun utilisateurExiste(id: Identifiant): Boolean = verrou.withLock { existe(id) }
 
     private fun existe(id: Identifiant) = id == compteLocal?.identifiant || autresComptes.containsKey(id)

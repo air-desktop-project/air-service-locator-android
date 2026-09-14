@@ -542,6 +542,14 @@ class AnnuaireReel(
         )
     }.getOrNull()
 
+    /** Un annuaire d'avant 0.2.0 ne connaît pas cette ressource et rend `404` : pas une faute, une version qu'on ne sait pas lire. */
+    override suspend fun version(): String? {
+        val (statut, corps) = surLeFil { requete("GET", "/v1/version") }
+        if (statut == 404) return null
+        if (statut != 200) throw refus(statut)
+        return JSONObject(corps).getString("version")
+    }
+
     override suspend fun utilisateurExiste(id: Identifiant): Boolean =
         surLeFil { requete("GET", "/v1/utilisateurs/${id.texte}") }.first == 200
 
