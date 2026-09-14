@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -108,7 +109,14 @@ fun CompteEcran(nav: NavController) {
                 ListItem(
                     leadingContent = { Icon(icone, null, tint = teinte) },
                     headlineContent = { Text(nom, color = if (appareil.estRevoque) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface) },
-                    supportingContent = { Text(sous) },
+                    supportingContent = {
+                        Column {
+                            Text(sous)
+                            // L'identifiant est la seule chose que l'annuaire sait d'un appareil, et la seule qui permette
+                            // de le reconnaître d'un écran à l'autre : « Autre appareil » ne dit rien, `a-…` dit lequel.
+                            Text(appareil.id.texte, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelSmall)
+                        }
+                    },
                     modifier = Modifier.combinedClickable(onClick = {}, onLongClick = {
                         if (!appareil.estRevoque && !appareil.estCeluiCi) aRevoquer = appareil
                     }),
@@ -121,7 +129,7 @@ fun CompteEcran(nav: NavController) {
                     modifier = Modifier.clickable { nav.navigate(Routes.ENROLER_APPAREIL) },
                 )
             }
-            item { Aide("Un appareil ne peut pas se révoquer lui-même ; appui long pour en révoquer un autre, qui reste alors dans la liste. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme.") }
+            item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; appui long pour en révoquer un autre, qui reste alors dans la liste. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme.") }
             item { SousTitre("Annuaire") }
             item { ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text("racines air-desktop-project") }) }
             item {
