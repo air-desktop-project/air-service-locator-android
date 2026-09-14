@@ -78,14 +78,16 @@ fun CompteEcran(nav: NavController) {
             }
             item { SousTitre("Appareils") }
             items(appareils, key = { it.id.texte }) { appareil ->
+                // La biométrie quand on la connaît (cet appareil), sinon la plate-forme déclarée, sinon un téléphone.
                 val icone = when (appareil.biometrie) {
                     Appareil.Biometrie.VISAGE -> Icones.visage
                     Appareil.Biometrie.EMPREINTE -> Icones.empreinte
-                    null -> Icones.telephone
+                    null -> if (appareil.description?.plateforme == Appareil.Plateforme.MACOS) Icones.machine else Icones.telephone
                 }
                 val teinte = if (appareil.estRevoque) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant
-                // L'annuaire ne connaît aucun nom : celui de cet appareil vient du téléphone lui-même.
-                val nom = if (appareil.estCeluiCi) "${Build.MANUFACTURER} ${Build.MODEL}" else appareil.nom
+                // Cet appareil se nomme par ce que le système en dit ; les autres portent le modèle qu'ils ont
+                // déclaré à l'annuaire, ou le repli s'ils ne l'ont pas encore fait.
+                val nom = if (appareil.estCeluiCi) "${Build.MANUFACTURER} ${Build.MODEL}" else appareil.titre
                 // Ce que l'on sait, et rien de plus : une date quand cet appareil l'a vue, l'attestation quand l'annuaire l'a rendue.
                 val sous = if (appareil.estRevoque) {
                     appareil.revoqueLe?.let { "Révoqué le ${Formats.jour(it)}" } ?: "Révoqué"
@@ -102,6 +104,12 @@ fun CompteEcran(nav: NavController) {
                             Appareil.Attestation.APPLE -> add("attesté par Apple")
                             Appareil.Attestation.GOOGLE -> add("attesté par Google")
                             Appareil.Attestation.AUCUNE -> add("sans attestation")
+                            null -> Unit
+                        }
+                        when (appareil.description?.plateforme) {
+                            Appareil.Plateforme.IOS -> add("iOS")
+                            Appareil.Plateforme.ANDROID -> add("Android")
+                            Appareil.Plateforme.MACOS -> add("macOS")
                             null -> Unit
                         }
                     }.joinToString(" · ")

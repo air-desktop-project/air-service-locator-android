@@ -36,11 +36,34 @@ data class Appareil(
     val attestation: Attestation? = null,
     /** Révoqué sans que l'on sache quand : l'annuaire le dit, sans date. */
     private val revoque: Boolean = false,
+    /** Absente tant que l'appareil ne l'a pas posée ; reste sur un appareil révoqué. */
+    val description: Description? = null,
 ) {
     enum class Biometrie { VISAGE, EMPREINTE }
     enum class Attestation(val libelle: String) { AUCUNE("aucune"), APPLE("apple"), GOOGLE("google") }
 
+    /** Ce que l'appareil fait tourner : une liste fermée, celle des applications de ce produit (`docs/protocole.md` §2.2). */
+    enum class Plateforme(val libelle: String) { IOS("ios"), ANDROID("android"), MACOS("macos") }
+
+    /**
+     * Ce que l'appareil dit de lui-même (`docs/modele.md` §2.2) : sa plate-forme et son **modèle** —
+     * « Fairphone FP5 », jamais le nom que l'utilisateur a donné au téléphone, qui porte souvent un prénom (C13).
+     *
+     * **Une étiquette, pas une preuve.** L'annuaire ne vérifie rien de ce qu'elle dit ; un appareil pirate peut se
+     * dire « iPhone 17 ». Ce qui identifie un appareil est son `a-…`, affiché à côté. L'étiquette sert à ce que
+     * l'écran Compte montre « MacBook Pro » plutôt que « Autre » — de quoi reconnaître les siens, pas de quoi les prouver.
+     */
+    data class Description(val plateforme: Plateforme, val modele: String) {
+        companion object {
+            /** Le modèle, 1 à 64 octets : les règles du nom de machine. */
+            const val MODELE_OCTETS_MAX = 64
+        }
+    }
+
     val estRevoque: Boolean get() = revoque || revoqueLe != null
+
+    /** Ce que l'écran affiche en titre : le modèle que l'annuaire rend, sinon le nom de repli. */
+    val titre: String get() = description?.modele ?: nom
 
     fun revoque(oui: Boolean) = copy(revoque = oui)
 }

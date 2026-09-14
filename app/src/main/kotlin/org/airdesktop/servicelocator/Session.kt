@@ -1,12 +1,15 @@
 package org.airdesktop.servicelocator
 
+import android.util.Log
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
 import org.airdesktop.servicelocator.identite.CleAppareil
+import org.airdesktop.servicelocator.identite.deCetAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
+import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Signataire
@@ -30,6 +33,23 @@ class Session(
     /** Relit le compte que l'annuaire connaît pour cet appareil. */
     suspend fun rafraichirCompte() {
         compte = runCatching { annuaire.compte() }.getOrNull()
+        if (compte != null) seDecrire()
+    }
+
+    /**
+     * Dit à l'annuaire ce que cet appareil est — plate-forme et modèle, jamais
+     * le nom que l'utilisateur lui a donné (`docs/modele.md` §2.2). Juste après
+     * chaque preuve : c'est le moment où l'appareil parle de lui sur sa propre
+     * connexion.
+     *
+     * **Une étiquette qui n'a pas pu se poser n'est pas une panne.** Un
+     * annuaire qui ne sert pas encore ce verbe rend `404` ; le compte, lui, est
+     * là. On ne le dit pas à l'écran, et l'annuaire réel n'en garde pas trace
+     * comme posée — elle repartira à la prochaine preuve.
+     */
+    private suspend fun seDecrire() {
+        runCatching { annuaire.decrire(Appareil.Description.deCetAppareil()) }
+            .onFailure { Log.i("Session", "la description de cet appareil n'a pas été posée : ${it.message}") }
     }
 
     /**
@@ -42,6 +62,7 @@ class Session(
      */
     suspend fun ouvrirCompte(activite: FragmentActivity) {
         compte = ouverture(signataire(activite))
+        seDecrire()
     }
 
     /**
@@ -54,6 +75,7 @@ class Session(
     /** Rejoint un compte, depuis ce téléphone-ci, avec l'invitation que l'autre a rendue. Le geste est demandé au moment de prouver la clé. */
     suspend fun rejoindre(activite: FragmentActivity, compte: Identifiant, appareil: Identifiant) {
         this.compte = annuaire.rejoindre(compte, appareil, signataire(activite))
+        seDecrire()
     }
 
     suspend fun definirAlias(alias: String?) {

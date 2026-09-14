@@ -88,6 +88,24 @@ class AnnuaireSimuleEssais {
         assertThrows(ErreurAnnuaire.Interdit::class.java) { runBlocking { annuaire.revoquerAppareil(moi.id) } }
     }
 
+    /** `PUT /v1/appareils/{a}/description` : pour soi seulement, le modèle aux règles du nom de machine. */
+    @Test
+    fun unAppareilSeDecrit() = avecCompte { annuaire ->
+        assertThrows(ErreurAnnuaire.Introuvable::class.java) {
+            runBlocking { AnnuaireSimule { instant }.decrire(Appareil.Description(Appareil.Plateforme.ANDROID, "Fairphone FP5")) }
+        }
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) {
+            runBlocking { annuaire.decrire(Appareil.Description(Appareil.Plateforme.ANDROID, "")) }
+        }
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) {
+            runBlocking { annuaire.decrire(Appareil.Description(Appareil.Plateforme.ANDROID, "é".repeat(33))) }
+        }
+        annuaire.decrire(Appareil.Description(Appareil.Plateforme.ANDROID, "Fairphone FP5"))
+        val moi = annuaire.appareils().first { it.estCeluiCi }
+        assertEquals(Appareil.Description(Appareil.Plateforme.ANDROID, "Fairphone FP5"), moi.description)
+        assertEquals("Fairphone FP5", moi.titre)
+    }
+
     @Test
     fun unAppareilRevoqueResteMarque() = avecCompte { annuaire ->
         val autre = Appareil(id(Genre.APPAREIL, 7), "autre", Appareil.Biometrie.EMPREINTE, instant)

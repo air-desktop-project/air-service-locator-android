@@ -215,6 +215,14 @@ class AnnuaireSimule(
         parcAppareils[indice] = parcAppareils[indice].copy(revoqueLe = horloge())
     }
 
+    /** Pour soi seulement : le banc, comme le serveur, ne connaît que l'appareil qui parle. Sans compte, personne à décrire. */
+    override suspend fun decrire(description: Appareil.Description) = verrou.withLock {
+        val indice = parcAppareils.indexOfFirst { it.estCeluiCi }.takeIf { it >= 0 } ?: throw ErreurAnnuaire.Introuvable
+        val octets = description.modele.toByteArray(Charsets.UTF_8).size
+        if (octets !in 1..Appareil.Description.MODELE_OCTETS_MAX) throw ErreurAnnuaire.RequeteInvalide("modele")
+        parcAppareils[indice] = parcAppareils[indice].copy(description = description)
+    }
+
     // ── Autorisations ─────────────────────────────────────────────────────────
 
     override suspend fun autorisations(): List<Autorisation> = verrou.withLock { aretes.toList() }
