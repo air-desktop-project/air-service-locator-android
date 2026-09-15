@@ -5,7 +5,7 @@ import java.time.Instant
 
 /**
  * Le code qu'un administrateur recopie du téléphone vers un terminal :
- * `asl enrole 4K9M2-P7R1T`.
+ * `asl enroll 4K9M2-P7R1T`.
  *
  * Dix symboles de Crockford — cinquante bits — à usage unique, valables dix
  * minutes (`docs/modele.md` §2.3). Il est groupé pour l'œil, cinq par cinq :
@@ -25,7 +25,7 @@ data class CodeEnrolement(
     val texteGroupe: String get() = symboles.take(5) + "-" + symboles.drop(5)
 
     /** La commande à taper sur la machine. */
-    val commande: String get() = "asl enrole $texteGroupe"
+    val commande: String get() = "asl enroll $texteGroupe"
 
     fun estValide(instant: Instant): Boolean = instant.isBefore(expireLe)
 
