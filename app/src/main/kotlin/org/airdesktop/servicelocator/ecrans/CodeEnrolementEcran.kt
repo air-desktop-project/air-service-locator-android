@@ -47,7 +47,7 @@ import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
 import java.time.Instant
 
-/** Le code à taper sur la machine : `asl enrole 4K9M2-P7R1T`. */
+/** Le code à taper sur la machine : `asl enroll 4K9M2-P7R1T`. */
 @Composable
 fun CodeEnrolementEcran(nav: NavController, id: Identifiant) {
     val session = LocalSession.current

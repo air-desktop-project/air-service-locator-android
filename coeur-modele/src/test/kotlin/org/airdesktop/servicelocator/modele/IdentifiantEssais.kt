@@ -56,7 +56,7 @@ class CodeEnrolementEssais {
         val code = CodeEnrolement.depuisEntropie(ByteArray(8) { 0xFF.toByte() }, Instant.EPOCH)
         assertEquals("ZZZZZZZZZZ", code.symboles)
         assertEquals("ZZZZZ-ZZZZZ", code.texteGroupe)
-        assertEquals("asl enrole ZZZZZ-ZZZZZ", code.commande)
+        assertEquals("asl enroll ZZZZZ-ZZZZZ", code.commande)
     }
 
     @Test

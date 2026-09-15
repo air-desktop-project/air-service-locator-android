@@ -30,7 +30,7 @@ machines, et voir quels daemons y écoutent — et sur quel port.
 > SEC1 compressée, signature `r ‖ s` sur le défi de l'annuaire et la liaison du
 > canal TLS — que le serveur vérifie. Vérifié de bout en bout sur le Fairphone
 > contre un serveur `asl-server` : compte, machine, enrôlement par
-> `asl enrole`, annonce, service joignable.
+> `asl enroll`, annonce, service joignable.
 >
 > **Le serveur fait foi** : la liste des machines, des appareils, des
 > services avec leur nom et leur état viennent de lui (serveur `2cf05dc`).
