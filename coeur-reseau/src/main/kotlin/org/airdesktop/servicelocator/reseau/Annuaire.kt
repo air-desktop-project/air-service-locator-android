@@ -7,6 +7,7 @@ import org.airdesktop.servicelocator.modele.CodeEnrolement
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.MachineVisible
 import org.airdesktop.servicelocator.modele.Signataire
 
 /** Ce que l'annuaire refuse, dans les termes de `docs/protocole.md` §2. */
@@ -95,6 +96,11 @@ interface Annuaire {
 
     /** `GET /v1/autorisations` — les deux sens, révoquées comprises. */
     suspend fun autorisations(): List<Autorisation>
+    /**
+     * `GET /v1/utilisateurs/{u}/machines` — les machines de `u` que ses autorisations envers moi donnent à voir ;
+     * les miennes si `u` est moi ; vide sans aucune arête — vide, pas une erreur.
+     */
+    suspend fun machinesDe(utilisateur: Identifiant): List<MachineVisible>
     /** `GET /v1/version` — la version de l'annuaire qui répond, sans rien prouver. `null` si l'annuaire est trop ancien pour la dire (`404`). */
     suspend fun version(): String?
     /** `GET /v1/utilisateurs/{u}` — confirme qu'un identifiant existe, et rien d'autre. */

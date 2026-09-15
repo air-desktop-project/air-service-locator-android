@@ -18,6 +18,7 @@ import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Joignabilite
 import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.MachineVisible
 import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.NonConfirmeException
 import org.airdesktop.servicelocator.modele.PointEcoute
@@ -519,6 +520,17 @@ class AnnuaireReel(
     }
 
     // ── Autorisations ─────────────────────────────────────────────────────────
+
+    override suspend fun machinesDe(utilisateur: Identifiant): List<MachineVisible> {
+        val (statut, corps) = surLeFil { requete("GET", "/v1/utilisateurs/${utilisateur.texte}/machines") }
+        if (statut != 200) throw refus(statut)
+        val liste = JSONArray(corps)
+        return (0 until liste.length()).mapNotNull { i ->
+            val objet = liste.getJSONObject(i)
+            val id = runCatching { Identifiant.analyser(objet.getString("machine"), Genre.MACHINE) }.getOrNull() ?: return@mapNotNull null
+            MachineVisible(id, objet.getString("nom"))
+        }
+    }
 
     override suspend fun autorisations(): List<Autorisation> {
         val (statut, corps) = surLeFil { requete("GET", "/v1/autorisations") }
