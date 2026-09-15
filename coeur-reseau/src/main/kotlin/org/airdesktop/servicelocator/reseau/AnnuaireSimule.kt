@@ -10,6 +10,7 @@ import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.MachineVisible
 import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.P256
 import org.airdesktop.servicelocator.modele.NonConfirmeException
@@ -226,6 +227,12 @@ class AnnuaireSimule(
     // ── Autorisations ─────────────────────────────────────────────────────────
 
     override suspend fun autorisations(): List<Autorisation> = verrou.withLock { aretes.toList() }
+
+    /** La règle du serveur : mes machines si c'est moi ; le banc n'a de machines que pour le compte local, les autres rendent vide. */
+    override suspend fun machinesDe(utilisateur: Identifiant): List<MachineVisible> = verrou.withLock {
+        val moi = compteLocal ?: throw ErreurAnnuaire.Introuvable
+        if (utilisateur == moi.identifiant) parcMachines.map { MachineVisible(it.id, it.nom) } else emptyList()
+    }
 
     /** Le banc dit ce qu'il est, pour que l'écran ne confonde jamais une démonstration avec un annuaire. */
     override suspend fun version(): String? = "banc en mémoire"

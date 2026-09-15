@@ -16,6 +16,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +40,8 @@ import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.Identifiant
+import org.airdesktop.servicelocator.modele.MachineVisible
 
 /** Les autorisations, dans les deux sens. Les révoquées restent, barrées. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -72,8 +76,13 @@ fun AccesEcran(nav: NavController) {
             item { Aide("Retirer suffit : il n'y a aucun jeton à récupérer. Appui long pour révoquer ; les accès révoqués restent visibles, barrés.") }
             item { SousTitre("Accordés à moi") }
             if (recues.isEmpty()) item { Aide("Personne ne vous a encore accordé d'accès.") }
-            items(recues, key = { it.id.texte }) { LigneAutorisation(it, machines, Sens.RECUE, Modifier) }
-            item { Aide("Vos machines portant la capacité « lecture » peuvent résoudre ces services.") }
+            items(recues, key = { it.id.texte }) { autorisation ->
+                Column {
+                    LigneAutorisation(autorisation, machines, Sens.RECUE, Modifier)
+                    if (!autorisation.estRevoquee) MachinesVisibles(autorisation.accordeePar)
+                }
+            }
+            item { Aide("Vos machines portant la capacité « lecture » peuvent résoudre ces services. Sous chaque accès : ce qu'il vous donne à voir de ses machines — identifiant et nom, rien d'autre.") }
             item { Box(Modifier.padding(bottom = 88.dp)) }
         }
     }
@@ -133,4 +142,36 @@ fun LigneAutorisation(autorisation: Autorisation, machines: List<Machine>, sens:
         supportingContent = { Text(sous) },
         modifier = modifier,
     )
+}
+
+/**
+ * Ce qu'un accès reçu me donne à voir : les machines de l'autre compte, dans la portée accordée
+ * (`GET /v1/utilisateurs/{u}/machines`). Vide n'est pas une erreur : l'annuaire ne dit pas si c'est faute d'accord
+ * ou faute de machine.
+ */
+@Composable
+private fun MachinesVisibles(de: Identifiant) {
+    val session = LocalSession.current
+    var machines by remember(de) { mutableStateOf<List<MachineVisible>?>(null) }
+    var erreur by remember(de) { mutableStateOf<String?>(null) }
+    LaunchedEffect(de) {
+        runCatching { session.annuaire.machinesDe(de) }
+            .onSuccess { machines = it }
+            .onFailure { erreur = it.messageAnnuaire }
+    }
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+        Text("Ce que je vois de lui", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        when {
+            erreur != null -> Text(erreur!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            machines == null -> Text("…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            machines!!.isEmpty() -> Text(
+                "aucune machine visible — cet accès n'en nomme aucune, ou ce compte n'en a aucune ; l'annuaire ne dit pas lequel",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> machines!!.forEach { machine ->
+                Text(machine.nom, style = MaterialTheme.typography.bodyMedium)
+                Text(machine.id.texte, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }

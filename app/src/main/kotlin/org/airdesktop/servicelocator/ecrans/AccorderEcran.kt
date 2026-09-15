@@ -145,10 +145,20 @@ fun AccorderEcran(nav: NavController) {
                 ) {
                     Icon(Icones.alerte, null, tint = Couleurs.attention)
                     Text(
+                        // Ce que la spécification impose de dire au moment d'accorder (`modele.md` §2.5) :
+                        // « tout le compte » livre aussi la liste des machines.
                         buildAnnotatedString {
-                            append("Ce compte verra les ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("noms") }
-                            append(" de vos machines et services concernés, leurs ")
+                            if (choix == ChoixPortee.TOUT) {
+                                append("Ce compte verra ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("la liste de toutes vos machines") }
+                                append(" — leurs identifiants et leurs noms —, les ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("noms") }
+                                append(" de vos services, leurs ")
+                            } else {
+                                append("Ce compte verra les ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("noms") }
+                                append(" de vos machines et services concernés, leurs ")
+                            }
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("adresses IP réelles") }
                             append(" et ports, et leur état de joignabilité.")
                         },

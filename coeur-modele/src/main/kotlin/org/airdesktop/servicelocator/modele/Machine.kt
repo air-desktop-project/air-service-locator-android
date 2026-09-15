@@ -78,3 +78,10 @@ data class Machine(
         }
     }
 }
+
+/**
+ * Une machine d'un AUTRE compte, telle qu'une autorisation la donne à voir (`docs/protocole.md` §2.2,
+ * `GET /v1/utilisateurs/{u}/machines`) : son identifiant et son nom — rien d'autre, ni capacités, ni clé, ni code,
+ * qui n'appartiennent qu'au propriétaire.
+ */
+data class MachineVisible(val id: Identifiant, val nom: String)
