@@ -24,8 +24,13 @@ class Session(
     val identite: IdentiteLocale,
     /** D'où vient la clé : le Keystore sur un appareil, une clé logicielle dans un essai. */
     private val signataire: (FragmentActivity) -> Signataire = { CleAppareil.ouOuvrir().avec(it) },
-    /** Comment on ouvre un compte — séparé de l'annuaire parce qu'en démonstration, l'ouverture peuple aussi l'annuaire. */
-    private val ouverture: suspend (Signataire) -> Compte,
+    /**
+     * Comment on ouvre un compte — séparé de l'annuaire parce qu'en
+     * démonstration, l'ouverture peuple aussi l'annuaire. La clé est donnée
+     * PARESSEUSEMENT : l'annuaire réel la crée lui-même, avec le défi
+     * d'attestation de sa connexion, et ne doit pas la trouver déjà faite.
+     */
+    private val ouverture: suspend (() -> Signataire) -> Compte,
 ) {
     var compte: Compte? by mutableStateOf(null)
         private set
@@ -61,7 +66,7 @@ class Session(
      * et rien ne part.
      */
     suspend fun ouvrirCompte(activite: FragmentActivity) {
-        compte = ouverture(signataire(activite))
+        compte = ouverture { signataire(activite) }
         seDecrire()
     }
 
