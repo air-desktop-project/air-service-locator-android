@@ -12,6 +12,6 @@
         <activity
             android:name=".capture.ActiviteCapture"
             android:exported="true"
-            android:label="Capture Play Integrity" />
+            android:label="Capture attestation de clé" />
     </application>
 </manifest>

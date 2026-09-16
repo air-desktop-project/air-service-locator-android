@@ -40,8 +40,8 @@ android {
         // lit à l'écran (Compte › Annuaire), et c'est ce qu'un utilisateur
         // cite quand il rapporte quelque chose. `versionCode` est l'entier
         // croissant que le Play Store exige distinct à chaque envoi.
-        versionCode = 5
-        versionName = "0.4.1"
+        versionCode = 6
+        versionName = "0.4.2"
     }
 
     buildTypes {
@@ -77,11 +77,12 @@ android {
         }
         // ── L'OUTIL DE CAPTURE, DANS LA VARIANTE DE DÉBOGAGE SEULEMENT ────────
         //
-        // `outils-capture/CaptureIntegrity.kt` est un code JETABLE, qui produit un
-        // jeton Play Integrity réel pour le serveur. Il est compilé tel quel, à sa
-        // place, et n'entre jamais dans une variante `release`.
+        // `src/debug/kotlin/.../capture/` produit une chaîne d'attestation de clé
+        // réelle pour le serveur (`docs/attestation/capture-keystore.md`, dépôt
+        // serveur). C'est une fonction du système — aucun SDK de services, C19 —
+        // et elle n'entre jamais dans une variante `release`.
         getByName("debug") {
-            java.srcDirs("src/debug/kotlin", "../outils-capture")
+            java.srcDirs("src/debug/kotlin")
         }
         // ── LE TRANSPORT, EN OBJET PARTAGÉ, DEPUIS LE DÉPÔT CLIENT ────────────
         //
@@ -117,24 +118,6 @@ android.defaultConfig.buildConfigField("String", "ANNUAIRE_ADRESSE", "\"${annuai
 android.defaultConfig.buildConfigField("String", "ANNUAIRE_NOM", "\"${annuaireDeTest.second}\"")
 android.defaultConfig.buildConfigField("String", "ANNUAIRE_RACINES", "\"${annuaireDeTest.third.replace("\n", "\\n")}\"")
 
-// ── LE NUMÉRO DU PROJET GOOGLE CLOUD VIENT DE `local.properties` ─────────────
-//
-// Il rattache une demande de jeton Play Integrity à un projet. Ce n'est pas un
-// secret, mais c'est une valeur propre à un déploiement, et ce dépôt est public :
-// il vit sur la machine, à côté du chemin du SDK, et jamais dans l'historique.
-//
-//     asl.numeroProjetCloud=123456789012
-//
-// Absent, il vaut 0 et la capture le dit avant d'échouer.
-val numeroProjetCloud: String = run {
-    val fichier = rootProject.file("local.properties")
-    if (!fichier.exists()) return@run "0"
-    // `Properties` importé en tête : dans ce script, `java` désigne l'extension Gradle.
-    val proprietes = Properties().apply { fichier.inputStream().use { load(it) } }
-    proprietes.getProperty("asl.numeroProjetCloud", "0")
-}
-android.buildTypes.getByName("debug").buildConfigField("long", "NUMERO_PROJET_CLOUD", "${numeroProjetCloud}L")
-
 dependencies {
     implementation(project(":coeur-identite"))
     implementation(project(":coeur-reseau"))
@@ -154,7 +137,6 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
-    debugImplementation(libs.google.play.integrity)
 
     testImplementation(libs.junit)
 }

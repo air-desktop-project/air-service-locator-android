@@ -128,15 +128,14 @@ local de la racine qui l'a signé (son contenu est embarqué à la construction 
 une racine publique, rien de secret). Sans ces trois lignes, l'application
 tourne sur le banc en mémoire, peuplé de démonstration.
 
-## Capturer un jeton Play Integrity
+## Capturer une attestation de clé
 
-La variante de débogage embarque `outils-capture/CaptureIntegrity.kt` derrière
-une activité sans lanceur. Il faut le **numéro** du projet Google Cloud, posé
-dans `local.properties` (non versionné) :
-
-```
-asl.numeroProjetCloud=123456789012
-```
+La variante de débogage embarque `capture/CaptureAttestation.kt` derrière une
+activité sans lanceur : une clé jetable générée avec un défi d'attestation, sa
+chaîne de certificats en base64 dans Logcat. C'est une fonction du système —
+ni compte, ni SDK de services — et c'est ce que le serveur (`asl-keystore`)
+vérifie hors ligne contre une racine épinglée (dépôt serveur,
+`docs/attestation/capture-keystore.md`).
 
 ```sh
 ./gradlew installDebug
@@ -144,10 +143,9 @@ adb shell am start -n org.airdesktop.servicelocator/.capture.ActiviteCapture
 adb logcat -s CAPTURE
 ```
 
-Le bloc `JETON=` / `DEFI=` / `PAQUET=` s'affiche à l'écran et dans Logcat. Les
-deux clés de chiffrement de réponse, elles, viennent de la Play Console et ne
-passent ni par ce dépôt ni par Logcat — voir `docs/attestation/capture-play.md`
-du serveur.
+Le bloc `DEFI=` / `CERT0…n=` / `PAQUET=` / `SIGNATURE=` s'affiche à l'écran et
+dans Logcat. Rien n'y est secret : une chaîne d'attestation est publique par
+nature, et la clé est détruite aussitôt lue.
 
 ## Ce que ce dépôt ne contient pas, et où c'est
 
