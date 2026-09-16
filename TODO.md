@@ -2,8 +2,10 @@
 
 Ce fichier dit **précisément** ce que la vérification côté serveur attend de
 toi, pour que tu puisses le produire sans aller-retour. Il y avait deux
-livrables ; le premier est rendu, le second est à moitié rendu et attend la
-Play Console.
+livrables ; le premier est rendu, le second a changé de nature le 2026-09-16 :
+**Play Integrity est abandonné** (le serveur n'appelle aucun tiers, C19), et
+c'est l'attestation de clé du Keystore qui le remplace — sans compte, sans
+console, sans SDK.
 
 Tout le reste de l'app (écrans, modèle, transport) est décrit dans `CLAUDE.md`,
 « L'état réel, sans fard » — ce fichier ne parle que de l'attestation.
@@ -16,73 +18,53 @@ Tout le reste de l'app (écrans, modèle, transport) est décrit dans `CLAUDE.md
   (Android 15, services Google Play, empreinte enrôlée). Vérifiée de bout en
   bout contre `asl-server`, puis contre `nitrogen`.
 
-## Livrable 2 — un jeton Play Integrity réel — À MOITIÉ
+## Livrable 2 — une attestation de clé Android réelle — À FAIRE
 
-Le but : `asl-play`, côté serveur, sait déchiffrer et vérifier un jeton, mais
-n'en avait JAMAIS vu de vrai. Le mode d'emploi détaillé est dans le dépôt
-serveur, `docs/attestation/capture-play.md`.
+**Pourquoi le changement.** Le jeton Play Integrity capturé le 2026-09-12 était
+chiffré sous les clés de Google ; le déchiffrer demandait un compte Google Play,
+l'app dans la Play Console et des clés « gérées par moi ». air-desktop ne
+dépend ni de Google ni d'Apple pour fonctionner : la voie est abandonnée
+(dépôt serveur, `docs/contraintes.md` C19, `docs/protocole.md` §2.1 « Décidé
+le 2026-09-16 »). L'attestation de clé d'Android fait mieux — elle atteste la
+clé elle-même, dans le TEE, le démarrage vérifié et l'app qui la détient —,
+et se vérifie hors ligne contre une racine que l'exploitant épingle.
 
-### Ce qui est fait (côté app)
+### Ce qu'il y a à faire, côté app
 
-- La dépendance `com.google.android.play:integrity:1.4.0`, en
-  `debugImplementation` seulement (`d934984`).
-- `outils-capture/CaptureIntegrity.kt` est branché dans la variante de
-  débogage (`app/src/debug/.../capture/ActiviteCapture.kt`, un bouton). Le
-  numéro de projet Google Cloud vient de `local.properties` (hors dépôt) et
-  entre dans `BuildConfig.NUMERO_PROJET_CLOUD`.
-- **Un premier jeton réel a été capturé** sur le Fairphone le 2026-09-12. Il
-  est dans le dépôt serveur, branche `capture-play-integrity`,
-  `docs/attestation/captures/play-integrity-2026-09-12.txt`. Il **confirme la
-  grammaire** : JWE `A256KW`/`A256GCM` → JWS, vérifié octet pour octet
-  (5 segments, CEK 40, IV 12, tag 16).
-
-### Ce qui manque, et pourquoi
-
-Le jeton capturé est chiffré sous **les clés que Google gère** : il ne se
-déchiffre pas hors ligne, et l'annuaire n'appelle pas Google. Le **verdict**
-reste donc inconnu, et sans verdict pas de politique dans `asl-play` —
-`PlateformeAttestation::Google` reste refusée par le serveur.
-
-### Ce que THIERRY doit faire (tu ne peux pas — c'est la Play Console)
-
-- Le projet Google Cloud existe et l'API Play Integrity est activée (numéro
-  `861147308432`). **L'app n'est pas encore dans la Play Console.**
-- L'y inscrire, puis dans **Google Play Console → App integrity → Response
-  encryption**, choisir « **Manage and download my response encryption keys** »
-  et télécharger :
-  - la **clé de déchiffrement** (AES-256, base64) ;
-  - la **clé de vérification** (clé publique EC, SPKI, base64).
-
-**Ces deux clés sont des secrets d'exploitation** : elles NE vont NI dans un
-commit, NI dans ce dépôt public, NI dans Logcat. Thierry les transmet par un
-canal privé, et elles finiront dans les réglages du serveur.
-
-### Ce que TOI (la session Claude) feras ensuite
-
-Recapturer UN jeton — les clés « gérées par moi » changent ce sous quoi Google
-chiffre, donc le jeton du 2026-09-12 ne servira pas. Même geste : le bouton de
-`ActiviteCapture` sur le Fairphone, Logcat (étiquette « CAPTURE »), le bloc :
-
-```
-JETON=<le jeton, tel quel — c'est déjà du texte>
-DEFI=<le nonce que l'app a posé>
-PAQUET=<le nom du paquet>
-```
+1. **La capture réelle d'abord**, sur le Fairphone 5, selon
+   `docs/attestation/capture-keystore.md` du dépôt serveur : une clé jetable
+   générée avec `setAttestationChallenge`, sa chaîne de certificats lue par
+   `KeyStore.getCertificateChain`, imprimée en base64 dans Logcat (étiquette
+   « CAPTURE »), avec le défi, le paquet, et l'empreinte SHA-256 de la
+   signature de la build (`apksigner verify --print-certs`). Rien n'est un
+   secret. C'est elle qui fixe la politique d'`asl-keystore` côté serveur.
+2. **Retirer Play Integrity** : la dépendance
+   `com.google.android.play:integrity`, `ActiviteCapture` et
+   `outils-capture/CaptureIntegrity.kt`, `NUMERO_PROJET_CLOUD` dans
+   `BuildConfig` et `local.properties`.
+3. **La clé d'appareil attestée** (`CleAppareil.kt`) : à la génération,
+   `setAttestationChallenge(SHA-256(message_d_attestation(clé, défi,
+   liaison)))` — ce qui demande le défi AVANT la clé : `GET /v1/defi`, puis la
+   génération, puis `POST /v1/comptes` en plate-forme `2` avec la chaîne
+   (feuille d'abord, chaque DER précédé de sa longueur sur deux octets
+   grand-boutiens, racine omissible). `AnnuaireReel.creerCompte` l'envoie ;
+   `Appareil.Attestation` gagne `ANDROID` et `INVITATION`, `GOOGLE` disparaît.
+   À brancher quand le serveur sert la plate-forme `2` (chantier
+   `asl-keystore`, déposé pour speedy dans le `CLAUDE.md` du dépôt client).
 
 ### Ce que le serveur en fera
 
-Écrire `JETON` dans un fichier, décoder les deux clés en fichiers, puis :
-`cargo run --example verifier-un-jeton -- capture/`. S'il dit **✔ OUVERT**, il
-imprime le **verdict JSON réel** — et c'est lui qui dit quels champs lire et
-quelles valeurs accepter, pour écrire la politique et brancher
-`PlateformeAttestation::Google`. Sinon, il dira laquelle de nos hypothèses
-(`A256KW`, `A256GCM`, ES256) corriger.
+`cargo run --example verifier-une-chaine -- capture/` : la chaîne remonte-t-elle
+à la racine de Google, l'extension `1.3.6.1.4.1.11129.2.1.17` porte-t-elle le
+défi, un niveau de sécurité matériel, `verifiedBootState` à `Verified`, et notre
+paquet sous notre empreinte ? La capture dit la forme exacte ; le code s'y plie.
 
 ## À noter
 
 - Le `DEFI` d'une capture peut être un aléa quelconque (on valide la forme). En
-  production, le nonce portera notre liaison :
-  `base64url(asl_cle::message_d_attestation(clé, défi, liaison))`.
+  production, le défi d'attestation est
+  `SHA-256(asl_cle::message_d_attestation(clé, défi, liaison))`, posé à la
+  génération de la clé — la clé attestée est la clé enrôlée.
 
 ## Les règles
 
