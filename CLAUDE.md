@@ -43,9 +43,13 @@ Ce qui manque, dans l'ordre où ça se fera :
    les services nommés avec leur état ; le `Carnet` local (SharedPreferences)
    ne garde que ce qu'il ne range pas — dates, code en cours, révocation — et
    l'écran dit « inconnu » plutôt qu'une date inventée.
-3. **La capture Play Integrity** (`outils-capture/`), qui exige un projet
-   Google Cloud (fait, le numéro est dans `local.properties`) et l'app dans la
-   Play Console (à faire).
+3. ~~La capture Play Integrity~~ — **abandonnée le 2026-09-16** (C19 : le
+   serveur n'appelle aucun tiers, aucun compte Google). À sa place,
+   l'**attestation de clé du Keystore** : la capture réelle est faite par la
+   variante de débogage (`capture/CaptureAttestation.kt`, `TODO.md`), et la
+   clé d'appareil sera générée avec `setAttestationChallenge` quand le serveur
+   servira la plate-forme `2` (chantier `asl-keystore`, dépôt client,
+   `CLAUDE.md`).
 4. ~~Les écrans restants~~ — **faits** : le détail d'un service
    (`ServiceEcran.kt`, verdict par point, candidats, ce que l'annuaire a
    répondu au daemon), et le second appareil par échange de QR codes
