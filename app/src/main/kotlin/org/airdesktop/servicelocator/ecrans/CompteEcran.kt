@@ -1,5 +1,7 @@
 package org.airdesktop.servicelocator.ecrans
 
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -16,6 +18,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -59,6 +62,13 @@ fun CompteEcran(nav: NavController) {
     val portee = rememberCoroutineScope()
     val chargement = rememberChargement { session.rafraichirCompte(); session.annuaire.appareils() }
     val appareils = chargement.valeur ?: emptyList()
+    // Les révoqués ne s'affichent pas par défaut : ils restent dans l'annuaire, marqués, mais une liste qui les mêle
+    // aux vivants dit mal combien d'appareils tiennent le compte. Le réglage est retenu d'une fois sur l'autre.
+    val contexte = LocalContext.current
+    val reglages = remember { contexte.getSharedPreferences("affichage", Context.MODE_PRIVATE) }
+    var revoquesVisibles by remember { mutableStateOf(reglages.getBoolean("appareils.revoques.visibles", false)) }
+    val nombreDeRevoques = appareils.count { it.estRevoque }
+    val appareilsMontres = if (revoquesVisibles) appareils else appareils.filter { !it.estRevoque }
     // La version de l'annuaire ne conditionne rien : si elle manque, l'écran le dit, sans en faire une erreur de la page.
     // `null` tant qu'on n'a pas demandé, `Optional.empty()` si l'annuaire ne sait pas la dire.
     var versionAnnuaire by remember { mutableStateOf<Optional<String>?>(null) }
@@ -84,7 +94,7 @@ fun CompteEcran(nav: NavController) {
                 item { Aide("À donner à qui doit vous accorder un accès. Un alias est public et devinable ; sans alias, seul l'identifiant vous rend trouvable.") }
             }
             item { SousTitre("Appareils") }
-            items(appareils, key = { it.id.texte }) { appareil ->
+            items(appareilsMontres, key = { it.id.texte }) { appareil ->
                 // La biométrie quand on la connaît (cet appareil), sinon la plate-forme déclarée, sinon un téléphone.
                 val icone = when (appareil.biometrie) {
                     Appareil.Biometrie.VISAGE -> Icones.visage
@@ -109,7 +119,8 @@ fun CompteEcran(nav: NavController) {
                         }
                         when (appareil.attestation) {
                             Appareil.Attestation.APPLE -> add("attesté par Apple")
-                            Appareil.Attestation.GOOGLE -> add("attesté par Google")
+                            Appareil.Attestation.ANDROID -> add("clé attestée (Android)")
+                            Appareil.Attestation.INVITATION -> add("sur invitation")
                             Appareil.Attestation.AUCUNE -> add("sans attestation")
                             null -> Unit
                         }
@@ -132,6 +143,12 @@ fun CompteEcran(nav: NavController) {
                             Text(appareil.id.texte, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelSmall)
                         }
                     },
+                    // Le geste est VISIBLE : un bouton, comme sur le Mac — l'appui long reste, pour qui l'a pris.
+                    trailingContent = {
+                        if (!appareil.estRevoque && !appareil.estCeluiCi) {
+                            TextButton(onClick = { aRevoquer = appareil }) { Text("Révoquer", color = MaterialTheme.colorScheme.error) }
+                        }
+                    },
                     modifier = Modifier.combinedClickable(onClick = {}, onLongClick = {
                         if (!appareil.estRevoque && !appareil.estCeluiCi) aRevoquer = appareil
                     }),
@@ -144,7 +161,20 @@ fun CompteEcran(nav: NavController) {
                     modifier = Modifier.clickable { nav.navigate(Routes.ENROLER_APPAREIL) },
                 )
             }
-            item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; appui long pour en révoquer un autre, qui reste alors dans la liste. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme.") }
+            if (nombreDeRevoques > 0) {
+                item {
+                    ListItem(
+                        headlineContent = { Text("Voir les appareils révoqués ($nombreDeRevoques)") },
+                        trailingContent = {
+                            Switch(checked = revoquesVisibles, onCheckedChange = {
+                                revoquesVisibles = it
+                                reglages.edit().putBoolean("appareils.revoques.visibles", it).apply()
+                            })
+                        },
+                    )
+                }
+            }
+            item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; « Révoquer » (ou un appui long) en révoque un autre ; révoqué, il reste dans l'annuaire, marqué, et « Voir les appareils révoqués » le montre. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme.") }
             item { SousTitre("Annuaire") }
             item { ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text("racines air-desktop-project") }) }
             // Les deux versions, l'application et l'annuaire, lisibles ici parce que c'est l'écran où l'on va quand
