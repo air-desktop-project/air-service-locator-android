@@ -40,7 +40,8 @@ data class Appareil(
     val description: Description? = null,
 ) {
     enum class Biometrie { VISAGE, EMPREINTE }
-    enum class Attestation(val libelle: String) { AUCUNE("aucune"), APPLE("apple"), GOOGLE("google") }
+    /** Sous quoi l'appareil est entré (`docs/modele.md` §2.2) : `android` est l'attestation de clé du Keystore, vérifiée hors ligne (C19) ; `invitation`, un code de l'exploitant. */
+    enum class Attestation(val libelle: String) { AUCUNE("aucune"), APPLE("apple"), ANDROID("android"), INVITATION("invitation") }
 
     /** Ce que l'appareil fait tourner : une liste fermée, celle des applications de ce produit (`docs/protocole.md` §2.2). */
     enum class Plateforme(val libelle: String) { IOS("ios"), ANDROID("android"), MACOS("macos") }
