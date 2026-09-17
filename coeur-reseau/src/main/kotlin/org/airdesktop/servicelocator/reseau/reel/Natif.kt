@@ -35,6 +35,8 @@ object Natif {
     external fun liaison(h: Long): ByteArray?
     external fun defi(h: Long): ByteArray?
     external fun messagePourAttestation(h: Long): ByteArray?
+    /** Ce que la clé d'appareil reçoit en `setAttestationChallenge`, sous SHA-256 — sur la connexion nue, après `defi`. */
+    external fun messagePourAttestationDeCle(h: Long): ByteArray?
     /** `[compte, appareil]`, ou `null`. */
     external fun creerCompte(h: Long, plateforme: Int, attestation: ByteArray?): Array<String>?
     /** `statut (2 octets) ‖ corps`, ou `null` si la requête n'a pas pu partir. */
@@ -56,4 +58,6 @@ object Natif {
     const val SIGNATURE_REFUSEE = -11
 
     const val PLATEFORME_AUCUNE = 0
+    /** L'attestation de clé du Keystore : la chaîne de certificats dans la case. */
+    const val PLATEFORME_ANDROID = 2
 }

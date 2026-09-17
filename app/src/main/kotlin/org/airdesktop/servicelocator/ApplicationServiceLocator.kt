@@ -38,11 +38,16 @@ class ApplicationServiceLocator : Application() {
         val identite = IdentiteLocale(this)
         if (BuildConfig.ANNUAIRE_ADRESSE.isNotEmpty() && BuildConfig.ANNUAIRE_RACINES.isNotEmpty()) {
             val reglages = AnnuaireReel.Reglages(BuildConfig.ANNUAIRE_ADRESSE, BuildConfig.ANNUAIRE_NOM, BuildConfig.ANNUAIRE_RACINES.toByteArray())
-            val reel = AnnuaireReel(this, reglages) { CleAppareil.ouOuvrir().avec { activiteAuPremierPlan } }
-            Session(reel, identite) { signataire -> reel.ouvrirCompte(signataire) }
+            val reel = AnnuaireReel(
+                this,
+                reglages,
+                signataire = { defi -> CleAppareil.ouOuvrir(defi).avec { activiteAuPremierPlan } },
+                cleExiste = { CleAppareil.existe() },
+            )
+            Session(reel, identite) { reel.ouvrirCompte() }
         } else {
             val simule = AnnuaireSimule()
-            Session(simule, identite) { signataire -> Demonstration.ouvrirCompte(simule, signataire) }
+            Session(simule, identite) { signataire -> Demonstration.ouvrirCompte(simule, signataire()) }
         }
     }
 

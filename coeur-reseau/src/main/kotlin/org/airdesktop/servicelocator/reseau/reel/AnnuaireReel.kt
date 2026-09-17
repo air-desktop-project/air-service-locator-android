@@ -26,6 +26,7 @@ import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.modele.Signataire
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 import java.time.Instant
 
 /**
@@ -62,7 +63,14 @@ import java.time.Instant
 class AnnuaireReel(
     contexte: Context,
     private val reglages: Reglages,
-    private val signataire: () -> Signataire,
+    /**
+     * D'où vient la clé. L'argument est le défi d'attestation à poser si la
+     * clé est À CRÉER — `null` quand on ouvre une clé qui existe, ou qu'on
+     * n'a pas de défi (rejoindre un compte : la clé précède la connexion).
+     */
+    private val signataire: (defiAttestation: ByteArray?) -> Signataire,
+    /** La clé de cet appareil existe-t-elle déjà ? Sans la créer. */
+    private val cleExiste: () -> Boolean,
 ) : Annuaire {
     /** Où est l'annuaire, sous quel nom, et qui a signé son certificat. */
     /**
@@ -134,20 +142,31 @@ class AnnuaireReel(
             exiger(Natif.annuaire(neuf, adresse, reglages.nom), "annuaire")
         }
         exiger(Natif.racines(neuf, reglages.racinesPEM), "racines")
-        val cle = signataire()
+        // **LA CLÉ N'EST POSÉE QUE SI ELLE EXISTE.** Sur un appareil neuf, elle
+        // se crée dans `ouvrirCompte`, AVEC le défi d'attestation de la
+        // connexion — ou dans `rejoindre`, sans. Une connexion nue n'en a pas
+        // besoin.
+        if (cleExiste()) poserLaCle(neuf, signataire(null))
+        carnet.appareil?.let { exiger(Natif.identite(neuf, it.texte), "identite") }
+        handle = neuf
+        return neuf
+    }
+
+    /** Donne la clé au natif, avec le rappel de signature. */
+    private fun poserLaCle(h: Long, cle: Signataire) {
         cleCourante = cle
         // Le rappel : le natif est sur notre fil (le verrou l'assure), et la
         // clé attend le porteur. On bloque ce fil le temps qu'elle signe.
-        exiger(Natif.cle(neuf, cle.clePublique) { message ->
+        exiger(Natif.cle(h, cle.clePublique) { message ->
             Log.d("annuaire", "rappel de signature : ${message.size} octets")
             runCatching { runBlocking { cle.signer(message) } }
                 .onFailure { Log.e("annuaire", "la clé n'a pas signé", it) }
                 .getOrNull()
         }, "cle")
-        carnet.appareil?.let { exiger(Natif.identite(neuf, it.texte), "identite") }
-        handle = neuf
-        return neuf
     }
+
+    /** La clé courante, posée si elle ne l'est pas encore — sans défi : c'est le chemin où l'attestation n'a pas lieu. */
+    private fun cleOuPoser(h: Long): Signataire = cleCourante ?: signataire(null).also { poserLaCle(h, it) }
 
     /** Ouvre la connexion — et prouve la clé si l'appareil est enrôlé. C'est ici que l'empreinte est demandée, une fois par connexion. */
     private fun connecter() {
@@ -202,11 +221,47 @@ class AnnuaireReel(
 
     // ── Compte ────────────────────────────────────────────────────────────────
 
-    override suspend fun ouvrirCompte(signataire: Signataire): Compte = surLeFil {
+    /**
+     * `POST /v1/comptes`, avec l'attestation de clé quand la clé est neuve.
+     *
+     * **L'ordre compte** (`protocole.md` §2.1) : se connecter nu, tirer le
+     * défi, composer le message d'attestation de clé, GÉNÉRER la clé avec son
+     * condensat — puis créer le compte sous la plate-forme Android, la chaîne
+     * du Keystore dans la case. Le défi tiré est celui que la création
+     * dépense. Une clé qui existait déjà n'a pas de chaîne : plate-forme
+     * `Aucune`, comme avant.
+     *
+     * **Si l'annuaire refuse la chaîne, on retente sans.** Un banc qui n'a pas
+     * `--android-roots` refuse toute plate-forme Android ; en posture
+     * facultative il aurait admis l'appareil nu, et c'est ce qu'on lui
+     * redemande — la clé reste attestable, la chaîne repartira le jour où il
+     * saura la lire. Le journal le dit.
+     */
+    override suspend fun ouvrirCompte(signataire: Signataire): Compte = ouvrirCompte()
+
+    /** La même, sans clé donnée : cet annuaire crée la sienne, attestée. */
+    suspend fun ouvrirCompte(): Compte = surLeFil {
         carnet.compte?.let { return@surLeFil it }
         val h = handleOuCreer()
         if (!connecte()) connecter()
-        val rendu = Natif.creerCompte(h, Natif.PLATEFORME_AUCUNE, null)
+        val cle = cleCourante ?: run {
+            val defi = Natif.defi(h) ?: throw ErreurNative(Natif.dernierCode(h))
+            val message = Natif.messagePourAttestationDeCle(h) ?: throw ErreurNative(Natif.dernierCode(h))
+            Log.d("annuaire", "défi tiré (${defi.size} octets), clé à générer avec un défi d'attestation")
+            this.signataire(MessageDigest.getInstance("SHA-256").digest(message)).also { poserLaCle(h, it) }
+        }
+        val chaine = cle.attestation
+        val rendu = (if (chaine != null) {
+            Log.d("annuaire", "création avec attestation de clé : ${chaine.size} octets")
+            Natif.creerCompte(h, Natif.PLATEFORME_ANDROID, chaine) ?: run {
+                if (Natif.dernierCode(h) != Natif.REFUSE) null else {
+                    Log.i("annuaire", "l'annuaire a refusé l'attestation de clé ; nouvelle demande, sans")
+                    Natif.creerCompte(h, Natif.PLATEFORME_AUCUNE, null)
+                }
+            }
+        } else {
+            Natif.creerCompte(h, Natif.PLATEFORME_AUCUNE, null)
+        })
             ?: when (val code = Natif.dernierCode(h)) {
                 Natif.SIGNATURE_REFUSEE -> throw ErreurAnnuaire.NonConfirme
                 Natif.REFUSE -> throw ErreurAnnuaire.PreuveInvalide
@@ -224,6 +279,7 @@ class AnnuaireReel(
         // dit où le geste est demandé, pas avec quoi.
         surLeFil {
             val h = handleOuCreer()
+            cleOuPoser(h)
             exiger(Natif.identite(h, appareil.texte), "identite")
             // Se connecter sous cette identité, c'est la prouver : le natif
             // ferme la connexion nue s'il y en a une, et rappelle la clé.

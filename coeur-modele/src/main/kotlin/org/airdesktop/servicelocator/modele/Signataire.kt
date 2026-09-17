@@ -15,6 +15,14 @@ interface Signataire {
      */
     suspend fun signer(message: ByteArray): ByteArray
 
+    /**
+     * La chaîne d'attestation de cette clé, telle que le fil la porte — chaque
+     * certificat DER précédé de sa longueur sur deux octets, feuille d'abord —,
+     * ou `null` si la clé n'a pas été générée avec un défi d'attestation (une
+     * clé logicielle, ou une clé d'avant). Elle ne sert qu'à `POST /v1/comptes`.
+     */
+    val attestation: ByteArray? get() = null
+
     /** La preuve de possession de `POST /v1/comptes` : la clé signe le message qui la contient. */
     suspend fun prouverLaPossession(defi: ByteArray, liaison: ByteArray): ByteArray =
         signer(Messages.dePossession(clePublique, defi, liaison))
