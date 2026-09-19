@@ -28,6 +28,12 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
     object NonConfirme : ErreurAnnuaire("Identité non confirmée ; rien n'a été envoyé.")
     /** La preuve de possession ne vérifie pas sous la clé présentée. */
     object PreuveInvalide : ErreurAnnuaire("La preuve de possession de la clé ne vérifie pas.")
+    /**
+     * `401` — la clé qui signe n'est pas celle d'un appareil vivant : révoqué, ou d'un compte déjà effacé
+     * (`protocole.md` §2.2). Ce n'est pas [NonConfirme] : le porteur a confirmé, la demande est partie, et c'est
+     * l'annuaire qui ne reconnaît plus cet appareil.
+     */
+    object NonReconnu : ErreurAnnuaire("L'annuaire ne reconnaît plus cet appareil : révoqué, ou le compte est déjà effacé.")
 }
 
 /**
@@ -68,6 +74,23 @@ interface Annuaire {
     suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte
     /** Le compte de cet appareil, s'il en a un. */
     suspend fun compte(): Compte?
+    /**
+     * `DELETE /v1/compte` — efface le compte, depuis cet appareil, et c'est le
+     * dernier acte de sa clé (`protocole.md` §2.2, `modele.md` §2.1).
+     *
+     * Une transaction chez l'annuaire : tous les appareils révoqués — celui-ci
+     * compris —, les machines et leurs services effacés, les autorisations
+     * retirées dans les deux sens, l'alias libéré. Puis l'annuaire **ferme la
+     * connexion** qui a porté la demande : c'est l'ordre attendu, pas une
+     * panne. Au retour, [compte] rend `null` et ce que l'annuaire retenait
+     * localement de ce compte est parti ; la clé de l'appareil, elle, est à
+     * détruire par l'appelant — l'annuaire ne la tient pas.
+     *
+     * [ErreurAnnuaire.NonReconnu] si la clé n'est plus celle d'un appareil
+     * vivant : révoqué, ou compte déjà effacé — l'effacement est idempotent
+     * par construction, et un second appel le dit ainsi.
+     */
+    suspend fun effacerCompte()
 
     suspend fun machines(): List<Machine>
     /** `POST /v1/machines` — déclare, et rend la machine avec son code d'enrôlement. Elle n'a pas encore de clé. */

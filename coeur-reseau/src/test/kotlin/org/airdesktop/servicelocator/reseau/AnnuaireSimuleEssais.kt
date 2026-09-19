@@ -116,6 +116,37 @@ class AnnuaireSimuleEssais {
         assertTrue(liste.first { it.id == autre.id }.estRevoque)
     }
 
+    /** `DELETE /v1/compte` : tout part dans une transaction, la clé de l'appareil enrôlé ne rejoint plus rien, un second appel rend `401`. */
+    @Test
+    fun effacerLeCompteFaitToutPartirEtRefuseLaCleEnsuite(): Unit = runBlocking {
+        val annuaire = AnnuaireSimule { instant }
+        // Sans compte, c'est le `401` du fil : rien à effacer sous cette clé.
+        assertThrows(ErreurAnnuaire.NonReconnu::class.java) { runBlocking { annuaire.effacerCompte() } }
+        val compte = annuaire.ouvrirCompte(CleLogicielle())
+        val autre = CleLogicielle()
+        val enrole = annuaire.enrolerAppareil(autre.clePublique)
+        annuaire.declarerMachine("grenier", setOf(Capacite.ANNONCE))
+        annuaire.definirAlias("thierry")
+        val ami = id(Genre.UTILISATEUR, 0xAB)
+        annuaire.inscrireAutreCompte(ami, "ami")
+        annuaire.accorder(ami, Autorisation.Portee.Tout, "ami")
+        annuaire.recevoir(Autorisation(id(Genre.AUTORISATION, 0xEF), ami, compte.identifiant, Autorisation.Portee.Tout, "", instant))
+
+        annuaire.effacerCompte()
+
+        assertNull(annuaire.compte())
+        assertTrue(annuaire.appareils().isEmpty())
+        assertTrue(annuaire.machines().isEmpty())
+        assertTrue(annuaire.autorisations().isEmpty())
+        // L'alias est libéré, l'identifiant ne se résout plus ; l'ami, lui, existe toujours.
+        assertNull(annuaire.identifiantPourAlias("thierry"))
+        assertTrue(!annuaire.utilisateurExiste(compte.identifiant))
+        assertTrue(annuaire.utilisateurExiste(ami))
+        // La clé de l'appareil enrôlé ne rejoint plus rien, et un second effacement est refusé comme sur le fil.
+        assertThrows(ErreurAnnuaire.Introuvable::class.java) { runBlocking { annuaire.rejoindre(compte.identifiant, enrole.id, autre) } }
+        assertThrows(ErreurAnnuaire.NonReconnu::class.java) { runBlocking { annuaire.effacerCompte() } }
+    }
+
     @Test
     fun unAliasPrisRendConflit() = avecCompte { annuaire ->
         annuaire.inscrireAutreCompte(id(Genre.UTILISATEUR, 9), "vero")

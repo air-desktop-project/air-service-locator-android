@@ -211,7 +211,9 @@ class AnnuaireReel(
         404 -> ErreurAnnuaire.Introuvable
         403 -> ErreurAnnuaire.Interdit
         409 -> ErreurAnnuaire.AliasPris
-        401 -> ErreurAnnuaire.NonConfirme
+        // Un `401` arrive sur une connexion PROUVÉE : la demande est partie, et c'est l'annuaire qui ne tient plus
+        // cet appareil pour vivant. « Rien n'a été envoyé » serait faux ici.
+        401 -> ErreurAnnuaire.NonReconnu
         501 -> ErreurAnnuaire.NonImplemente
         else -> ErreurAnnuaire.RequeteInvalide("l'annuaire a répondu $statut")
     }
@@ -316,6 +318,44 @@ class AnnuaireReel(
         val relu = compte.copy(alias = if (objet.has("alias")) objet.getString("alias") else null)
         carnet.compte = relu
         return relu
+    }
+
+    /**
+     * `DELETE /v1/compte`, sans corps, sur la connexion de cet appareil.
+     *
+     * **Le geste biométrique est celui de la connexion.** La requête part sur
+     * la connexion tenue, prouvée à son ouverture — au lancement, ou ici même
+     * si elle est tombée entre-temps : c'est [connecter] qui fait signer, une
+     * fois par connexion, et rien n'est redemandé pour ce verbe-ci. La
+     * confirmation de ce qui va partir est à l'écran, avant l'appel.
+     *
+     * **Le `204` se lit, puis la connexion tombe — et ce n'est pas une
+     * panne** : l'annuaire la ferme au tour de boucle suivant, comme pour toute
+     * révocation (`protocole.md` §2.2). On ne passe pas par [requete], qui
+     * traduirait la chute en [ErreurAnnuaire.Reseau] ; on lit le statut, et
+     * l'on ne fait plus rien sur ce handle : il est libéré — la clé qu'il
+     * tient va être détruite, l'identité qu'il signe n'existe plus — et le
+     * carnet vidé. Le prochain handle se créera nu, à la prochaine demande.
+     *
+     * Si la connexion tombe AVANT la réponse, on ne sait pas si l'annuaire a
+     * effacé : l'erreur le dit tel quel, et rien n'est effacé ici.
+     */
+    override suspend fun effacerCompte() = surLeFil {
+        val h = handleOuCreer()
+        if (!connecte()) connecter()
+        val rendu = Natif.requete(h, "DELETE", "/v1/compte", null)
+            ?: when (val code = Natif.dernierCode(h)) {
+                Natif.INJOIGNABLE, Natif.NON_CONNECTE ->
+                    throw ErreurAnnuaire.Reseau("la connexion est tombée avant la réponse ; le compte est peut-être effacé, réessayez")
+                else -> throw ErreurNative(code)
+            }
+        val statut = ((rendu[0].toInt() and 0xFF) shl 8) or (rendu[1].toInt() and 0xFF)
+        Log.d("annuaire", "DELETE /v1/compte → $statut")
+        if (statut != 204) throw refus(statut)
+        Natif.libere(h)
+        handle = 0L
+        cleCourante = null
+        carnet.vider()
     }
 
     override suspend fun definirAlias(alias: String?) {

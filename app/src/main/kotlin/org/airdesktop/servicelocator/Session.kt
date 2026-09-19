@@ -24,6 +24,8 @@ class Session(
     val identite: IdentiteLocale,
     /** D'où vient la clé : le Keystore sur un appareil, une clé logicielle dans un essai. */
     private val signataire: (FragmentActivity) -> Signataire = { CleAppareil.ouOuvrir().avec(it) },
+    /** Comment on détruit la clé de cet appareil, une fois qu'elle a servi pour la dernière fois. Le Keystore sur un appareil ; rien dans un essai. */
+    private val effacerCle: () -> Unit = { CleAppareil.effacer() },
     /**
      * Comment on ouvre un compte — séparé de l'annuaire parce qu'en
      * démonstration, l'ouverture peuple aussi l'annuaire. La clé est donnée
@@ -86,6 +88,34 @@ class Session(
     suspend fun definirAlias(alias: String?) {
         annuaire.definirAlias(alias)
         rafraichirCompte()
+    }
+
+    /**
+     * Efface le compte — le dernier acte de la clé de cet appareil
+     * (`docs/modele.md` §2.1).
+     *
+     * Dans l'ordre, et l'ordre compte : l'annuaire d'abord (`DELETE
+     * /v1/compte`, qui révoque cet appareil avec tout le reste, puis ferme la
+     * connexion), et seulement s'il a dit `204` ce qui est ici — la clé,
+     * détruite dans le Keystore : l'annuaire l'a déjà révoquée, elle ne
+     * signera plus rien qui soit accepté ; et le compte remis à `null`, ce qui
+     * ramène l'écran d'accueil ([Racine] n'affiche les onglets que s'il y a
+     * un compte). Le carnet local est vidé par l'annuaire lui-même, qui le
+     * tient. Si l'annuaire refuse, rien ne bouge ici : l'erreur remonte à
+     * l'écran, et le compte reste administrable.
+     *
+     * **Le geste biométrique n'est pas redemandé pour ce verbe.** Il a été
+     * fait pour prouver la connexion qui porte la demande — au lancement, ou
+     * à sa réouverture si elle était tombée — et c'est ce que « sous
+     * biométrie » veut dire pour l'annuaire (`protocole.md` §2.2 : la
+     * confirmation est le geste qui débloque la clé, une fois par connexion).
+     * La confirmation de ce qui va partir est celle de l'écran, avant
+     * d'appeler ici.
+     */
+    suspend fun effacerCompte() {
+        annuaire.effacerCompte()
+        runCatching { effacerCle() }.onFailure { Log.w("Session", "la clé de l'appareil n'a pas pu être détruite ; l'annuaire l'a révoquée", it) }
+        compte = null
     }
 }
 

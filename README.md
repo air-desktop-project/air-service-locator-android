@@ -9,7 +9,7 @@ machines, et voir quels daemons y écoutent — et sur quel port.
 > tourne sur un Fairphone 5. Elle porte les huit écrans arrêtés avec les
 > maquettes — accueil, machines, machine, déclaration, code d'enrôlement,
 > accès, accorder, compte —, trois écrans de plus — le détail d'un service,
-> enrôler un second appareil, rejoindre un compte — et trente et un essais JVM.
+> enrôler un second appareil, rejoindre un compte — et trente-trois essais JVM.
 >
 > **Elle parle à un annuaire réel** quand on lui en donne un (voir
 > « Construire ») : HTTP/3 sur QUIC, par la pile Rust d'`asl-client`

@@ -123,7 +123,8 @@ fun AccueilEcran(surRejoindre: () -> Unit) {
 
 /** Ce qui exclut l'application se dit ici, tout de suite, plutôt qu'au moment de la première connexion. */
 private fun pied(etat: EtatIdentite): String = when (etat) {
-    EtatIdentite.Disponible -> "Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme. Vous pourrez en enrôler un second."
+    // « Ferme » a un sens précis depuis la règle des orphelins (`docs/modele.md` §2.1), et l'application doit le dire en ces termes.
+    EtatIdentite.Disponible -> "Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme — et efface, à trente jours : avec un seul appareil, perdre ce téléphone efface ce compte. Vous pourrez en enrôler un second."
     EtatIdentite.RienEnrole -> "Aucune empreinte ni visage n'est enrôlé sur cet appareil. Enrôlez-en dans les Paramètres, puis revenez."
     EtatIdentite.Indisponible -> "La biométrie est momentanément indisponible. Réessayez dans un instant."
     is EtatIdentite.Absente -> "Cet appareil ne peut pas confirmer l'identité de son porteur, et cette application ne peut donc pas y ouvrir de compte. ${etat.raison}."
