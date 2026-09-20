@@ -74,6 +74,11 @@ fun CompteEcran(nav: NavController) {
     var versionAnnuaire by remember { mutableStateOf<Optional<String>?>(null) }
     var aRevoquer by remember { mutableStateOf<Appareil?>(null) }
     var erreur by remember { mutableStateOf<String?>(null) }
+    // Effacer le compte : la demande (le dialogue), puis l'attente de l'annuaire, puis son refus s'il refuse — dit
+    // à côté du bouton, en bas, là où l'on regarde à ce moment-là.
+    var effacementDemande by remember { mutableStateOf(false) }
+    var effacementEnCours by remember { mutableStateOf(false) }
+    var erreurEffacement by remember { mutableStateOf<String?>(null) }
     val compte = session.compte
     LaunchedEffect(compte) { if (compte != null) versionAnnuaire = Optional.ofNullable(runCatching { session.annuaire.version() }.getOrNull()) }
 
@@ -174,7 +179,7 @@ fun CompteEcran(nav: NavController) {
                     )
                 }
             }
-            item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; « Révoquer » (ou un appui long) en révoque un autre ; révoqué, il reste dans l'annuaire, marqué, et « Voir les appareils révoqués » le montre. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme.") }
+            item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; « Révoquer » (ou un appui long) en révoque un autre ; révoqué, il reste dans l'annuaire, marqué, et « Voir les appareils révoqués » le montre. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme — et efface, à trente jours : avec un seul appareil, perdre ce téléphone efface ce compte.") }
             item { SousTitre("Annuaire") }
             item { ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text("racines air-desktop-project") }) }
             // Les deux versions, l'application et l'annuaire, lisibles ici parce que c'est l'écran où l'on va quand
@@ -203,7 +208,47 @@ fun CompteEcran(nav: NavController) {
                     modifier = Modifier.clickable { nav.navigate(Routes.EXPOSITIONS) },
                 )
             }
+            // Tout en bas, et visible : le geste qui ferme le compte depuis cet appareil — le dernier acte de sa clé
+            // (`docs/modele.md` §2.1). Le dialogue dit ce qui part ; ici, seulement que ça ne revient pas.
+            if (compte != null) {
+                item { SousTitre("Effacer") }
+                item {
+                    TextButton(
+                        onClick = { effacementDemande = true },
+                        enabled = !effacementEnCours,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    ) {
+                        Text(
+                            if (effacementEnCours) "Effacement en cours…" else "Effacer mon compte",
+                            color = if (effacementEnCours) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                item { Aide("Le compte, ses appareils, ses machines, ses accès et son alias quittent l'annuaire, et cet appareil revient à l'écran d'accueil. Rien ne revient.") }
+                item { Erreur(erreurEffacement) }
+            }
         }
+    }
+
+    if (effacementDemande) {
+        AlertDialog(
+            onDismissRequest = { effacementDemande = false },
+            title = { Text("Effacer mon compte ?") },
+            text = { Text("Tous vos appareils, vos machines et leurs services, vos accès donnés et reçus, votre alias. Rien ne revient.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    effacementDemande = false
+                    effacementEnCours = true
+                    erreurEffacement = null
+                    portee.launch {
+                        // Réussi, le compte est `null` et l'accueil a déjà remplacé cet écran ; refusé, on le dit ici.
+                        runCatching { session.effacerCompte() }.onFailure { erreurEffacement = it.messageAnnuaire }
+                        effacementEnCours = false
+                    }
+                }) { Text("Effacer", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { effacementDemande = false }) { Text("Annuler") } },
+        )
     }
 
     aRevoquer?.let { appareil ->

@@ -126,6 +126,22 @@ class AnnuaireSimule(
 
     override suspend fun compte(): Compte? = verrou.withLock { compteLocal }
 
+    /**
+     * Ce que le serveur fait dans une transaction, le banc le fait sous son
+     * verrou : le compte, ses appareils et leurs clés, ses machines et leurs
+     * services, les autorisations dans les deux sens, l'alias — tout part. Les
+     * autres comptes restent : ils ne sont pas à nous. Un second appel rend
+     * `401`, comme sur le fil.
+     */
+    override suspend fun effacerCompte() = verrou.withLock {
+        if (compteLocal == null) throw ErreurAnnuaire.NonReconnu
+        compteLocal = null
+        parcAppareils.clear()
+        clesEnrolees.clear()
+        parcMachines.clear()
+        aretes.clear()
+    }
+
     override suspend fun definirAlias(alias: String?) = verrou.withLock {
         val compte = compteLocal ?: throw ErreurAnnuaire.Introuvable
         if (alias != null) {
