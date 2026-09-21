@@ -39,6 +39,11 @@ object Natif {
     external fun messagePourAttestationDeCle(h: Long): ByteArray?
     /** `[compte, appareil]`, ou `null`. */
     external fun creerCompte(h: Long, plateforme: Int, attestation: ByteArray?): Array<String>?
+    /**
+     * `POST /v1/attestation` : la preuve d'un appareil qui rejoint et sa chaîne, sur la connexion qui a tiré le défi
+     * AVANT que la clé soit générée. `OK` : identité installée ; `CHAINE_REFUSEE` : `403` ; `REFUSE` : `401` ou `400`.
+     */
+    external fun rejoindreAtteste(h: Long, identifiant: String, plateforme: Int, attestation: ByteArray?): Int
     /** `statut (2 octets) ‖ corps`, ou `null` si la requête n'a pas pu partir. */
     external fun requete(h: Long, methode: String, chemin: String, corps: ByteArray?): ByteArray?
     external fun identifiant(h: Long): String?
@@ -56,6 +61,8 @@ object Natif {
     const val PAS_D_IDENTITE = -7
     const val NON_CONNECTE = -10
     const val SIGNATURE_REFUSEE = -11
+    /** La preuve tient, la chaîne ne prouve rien, et la posture de l'annuaire l'exige (`403`). */
+    const val CHAINE_REFUSEE = -12
 
     const val PLATEFORME_AUCUNE = 0
     /** L'attestation de clé du Keystore : la chaîne de certificats dans la case. */

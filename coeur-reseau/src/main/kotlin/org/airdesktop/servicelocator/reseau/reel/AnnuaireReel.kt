@@ -65,12 +65,14 @@ class AnnuaireReel(
     private val reglages: Reglages,
     /**
      * D'où vient la clé. L'argument est le défi d'attestation à poser si la
-     * clé est À CRÉER — `null` quand on ouvre une clé qui existe, ou qu'on
-     * n'a pas de défi (rejoindre un compte : la clé précède la connexion).
+     * clé est À CRÉER — `null` quand on ouvre une clé qui existe. Ouvrir un
+     * compte et rejoindre en passent tous deux un : la clé suit le défi.
      */
     private val signataire: (defiAttestation: ByteArray?) -> Signataire,
     /** La clé de cet appareil existe-t-elle déjà ? Sans la créer. */
     private val cleExiste: () -> Boolean,
+    /** Détruit la clé de cet appareil — celle qu'on a générée pour rejoindre et qui ne s'attestera plus. */
+    private val effacerCle: () -> Unit,
 ) : Annuaire {
     /** Où est l'annuaire, sous quel nom, et qui a signé son certificat. */
     /**
@@ -118,6 +120,11 @@ class AnnuaireReel(
     private val verrou = Mutex()
     private var handle = 0L
     private var cleCourante: Signataire? = null
+    /**
+     * La clé générée pour rejoindre, avec le défi de la connexion en cours —
+     * valable tant que cette connexion tient et que rien ne l'a dépensé.
+     */
+    private var cleARejoindre: Signataire? = null
 
     // ── Le natif ──────────────────────────────────────────────────────────────
 
@@ -143,9 +150,8 @@ class AnnuaireReel(
         }
         exiger(Natif.racines(neuf, reglages.racinesPEM), "racines")
         // **LA CLÉ N'EST POSÉE QUE SI ELLE EXISTE.** Sur un appareil neuf, elle
-        // se crée dans `ouvrirCompte`, AVEC le défi d'attestation de la
-        // connexion — ou dans `rejoindre`, sans. Une connexion nue n'en a pas
-        // besoin.
+        // se crée dans `ouvrirCompte` ou `clePourRejoindre`, AVEC le défi
+        // d'attestation de la connexion. Une connexion nue n'en a pas besoin.
         if (cleExiste()) poserLaCle(neuf, signataire(null))
         carnet.appareil?.let { exiger(Natif.identite(neuf, it.texte), "identite") }
         handle = neuf
@@ -164,9 +170,6 @@ class AnnuaireReel(
                 .getOrNull()
         }, "cle")
     }
-
-    /** La clé courante, posée si elle ne l'est pas encore — sans défi : c'est le chemin où l'attestation n'a pas lieu. */
-    private fun cleOuPoser(h: Long): Signataire = cleCourante ?: signataire(null).also { poserLaCle(h, it) }
 
     /** Ouvre la connexion — et prouve la clé si l'appareil est enrôlé. C'est ici que l'empreinte est demandée, une fois par connexion. */
     private fun connecter() {
@@ -246,12 +249,7 @@ class AnnuaireReel(
         carnet.compte?.let { return@surLeFil it }
         val h = handleOuCreer()
         if (!connecte()) connecter()
-        val cle = cleCourante ?: run {
-            val defi = Natif.defi(h) ?: throw ErreurNative(Natif.dernierCode(h))
-            val message = Natif.messagePourAttestationDeCle(h) ?: throw ErreurNative(Natif.dernierCode(h))
-            Log.d("annuaire", "défi tiré (${defi.size} octets), clé à générer avec un défi d'attestation")
-            this.signataire(MessageDigest.getInstance("SHA-256").digest(message)).also { poserLaCle(h, it) }
-        }
+        val cle = cleCourante ?: this.signataire(defiDAttestation(h)).also { poserLaCle(h, it) }
         val chaine = cle.attestation
         val rendu = (if (chaine != null) {
             Log.d("annuaire", "création avec attestation de clé : ${chaine.size} octets")
@@ -275,24 +273,102 @@ class AnnuaireReel(
         compte
     }
 
+    /**
+     * Le message d'attestation de clé de la connexion en cours, sous SHA-256 :
+     * ce que la clé reçoit en `setAttestationChallenge`. Sur la connexion nue,
+     * après `defi` — et le défi tiré est celui que la preuve dépensera.
+     */
+    private fun defiDAttestation(h: Long): ByteArray {
+        val defi = Natif.defi(h) ?: throw ErreurNative(Natif.dernierCode(h))
+        val message = Natif.messagePourAttestationDeCle(h) ?: throw ErreurNative(Natif.dernierCode(h))
+        Log.d("annuaire", "défi tiré (${defi.size} octets), clé à générer avec un défi d'attestation")
+        return MessageDigest.getInstance("SHA-256").digest(message)
+    }
+
+    override suspend fun clePourRejoindre(signataire: () -> Signataire): ByteArray = clePourRejoindre()
+
+    /**
+     * La clé à montrer, générée ICI avec le défi de la connexion tenue.
+     *
+     * **Idempotente tant que la connexion tient** : l'écran qui la montre peut
+     * se redessiner, tourner, revenir — c'est la même clé, sur le même canal,
+     * avec le même défi. Sinon, tout repart du début : le handle est libéré
+     * (sa connexion, son défi), et une clé qui existerait déjà est détruite —
+     * sans compte au carnet, elle ne servirait qu'à rejoindre sans chaîne, ou
+     * avec une chaîne dont le défi est mort. Un appareil qui a un compte ne
+     * rejoint rien.
+     */
+    suspend fun clePourRejoindre(): ByteArray = surLeFil {
+        if (carnet.compte != null) throw ErreurAnnuaire.RequeteInvalide("cet appareil a déjà un compte")
+        cleARejoindre?.let { if (connecte()) return@surLeFil it.clePublique }
+        abandonner()
+        val h = handleOuCreer()
+        connecter()
+        val cle = signataire(defiDAttestation(h)).also { poserLaCle(h, it) }
+        cleARejoindre = cle
+        Log.d("annuaire", "clé à montrer générée, chaîne ${cle.attestation?.size ?: 0} octets")
+        cle.clePublique
+    }
+
+    /** Libère le handle — connexion et défi avec — et détruit une clé qui n'a rejoint aucun compte. */
+    private fun abandonner() {
+        if (handle != 0L) {
+            Natif.libere(handle)
+            handle = 0L
+        }
+        cleCourante = null
+        cleARejoindre = null
+        if (cleExiste()) {
+            Log.i("annuaire", "la clé de cet appareil, sans compte, est détruite : la suivante sera générée avec le défi de sa connexion")
+            effacerCle()
+        }
+    }
+
+    override suspend fun annulerRejoindre() = surLeFil {
+        if (carnet.compte == null) abandonner()
+    }
+
+    /**
+     * `POST /v1/attestation`, sur la connexion tenue depuis [clePourRejoindre]
+     * (`protocole.md` §2.2) : la preuve du genre `a` — la même signature que
+     * `POST /v1/defi`, et c'est là que l'empreinte est demandée — suivie de la
+     * chaîne du Keystore sous la plate-forme Android. Un seul défi, tiré avant
+     * la clé, dépensé ici. `204` : la connexion est celle de cet appareil, la
+     * chaîne est jugée — acceptée, ou refusée sous une posture facultative,
+     * l'appareil restant alors `aucune`, ce que l'écran Appareils dira.
+     *
+     * **Tout autre issue fait recommencer**, et l'erreur le dit : la connexion
+     * tombée entre le code et la preuve (le défi est mort avec elle), la chaîne
+     * refusée sous une posture exigée (`403`), la preuve refusée (`401`, `400`),
+     * et même le porteur qui n'a pas confirmé — rien n'est parti, mais le
+     * transport a dépensé le défi de son côté et une nouvelle demande en
+     * tirerait un autre, qui ne serait plus celui de la clé. Dans les quatre
+     * cas la clé ne s'attestera plus ; le prochain [clePourRejoindre] en
+     * génère une neuve.
+     *
+     * Le paramètre `signataire` dit où le geste est demandé, pas avec quoi : le
+     * natif signe avec la clé qu'on lui a donnée, celle du Keystore.
+     */
     override suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte {
-        // Le natif signe avec la clé qu'on lui a donnée à la création du
-        // handle — la même que `signataire`, celle du Keystore. Le paramètre
-        // dit où le geste est demandé, pas avec quoi.
         surLeFil {
+            val cle = cleARejoindre ?: throw ErreurAnnuaire.ARecommencer("Aucune clé n'est prête à rejoindre")
             val h = handleOuCreer()
-            cleOuPoser(h)
-            exiger(Natif.identite(h, appareil.texte), "identite")
-            // Se connecter sous cette identité, c'est la prouver : le natif
-            // ferme la connexion nue s'il y en a une, et rappelle la clé.
-            Log.d("annuaire", "connexion à ${reglages.adresse} en tant que ${appareil.texte}…")
-            when (val code = Natif.connecter(h).also { Log.d("annuaire", "connecter → $it") }) {
-                Natif.OK -> Unit
-                Natif.SIGNATURE_REFUSEE -> throw ErreurAnnuaire.NonConfirme
-                Natif.REFUSE -> throw ErreurAnnuaire.PreuveInvalide
-                Natif.INJOIGNABLE -> throw ErreurAnnuaire.Reseau("aucun annuaire ne répond")
-                else -> throw ErreurNative(code)
+            val chaine = cle.attestation
+            Log.d("annuaire", "preuve en tant que ${appareil.texte}, chaîne ${chaine?.size ?: 0} octets")
+            val code = Natif.rejoindreAtteste(h, appareil.texte, if (chaine != null) Natif.PLATEFORME_ANDROID else Natif.PLATEFORME_AUCUNE, chaine)
+            Log.d("annuaire", "rejoindreAtteste → $code")
+            if (code != Natif.OK) {
+                cleARejoindre = null
+                throw when (code) {
+                    Natif.SIGNATURE_REFUSEE -> ErreurAnnuaire.ARecommencer("Identité non confirmée ; rien n'a été envoyé, mais le défi de cette clé est dépensé")
+                    Natif.CHAINE_REFUSEE -> ErreurAnnuaire.ARecommencer("L'annuaire exige une attestation et a refusé celle de cette clé")
+                    Natif.REFUSE -> ErreurAnnuaire.ARecommencer("L'annuaire a refusé la preuve de cette clé")
+                    Natif.INJOIGNABLE, Natif.NON_CONNECTE -> ErreurAnnuaire.ARecommencer("La connexion est tombée entre le code et la preuve")
+                    else -> ErreurNative(code)
+                }
             }
+            cleCourante = cle
+            cleARejoindre = null
         }
         // La preuve tient : c'est bien la clé que l'autre téléphone a enrôlée.
         // Le compte, lui, ne se vérifie qu'en le lisant.

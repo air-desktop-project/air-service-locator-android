@@ -35,16 +35,34 @@ class AnnuaireSimuleEssais {
         // Deux fois la même clé, non.
         assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.enrolerAppareil(nouveau.clePublique) } }
 
-        // Rejoindre : le bon appareil sous la bonne clé, et la preuve tient.
+        // La clé à montrer est celle du signataire, telle quelle ; l'annuler ne change rien ici.
+        assertTrue(annuaire.clePourRejoindre { nouveau }.contentEquals(nouveau.clePublique))
+        annuaire.annulerRejoindre()
+
+        // Rejoindre : le bon appareil sous la bonne clé, et la preuve tient. Sans chaîne, il entre `aucune`.
         assertEquals(compte, annuaire.rejoindre(compte.identifiant, enrole.id, nouveau))
         val appareils = annuaire.appareils()
         assertTrue(appareils.first { it.id == enrole.id }.estCeluiCi)
         assertEquals(1, appareils.count { it.estCeluiCi })
+        assertEquals(Appareil.Attestation.AUCUNE, appareils.first { it.id == enrole.id }.attestation)
 
         // Une autre clé sous cet identifiant : introuvable, comme un 404 qui ne dit pas pourquoi.
         assertThrows(ErreurAnnuaire.Introuvable::class.java) {
             runBlocking { annuaire.rejoindre(compte.identifiant, enrole.id, CleLogicielle()) }
         }
+    }
+
+    /** Une clé qui porte une chaîne entre `android` : c'est ce que `POST /v1/attestation` fait d'un appareil qui rejoint. */
+    @Test
+    fun unAppareilQuiRejointAvecSaChaineEntreAtteste(): Unit = runBlocking {
+        val annuaire = AnnuaireSimule { instant }
+        val compte = annuaire.ouvrirCompte(CleLogicielle())
+        val attestee = object : Signataire by CleLogicielle() {
+            override val attestation: ByteArray get() = byteArrayOf(0x30, 0x03, 0x02, 0x01, 0x01)
+        }
+        val enrole = annuaire.enrolerAppareil(attestee.clePublique)
+        assertEquals(compte, annuaire.rejoindre(compte.identifiant, enrole.id, attestee))
+        assertEquals(Appareil.Attestation.ANDROID, annuaire.appareils().first { it.id == enrole.id }.attestation)
     }
 
     private val instant = Instant.ofEpochSecond(1_700_000_000)

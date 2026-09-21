@@ -43,6 +43,7 @@ class ApplicationServiceLocator : Application() {
                 reglages,
                 signataire = { defi -> CleAppareil.ouOuvrir(defi).avec { activiteAuPremierPlan } },
                 cleExiste = { CleAppareil.existe() },
+                effacerCle = { CleAppareil.effacer() },
             )
             Session(reel, identite) { reel.ouvrirCompte() }
         } else {

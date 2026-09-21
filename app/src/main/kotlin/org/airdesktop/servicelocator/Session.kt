@@ -89,13 +89,21 @@ class Session(
     }
 
     /**
-     * La clé publique de cet appareil — ce que le nouveau téléphone montre à
-     * l'ancien. La lire ne demande aucun geste : seule la signature en
-     * demande un.
+     * La clé publique à montrer à l'ancien téléphone pour rejoindre son compte.
+     * C'est l'annuaire qui la donne : le réel la génère avec le défi de sa
+     * connexion, pour que sa chaîne soit présentable à la preuve
+     * (`protocole.md` §2.2). La montrer ne demande aucun geste.
      */
-    fun clePublique(activite: FragmentActivity): ByteArray = signataire(activite).clePublique
+    suspend fun clePourRejoindre(activite: FragmentActivity): ByteArray = annuaire.clePourRejoindre { signataire(activite) }
 
-    /** Rejoint un compte, depuis ce téléphone-ci, avec l'invitation que l'autre a rendue. Le geste est demandé au moment de prouver la clé. */
+    /** Quitte « rejoindre » sans avoir rejoint : la clé montrée ne servira pas. */
+    suspend fun annulerRejoindre() = annuaire.annulerRejoindre()
+
+    /**
+     * Rejoint un compte, depuis ce téléphone-ci, avec l'invitation que l'autre
+     * a rendue : la preuve et la chaîne, sur la connexion qui a tiré le défi
+     * de la clé. Le geste est demandé au moment de prouver.
+     */
     suspend fun rejoindre(activite: FragmentActivity, compte: Identifiant, appareil: Identifiant) {
         this.compte = annuaire.rejoindre(compte, appareil, signataire(activite))
         seDecrire()

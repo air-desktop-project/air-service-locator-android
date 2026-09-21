@@ -1,5 +1,6 @@
 package org.airdesktop.servicelocator.ecrans
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -41,6 +43,7 @@ import org.airdesktop.servicelocator.composants.ReceptionInvitation
 import org.airdesktop.servicelocator.composants.SousTitre
 import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.modele.Invitation
+import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
 
 /**
  * `POST /v1/appareils`, **depuis l'appareil déjà enrôlé** : lire la clé que le
@@ -108,10 +111,17 @@ fun EnrolerAppareilEcran(nav: NavController) {
  * Rejoindre un compte existant, **depuis le nouveau téléphone** : montrer sa
  * clé, puis lire l'invitation que l'autre téléphone rend.
  *
- * La clé est née ici, dans le Keystore, à la première ouverture de cet écran ;
- * la montrer ne demande aucun geste. Le geste vient à la fin, quand
- * l'invitation est lue : c'est la preuve, sur cette connexion, que la clé
- * enrôlée là-bas est bien celle d'ici.
+ * La clé naît à l'ouverture de cet écran, dans le Keystore, **avec le défi
+ * d'une connexion que l'annuaire tient depuis** (`protocole.md` §2.2) : c'est
+ * ce qui rend sa chaîne d'attestation présentable. La montrer ne demande
+ * aucun geste. Le geste vient à la fin, quand l'invitation est lue : la
+ * preuve et la chaîne, sur cette connexion-là.
+ *
+ * **Ce qui échoue après l'apport fait recommencer** — la connexion tombée
+ * pendant que l'autre lisait, la chaîne refusée, le porteur qui n'a pas
+ * confirmé : la clé ne s'attestera plus, l'annuaire en génère une neuve, un
+ * nouveau code s'affiche, et l'erreur dit que l'appareil déjà apporté reste à
+ * révoquer depuis l'autre téléphone. Quitter l'écran détruit la clé montrée.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,15 +132,26 @@ fun RejoindreEcran(retour: () -> Unit) {
     var cle by remember { mutableStateOf<ByteArray?>(null) }
     var enCours by remember { mutableStateOf(false) }
     var erreur by remember { mutableStateOf<String?>(null) }
+    // Chaque tour est une clé : le premier à l'ouverture, les suivants après un échec.
+    var tour by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        runCatching { session.clePublique(activite) }
+    LaunchedEffect(tour) {
+        cle = null
+        runCatching { session.clePourRejoindre(activite) }
             .onSuccess { cle = it }
-            .onFailure { erreur = "La clé de cet appareil n'a pas pu être créée : ${it.message}" }
+            .onFailure { erreur = "La clé de cet appareil n'a pas pu être préparée : ${it.messageAnnuaire}" }
     }
 
+    val quitter: () -> Unit = {
+        portee.launch {
+            runCatching { session.annulerRejoindre() }
+            retour()
+        }
+    }
+    BackHandler(onBack = quitter)
+
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Rejoindre un compte") }, navigationIcon = { IconButton(onClick = retour) { Icon(Icones.retour, "Retour") } })
+        TopAppBar(title = { Text("Rejoindre un compte") }, navigationIcon = { IconButton(onClick = quitter) { Icon(Icones.retour, "Retour") } })
     }) { marges ->
         Column(Modifier.fillMaxSize().padding(marges).verticalScroll(rememberScrollState())) {
             val montree = cle?.let { Invitation.Cle(it) }
@@ -144,9 +165,9 @@ fun RejoindreEcran(retour: () -> Unit) {
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(16.dp),
                 )
                 LigneCopiable("Ou envoyez-lui ce texte", montree.texte)
-                Aide("C'est une clé publique : la montrer ne donne rien à personne. Sa moitié secrète ne quitte pas le matériel sécurisé.")
+                Aide("C'est une clé publique : la montrer ne donne rien à personne. Sa moitié secrète ne quitte pas le matériel sécurisé. Restez sur cet écran, connecté, le temps que l'autre téléphone lise le code : cette clé ne vaut que sur la connexion qui l'a vue naître.")
                 SousTitre("2. Lisez sa réponse")
-                ReceptionInvitation("Le code commence par « asl:appareil: ». Le lire demande un geste : la clé de cet appareil prouve qu'elle est bien celle qui vient d'être enrôlée.") { invitation ->
+                ReceptionInvitation("Le code commence par « asl:appareil: ». Le lire demande un geste : la clé de cet appareil prouve qu'elle est bien celle qui vient d'être enrôlée, et présente son attestation.") { invitation ->
                     if (invitation !is Invitation.Appareil) {
                         erreur = "Ce code est une clé, pas une réponse : c'est l'autre téléphone qui doit le lire."
                         return@ReceptionInvitation
@@ -155,6 +176,9 @@ fun RejoindreEcran(retour: () -> Unit) {
                         enCours = true
                         try {
                             session.rejoindre(activite, invitation.compte, invitation.appareil)
+                        } catch (e: ErreurAnnuaire.ARecommencer) {
+                            erreur = e.messageAnnuaire
+                            tour++
                         } catch (e: Exception) {
                             erreur = e.messageAnnuaire
                         } finally {
@@ -166,6 +190,14 @@ fun RejoindreEcran(retour: () -> Unit) {
                     Spacer(Modifier.height(16.dp))
                     CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
                 }
+            } else if (erreur == null) {
+                Spacer(Modifier.height(32.dp))
+                CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+                Text(
+                    "Connexion à l'annuaire, puis génération de la clé…",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(16.dp),
+                )
             }
             Erreur(erreur)
         }

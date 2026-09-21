@@ -34,6 +34,15 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
      * l'annuaire qui ne reconnaît plus cet appareil.
      */
     object NonReconnu : ErreurAnnuaire("L'annuaire ne reconnaît plus cet appareil : révoqué, ou le compte est déjà effacé.")
+    /**
+     * Rejoindre a échoué APRÈS que l'autre téléphone a apporté la clé, et cette clé ne s'attestera plus jamais : son
+     * défi vivait dans la connexion qui l'a tiré (`protocole.md` §2.2, « le défi vit ce que vit la connexion »).
+     * La sortie est toujours la même — nouvelle clé, nouveau code — et l'appareil apporté reste dans le compte,
+     * jusqu'à ce que l'autre téléphone le révoque.
+     */
+    class ARecommencer(detail: String) : ErreurAnnuaire(
+        "$detail. Recommencez avec le nouveau code ci-dessus ; l'appareil que l'autre téléphone vient d'enrôler ne servira pas — révoquez-le depuis lui."
+    )
 }
 
 /**
@@ -64,14 +73,33 @@ interface Annuaire {
      */
     suspend fun ouvrirCompte(signataire: Signataire): Compte
     /**
+     * La clé à montrer à l'autre téléphone pour rejoindre son compte —
+     * **depuis le nouveau téléphone**, avant tout le reste.
+     *
+     * **L'ordre ne se négocie pas** (`protocole.md` §2.2, « Attester un
+     * appareil qui rejoint ») : le transport réel se connecte nu, tire un
+     * défi, et GÉNÈRE la clé avec le condensat du message d'attestation — c'est
+     * ce qui rend sa chaîne présentable à la preuve. La connexion est tenue
+     * jusqu'à [rejoindre] ; tant qu'elle tient, rappeler ceci rend la même clé
+     * (un écran qui se redessine ne recommence pas). Tombée, ou après un
+     * [rejoindre] qui a échoué, c'est une **nouvelle clé** — l'ancienne est
+     * détruite, son défi est mort avec le canal. Le banc, lui, rend la clé du
+     * signataire, et c'est tout. Aucun geste n'est demandé ici.
+     */
+    suspend fun clePourRejoindre(signataire: () -> Signataire): ByteArray
+    /**
      * Rejoint un compte existant, **depuis le nouveau téléphone** : un appareil
-     * déjà enrôlé a posté sa clé ([enrolerAppareil]) et lui a rendu
-     * l'invitation. Rien n'est posté ici — la clé est déjà connue de
-     * l'annuaire — mais elle est **prouvée**, sur cette connexion : c'est le
-     * geste, et c'est ce qui échoue ([ErreurAnnuaire.PreuveInvalide]) si la
-     * clé n'est pas celle qu'on a enrôlée.
+     * déjà enrôlé a posté la clé montrée ([enrolerAppareil]) et lui a rendu
+     * l'invitation. La clé est **prouvée**, sur la connexion tenue depuis
+     * [clePourRejoindre], et sa chaîne d'attestation présentée du même geste
+     * (`POST /v1/attestation`) : c'est ici que le porteur est sollicité. Ce qui
+     * échoue après l'apport — chaîne refusée, connexion tombée, porteur qui n'a
+     * pas confirmé, preuve refusée — rend [ErreurAnnuaire.ARecommencer] : la
+     * clé ne s'attestera plus, on repart avec une neuve.
      */
     suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte
+    /** Quitte l'écran « rejoindre » sans avoir rejoint : la clé montrée ne servira pas, elle est détruite. */
+    suspend fun annulerRejoindre()
     /** Le compte de cet appareil, s'il en a un. */
     suspend fun compte(): Compte?
     /**

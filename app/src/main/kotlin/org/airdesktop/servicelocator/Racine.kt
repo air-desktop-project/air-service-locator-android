@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -65,7 +66,8 @@ private val onglets = listOf(
 fun Racine() {
     val session = LocalSession.current
     LaunchedEffect(Unit) { session.rafraichirCompte() }
-    var rejoindre by remember { mutableStateOf(false) }
+    // Retenu à travers une rotation : la clé montrée et la connexion qui tient son défi vivent dans l'annuaire, pas dans l'écran.
+    var rejoindre by rememberSaveable { mutableStateOf(false) }
     if (session.compte == null) {
         if (rejoindre) RejoindreEcran(retour = { rejoindre = false }) else AccueilEcran(surRejoindre = { rejoindre = true })
     } else {

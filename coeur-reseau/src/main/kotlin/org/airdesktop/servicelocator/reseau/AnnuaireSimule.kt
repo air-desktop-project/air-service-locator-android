@@ -93,6 +93,11 @@ class AnnuaireSimule(
         }
     }
 
+    /** Pas de canal, donc pas de défi à tirer avant la clé : le banc montre la clé du signataire, et c'est tout. */
+    override suspend fun clePourRejoindre(signataire: () -> Signataire): ByteArray = signataire().clePublique
+
+    override suspend fun annulerRejoindre() = Unit
+
     override suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte {
         // Le banc ne connaît qu'un compte, et les appareils qu'on y a enrôlés
         // avec leur clé : l'invitation doit désigner l'un d'eux, sous la clé
@@ -115,10 +120,17 @@ class AnnuaireSimule(
         }
         if (!P256.verifie(signataire.clePublique, message, preuve)) throw ErreurAnnuaire.PreuveInvalide
         return verrou.withLock {
-            // Désormais, c'est CET appareil qui regarde l'écran.
+            // Désormais, c'est CET appareil qui regarde l'écran. Et il entre
+            // sous ce que sa clé porte : une chaîne d'attestation le fait
+            // `android`, comme `POST /v1/attestation` le ferait — sans la juger,
+            // le banc n'a pas de racine à lui opposer ; sans chaîne, `aucune`.
+            val entree = if (signataire.attestation != null) Appareil.Attestation.ANDROID else Appareil.Attestation.AUCUNE
             for (i in parcAppareils.indices) {
                 val celuiCi = parcAppareils[i].id == appareil
-                parcAppareils[i] = parcAppareils[i].copy(estCeluiCi = celuiCi, nom = if (celuiCi) "Cet appareil" else parcAppareils[i].nom)
+                parcAppareils[i] = parcAppareils[i].copy(
+                    estCeluiCi = celuiCi, nom = if (celuiCi) "Cet appareil" else parcAppareils[i].nom,
+                    attestation = if (celuiCi) entree else parcAppareils[i].attestation,
+                )
             }
             local
         }
