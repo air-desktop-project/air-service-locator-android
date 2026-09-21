@@ -127,6 +127,7 @@ fun CompteEcran(nav: NavController) {
                             Appareil.Attestation.ANDROID -> add("clé attestée (Android)")
                             Appareil.Attestation.INVITATION -> add("sur invitation")
                             Appareil.Attestation.AUCUNE -> add("sans attestation")
+                            Appareil.Attestation.ATTENDUE -> add("en attente d'attestation")
                             null -> Unit
                         }
                         when (appareil.description?.plateforme) {
