@@ -6,6 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.deCetAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
@@ -26,6 +30,11 @@ class Session(
     private val signataire: (FragmentActivity) -> Signataire = { CleAppareil.ouOuvrir().avec(it) },
     /** Comment on détruit la clé de cet appareil, une fois qu'elle a servi pour la dernière fois. Le Keystore sur un appareil ; rien dans un essai. */
     private val effacerCle: () -> Unit = { CleAppareil.effacer() },
+    /**
+     * La portée de ce qui appartient à la session et non à un écran : elle vit
+     * autant que l'application, là où celle d'un écran meurt avec lui.
+     */
+    private val portee: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     /**
      * Comment on ouvre un compte — séparé de l'annuaire parce qu'en
      * démonstration, l'ouverture peuple aussi l'annuaire. La clé est donnée
@@ -53,10 +62,17 @@ class Session(
      * annuaire qui ne sert pas encore ce verbe rend `404` ; le compte, lui, est
      * là. On ne le dit pas à l'écran, et l'annuaire réel n'en garde pas trace
      * comme posée — elle repartira à la prochaine preuve.
+     *
+     * **Portée par la session, pas par l'écran qui a prouvé.** Poser le compte
+     * fait quitter l'accueil, dont la portée s'annule ; une description lancée
+     * depuis lui tombait à la réponse — l'annuaire avait dit `204`, et l'app ne
+     * l'avait pas retenu.
      */
-    private suspend fun seDecrire() {
-        runCatching { annuaire.decrire(Appareil.Description.deCetAppareil()) }
-            .onFailure { Log.i("Session", "la description de cet appareil n'a pas été posée : ${it.message}") }
+    private fun seDecrire() {
+        portee.launch {
+            runCatching { annuaire.decrire(Appareil.Description.deCetAppareil()) }
+                .onFailure { Log.i("Session", "la description de cet appareil n'a pas été posée : ${it.message}") }
+        }
     }
 
     /**
