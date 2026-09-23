@@ -9,6 +9,7 @@ import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.deCetAppareil
@@ -103,10 +104,20 @@ class Session(
      * Rejoint un compte, depuis ce téléphone-ci, avec l'invitation que l'autre
      * a rendue : la preuve et la chaîne, sur la connexion qui a tiré le défi
      * de la clé. Le geste est demandé au moment de prouver.
+     *
+     * **Porté par la session, et attendu par l'appelant.** Le geste dure ce que
+     * dure une empreinte, et poser le compte fait quitter l'écran qui l'a
+     * demandé : lancé depuis lui, ce qui suit la preuve tomberait avec sa
+     * portée, alors que l'annuaire, lui, a déjà enrôlé et attesté cet appareil.
+     * L'attente rend l'issue à l'écran — il a une erreur à montrer et un tour à
+     * recommencer —, mais ne la conditionne plus : si l'écran s'en va, le
+     * travail finit sans lui.
      */
     suspend fun rejoindre(activite: FragmentActivity, compte: Identifiant, appareil: Identifiant) {
-        this.compte = annuaire.rejoindre(compte, appareil, signataire(activite))
-        seDecrire()
+        portee.async {
+            this@Session.compte = annuaire.rejoindre(compte, appareil, signataire(activite))
+            seDecrire()
+        }.await()
     }
 
     suspend fun definirAlias(alias: String?) {

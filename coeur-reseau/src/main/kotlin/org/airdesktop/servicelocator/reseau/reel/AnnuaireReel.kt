@@ -310,7 +310,22 @@ class AnnuaireReel(
         cle.clePublique
     }
 
-    /** Libère le handle — connexion et défi avec — et détruit une clé qui n'a rejoint aucun compte. */
+    /**
+     * Libère le handle — connexion et défi avec — et détruit une clé qui n'a
+     * rejoint aucun compte.
+     *
+     * **LA CLÉ D'UN APPAREIL QUI A UN COMPTE N'EST JAMAIS DÉTRUITE ICI**, quoi
+     * qu'en dise l'appelant : l'annuaire la connaît, et la détruire laisserait
+     * un appareil vivant, attesté, dont plus personne ne détient la moitié
+     * secrète — à révoquer à la main depuis un autre téléphone. Seul
+     * [effacerCompte] la détruit, une fois que l'annuaire l'a révoquée.
+     *
+     * Le carnet est le témoin, et il est fiable parce que [rejoindre] l'écrit
+     * sous le même verrou que la preuve : à l'instant où ce garde-fou se lit,
+     * il ne reste aucun intervalle où l'appareil aurait rejoint sans que le
+     * carnet le dise. [cleCourante] ne dirait rien, elle : [clePourRejoindre]
+     * la pose pour la clé qu'il montre, avant toute preuve.
+     */
     private fun abandonner() {
         if (handle != 0L) {
             Natif.libere(handle)
@@ -318,7 +333,7 @@ class AnnuaireReel(
         }
         cleCourante = null
         cleARejoindre = null
-        if (cleExiste()) {
+        if (carnet.compte == null && cleExiste()) {
             Log.i("annuaire", "la clé de cet appareil, sans compte, est détruite : la suivante sera générée avec le défi de sa connexion")
             effacerCle()
         }
@@ -348,9 +363,25 @@ class AnnuaireReel(
      *
      * Le paramètre `signataire` dit où le geste est demandé, pas avec quoi : le
      * natif signe avec la clé qu'on lui a donnée, celle du Keystore.
+     *
+     * **LA PREUVE ET LE CARNET SOUS LE MÊME VERROU**, et c'est ce qui manquait :
+     * le compte s'écrivait après un second passage, le temps d'aller lire
+     * l'alias. Entre les deux, le verrou était rendu — et ce qui l'attendait
+     * ([annulerRejoindre] quand l'écran est quitté, [clePourRejoindre] quand il
+     * se redessine) voyait un carnet encore vide, en concluait que cette clé
+     * n'avait rejoint aucun compte, et la détruisait. L'annuaire, lui, avait dit
+     * `204` : l'appareil restait enrôlé et attesté chez lui, sans plus personne
+     * pour en tenir la clé. Le geste dure ce que dure une empreinte — une
+     * minute si le porteur cherche son doigt —, et tout ce qui arrive pendant
+     * ce temps attend derrière ce verrou.
+     *
+     * **L'alias vient après, et n'engage rien** : il n'est qu'un ornement du
+     * compte, que `GET /v1/utilisateurs/{u}` rend. Rejoindre est acquis sans
+     * lui ; s'il ne se lit pas, le compte est là quand même et le prochain
+     * [compte] le relira.
      */
     override suspend fun rejoindre(compte: Identifiant, appareil: Identifiant, signataire: Signataire): Compte {
-        surLeFil {
+        val rejoint = surLeFil {
             val cle = cleARejoindre ?: throw ErreurAnnuaire.ARecommencer("Aucune clé n'est prête à rejoindre")
             val h = handleOuCreer()
             val chaine = cle.attestation
@@ -367,19 +398,26 @@ class AnnuaireReel(
                     else -> ErreurNative(code)
                 }
             }
+            // La preuve tient : c'est bien la clé que l'autre téléphone a
+            // enrôlée, et cet appareil appartient désormais à ce compte. On
+            // l'écrit AVANT de rendre le verrou.
             cleCourante = cle
             cleARejoindre = null
+            val rejoint = Compte(compte)
+            carnet.vider()
+            carnet.compte = rejoint
+            carnet.appareil = appareil
+            rejoint
         }
-        // La preuve tient : c'est bien la clé que l'autre téléphone a enrôlée.
-        // Le compte, lui, ne se vérifie qu'en le lisant.
-        val (statut, corps) = surLeFil { requete("GET", "/v1/utilisateurs/${compte.texte}") }
-        if (statut != 200) throw refus(statut)
-        val objet = JSONObject(corps)
-        val rejoint = Compte(compte, if (objet.has("alias")) objet.getString("alias") else null)
-        carnet.vider()
-        carnet.compte = rejoint
-        carnet.appareil = appareil
-        return rejoint
+        val alias = runCatching {
+            val (statut, corps) = surLeFil { requete("GET", "/v1/utilisateurs/${compte.texte}") }
+            if (statut != 200) throw refus(statut)
+            JSONObject(corps).let { if (it.has("alias")) it.getString("alias") else null }
+        }.onFailure { Log.i("annuaire", "le compte est rejoint ; son alias n'a pas été lu : ${it.message}") }
+            .getOrNull() ?: return rejoint
+        val avecAlias = rejoint.copy(alias = alias)
+        carnet.compte = avecAlias
+        return avecAlias
     }
 
     override suspend fun compte(): Compte? {
