@@ -80,7 +80,7 @@ fun CompteEcran(nav: NavController) {
     var effacementEnCours by remember { mutableStateOf(false) }
     var erreurEffacement by remember { mutableStateOf<String?>(null) }
     val compte = session.compte
-    LaunchedEffect(compte) { if (compte != null) versionAnnuaire = Optional.ofNullable(runCatching { session.annuaire.version() }.getOrNull()) }
+    LaunchedEffect(compte) { if (compte != null) versionAnnuaire = Optional.ofNullable(runCatching { session.annuaire.annonce()?.version }.getOrNull()) }
 
     Scaffold(topBar = { Barre("Compte") }) { marges ->
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {

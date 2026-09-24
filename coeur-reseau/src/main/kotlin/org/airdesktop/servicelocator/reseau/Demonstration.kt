@@ -5,6 +5,7 @@ import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Candidat
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CodeEnrolement
+import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Diagnostic
 import org.airdesktop.servicelocator.modele.Genre
@@ -24,8 +25,8 @@ import java.time.Instant
  */
 object Demonstration {
     /** Ouvre le compte ET pose les données, pour que la suite ait quelque chose à montrer. */
-    suspend fun ouvrirCompte(annuaire: AnnuaireSimule, signataire: Signataire): Compte {
-        val compte = annuaire.ouvrirCompte(signataire)
+    suspend fun ouvrirCompte(annuaire: AnnuaireSimule, signataire: Signataire, invitation: CodeInvitation? = null): Compte {
+        val compte = annuaire.ouvrirCompte(signataire, invitation)
         if (annuaire.machines().isNotEmpty()) return compte
         peupler(annuaire, compte)
         return compte

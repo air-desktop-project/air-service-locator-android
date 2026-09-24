@@ -6,6 +6,7 @@ import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CodeEnrolement
+import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
@@ -42,9 +43,28 @@ import java.time.Instant
  * montraient, pour qu'un écran ait quelque chose à afficher.
  */
 class AnnuaireSimule(
-    /** L'heure vient de l'extérieur : un essai la fixe, l'application la lit. */
+    /**
+     * Sous quelle condition ce banc laisse ouvrir un compte. [Posture.Facultative]
+     * par défaut — c'est ce que font les racines d'air-desktop-project, et un
+     * banc qui exigerait un code sans qu'on le demande serait une surprise.
+     */
+    private val posture: Posture = Posture.Facultative,
+    /**
+     * Les codes que ce banc honore sous [Posture.Invitation], sous leur forme
+     * canonique. **Consommer, c'est retirer** — la règle du serveur, et la
+     * seule qui tienne l'usage unique (`protocole.md` §2.2).
+     */
+    invitations: Set<String> = emptySet(),
+    /**
+     * L'heure vient de l'extérieur : un essai la fixe, l'application la lit.
+     *
+     * **Dernière, et elle doit le rester** : les essais écrivent
+     * `AnnuaireSimule { instant }`, et un paramètre ajouté après elle
+     * capturerait cette lambda.
+     */
     private val horloge: () -> Instant = { Instant.now() },
 ) : Annuaire {
+    private val invitationsVivantes = invitations.toMutableSet()
     private val verrou = Mutex()
     private var compteLocal: Compte? = null
     private val parcMachines = mutableListOf<Machine>()
@@ -67,8 +87,18 @@ class AnnuaireSimule(
 
     // ── Compte ────────────────────────────────────────────────────────────────
 
-    override suspend fun ouvrirCompte(signataire: Signataire): Compte {
+    override suspend fun ouvrirCompte(signataire: Signataire, invitation: CodeInvitation?): Compte {
         verrou.withLock { compteLocal }?.let { return it }
+        // **LA POSTURE D'ABORD** : sous `invitation`, le serveur n'admet que
+        // la plate-forme `3`, et consomme le code dans la transaction qui crée
+        // le compte. Le banc tient la même règle, y compris le refus unique —
+        // un code faux, expiré ou déjà servi ne se distinguent pas.
+        if (posture == Posture.Invitation) {
+            val code = invitation ?: throw ErreurAnnuaire.InvitationRefusee
+            verrou.withLock {
+                if (!invitationsVivantes.contains(code.symboles)) throw ErreurAnnuaire.InvitationRefusee
+            }
+        }
         // Un défi neuf, à usage unique, puis la preuve — signée par le
         // signataire, sur le message que le serveur recomposera. Hors du
         // verrou : signer, c'est attendre le porteur.
@@ -86,6 +116,8 @@ class AnnuaireSimule(
             // présentée, sur ce défi-là. C'est la seule cryptographie qu'il
             // fait, et c'est celle qui éprouve la clé de l'appareil.
             if (!P256.verifie(cle, message, preuve)) throw ErreurAnnuaire.PreuveInvalide
+            // Consommer, c'est retirer : le même code ne rouvrira pas un compte.
+            if (posture == Posture.Invitation && invitation != null) invitationsVivantes.remove(invitation.symboles)
             val compte = Compte(neuf(Genre.UTILISATEUR))
             compteLocal = compte
             parcAppareils += Appareil(neuf(Genre.APPAREIL), "Cet appareil", Appareil.Biometrie.EMPREINTE, horloge(), estCeluiCi = true)
@@ -263,7 +295,7 @@ class AnnuaireSimule(
     }
 
     /** Le banc dit ce qu'il est, pour que l'écran ne confonde jamais une démonstration avec un annuaire. */
-    override suspend fun version(): String? = "banc en mémoire"
+    override suspend fun annonce(): Annonce = Annonce("banc en mémoire", posture)
 
     override suspend fun utilisateurExiste(id: Identifiant): Boolean = verrou.withLock { existe(id) }
 

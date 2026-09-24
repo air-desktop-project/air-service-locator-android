@@ -12,6 +12,7 @@ import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Candidat
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CodeEnrolement
+import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Diagnostic
 import org.airdesktop.servicelocator.modele.Genre
@@ -242,16 +243,25 @@ class AnnuaireReel(
      * redemande — la clé reste attestable, la chaîne repartira le jour où il
      * saura la lire. Le journal le dit.
      */
-    override suspend fun ouvrirCompte(signataire: Signataire): Compte = ouvrirCompte()
+    override suspend fun ouvrirCompte(signataire: Signataire, invitation: CodeInvitation?): Compte = ouvrirCompte(invitation)
 
     /** La même, sans clé donnée : cet annuaire crée la sienne, attestée. */
-    suspend fun ouvrirCompte(): Compte = surLeFil {
+    suspend fun ouvrirCompte(invitation: CodeInvitation? = null): Compte = surLeFil {
         carnet.compte?.let { return@surLeFil it }
         val h = handleOuCreer()
         if (!connecte()) connecter()
         val cle = cleCourante ?: this.signataire(defiDAttestation(h)).also { poserLaCle(h, it) }
         val chaine = cle.attestation
-        val rendu = (if (chaine != null) {
+        val rendu = (if (invitation != null) {
+            // **SOUS INVITATION, LA CHAÎNE NE PART PAS** : la case porte le
+            // code, et une racine en posture `invitation` n'admet que la
+            // plate-forme `3` (`protocole.md` §2.2). Pas de repli non plus —
+            // réessayer sans le code ne ferait que se voir refuser autrement,
+            // et le code, lui, aurait peut-être été consommé.
+            Log.d("annuaire", "création sur invitation : ${CodeInvitation.NOMBRE_SYMBOLES} octets")
+            Natif.creerCompte(h, Natif.PLATEFORME_INVITATION, invitation.octets)
+                ?: if (Natif.dernierCode(h) == Natif.REFUSE) throw ErreurAnnuaire.InvitationRefusee else null
+        } else if (chaine != null) {
             Log.d("annuaire", "création avec attestation de clé : ${chaine.size} octets")
             Natif.creerCompte(h, Natif.PLATEFORME_ANDROID, chaine) ?: run {
                 if (Natif.dernierCode(h) != Natif.REFUSE) null else {
@@ -764,12 +774,21 @@ class AnnuaireReel(
         )
     }.getOrNull()
 
-    /** Un annuaire d'avant 0.2.0 ne connaît pas cette ressource et rend `404` : pas une faute, une version qu'on ne sait pas lire. */
-    override suspend fun version(): String? {
+    /**
+     * Un annuaire d'avant 0.2.0 ne connaît pas cette ressource et rend `404` :
+     * pas une faute, une version qu'on ne sait pas lire.
+     *
+     * **La posture est facultative dans la réponse**, et son absence se lit
+     * comme [Posture.NonDite] : une racine d'avant la 0.16.0 ne rend que sa
+     * version. `optString` rend la chaîne vide si le champ manque, et
+     * [Posture.depuisTexte] la range avec les valeurs qu'on ne connaît pas.
+     */
+    override suspend fun annonce(): Annonce? {
         val (statut, corps) = surLeFil { requete("GET", "/v1/version") }
         if (statut == 404) return null
         if (statut != 200) throw refus(statut)
-        return JSONObject(corps).getString("version")
+        val objet = JSONObject(corps)
+        return Annonce(objet.getString("version"), Posture.depuisTexte(objet.optString("posture").ifEmpty { null }))
     }
 
     override suspend fun utilisateurExiste(id: Identifiant): Boolean =
