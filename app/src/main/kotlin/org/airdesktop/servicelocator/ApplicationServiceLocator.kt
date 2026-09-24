@@ -45,10 +45,10 @@ class ApplicationServiceLocator : Application() {
                 cleExiste = { CleAppareil.existe() },
                 effacerCle = { CleAppareil.effacer() },
             )
-            Session(reel, identite) { reel.ouvrirCompte() }
+            Session(reel, identite) { invitation, _ -> reel.ouvrirCompte(invitation) }
         } else {
             val simule = AnnuaireSimule()
-            Session(simule, identite) { signataire -> Demonstration.ouvrirCompte(simule, signataire()) }
+            Session(simule, identite) { invitation, signataire -> Demonstration.ouvrirCompte(simule, signataire(), invitation) }
         }
     }
 

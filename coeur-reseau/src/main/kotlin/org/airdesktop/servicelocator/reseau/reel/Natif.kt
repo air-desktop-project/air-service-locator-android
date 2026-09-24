@@ -67,4 +67,10 @@ object Natif {
     const val PLATEFORME_AUCUNE = 0
     /** L'attestation de clé du Keystore : la chaîne de certificats dans la case. */
     const val PLATEFORME_ANDROID = 2
+    /**
+     * Le code d'invitation de l'exploitant : dix octets dans la même case
+     * (`protocole.md` §2.2). Sous la posture `invitation`, c'est la SEULE
+     * plate-forme qui entre — une chaîne Keystore y serait refusée.
+     */
+    const val PLATEFORME_INVITATION = 3
 }

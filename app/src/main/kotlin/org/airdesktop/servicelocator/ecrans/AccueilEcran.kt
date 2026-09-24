@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -25,6 +26,7 @@ import org.airdesktop.servicelocator.R
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Image
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -44,6 +48,8 @@ import org.airdesktop.servicelocator.composants.Couleurs
 import org.airdesktop.servicelocator.composants.Icones
 import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.identite.EtatIdentite
+import org.airdesktop.servicelocator.modele.CodeInvitation
+import org.airdesktop.servicelocator.reseau.Posture
 
 /**
  * Le premier écran : ouvrir un compte. Pas de mot de passe, pas de formulaire
@@ -57,6 +63,18 @@ fun AccueilEcran(surRejoindre: () -> Unit) {
     val etat = remember { session.identite.etat() }
     var enCours by remember { mutableStateOf(false) }
     var erreur by remember { mutableStateOf<String?>(null) }
+    // **La posture décide de l'écran, et elle se lit une fois.** Tant qu'on ne
+    // l'a pas, on ne montre pas le champ : une racine ordinaire n'en demande
+    // pas, et un champ qui apparaîtrait puis disparaîtrait serait pire que pas
+    // de champ du tout. Un annuaire injoignable laisse `NonDite` — le bouton
+    // reste, et c'est la tentative qui dira ce qui ne va pas.
+    var posture by remember { mutableStateOf(Posture.NonDite) }
+    var codeTape by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        posture = runCatching { session.annuaire.annonce()?.posture }.getOrNull() ?: Posture.NonDite
+    }
+    val surInvitation = posture == Posture.Invitation
+    val code = if (surInvitation) CodeInvitation.analyser(codeTape) else null
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         Column(
@@ -84,6 +102,25 @@ fun AccueilEcran(surRejoindre: () -> Unit) {
                 label = { Text("Annuaire") }, modifier = Modifier.fillMaxWidth(),
                 supportingText = { Text("Vous pourrez désigner votre propre annuaire, ou celui de votre organisation.") },
             )
+            if (surInvitation) {
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = codeTape,
+                    onValueChange = { if (it.length <= CodeInvitation.NOMBRE_SYMBOLES + 1) codeTape = it.uppercase() },
+                    label = { Text("Code d'invitation") },
+                    placeholder = { Text("4K9M2-P7R1T") },
+                    singleLine = true,
+                    isError = codeTape.isNotBlank() && code == null,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    modifier = Modifier.fillMaxWidth(),
+                    supportingText = {
+                        Text(
+                            "Cet annuaire n'ouvre un compte que sur invitation. Le code vient de son exploitant : il ne vaut qu'une fois, et il expire — vingt-quatre heures, en général.",
+                        )
+                    },
+                )
+            }
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.padding(horizontal = 24.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -96,7 +133,7 @@ fun AccueilEcran(surRejoindre: () -> Unit) {
                     portee.launch {
                         enCours = true
                         try {
-                            session.ouvrirCompte(activite)
+                            session.ouvrirCompte(activite, code)
                         } catch (e: Exception) {
                             erreur = e.messageAnnuaire
                         } finally {
@@ -104,7 +141,10 @@ fun AccueilEcran(surRejoindre: () -> Unit) {
                         }
                     }
                 },
-                enabled = !enCours && etat is EtatIdentite.Disponible,
+                // Sous invitation, un code lisible est la condition d'entrée :
+                // partir sans lui ne ferait que se faire refuser, après un geste
+                // biométrique demandé pour rien.
+                enabled = !enCours && etat is EtatIdentite.Disponible && (!surInvitation || code != null),
                 modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
                 Icon(Icones.empreinte, null, Modifier.size(20.dp))

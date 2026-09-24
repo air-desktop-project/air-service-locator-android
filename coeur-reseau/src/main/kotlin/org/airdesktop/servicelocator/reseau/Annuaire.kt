@@ -4,6 +4,7 @@ import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CodeEnrolement
+import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
@@ -22,6 +23,20 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
     class RequeteInvalide(val champ: String) : ErreurAnnuaire("Demande refusée : $champ.")
     /** `501` — l'annuaire ne sait pas encore le dire (les expositions). */
     object NonImplemente : ErreurAnnuaire("L'annuaire ne sait pas encore le dire.")
+    /**
+     * Le code d'invitation n'a pas été accepté.
+     *
+     * **Une seule phrase pour trois causes**, et c'est l'annuaire qui le veut
+     * ainsi (`protocole.md` §2.2) : un code faux, un code expiré et un code
+     * déjà consommé rendent le même `403`, parce que distinguer « ce code
+     * n'existe pas » de « ce code a servi » dirait à qui en essaie lesquels
+     * ont existé. La quatrième cause — trop d'essais depuis cette adresse,
+     * `429` — arrive par la même porte : le transport ne rend pas le statut,
+     * et la phrase doit donc la couvrir aussi.
+     */
+    object InvitationRefusee : ErreurAnnuaire(
+        "Ce code n'a pas été accepté : il est peut-être faux, déjà utilisé, ou expiré — demandez-en un autre à qui vous a invité. Après plusieurs essais, l'annuaire fait patienter : attendez une minute avant de réessayer."
+    )
     /** Pas de réponse : l'annuaire injoignable, ou la connexion tombée. */
     class Reseau(detail: String) : ErreurAnnuaire("Annuaire injoignable : $detail")
     /** L'appareil n'a pas confirmé l'identité de son porteur ; la clé n'a pas signé, rien n'est parti. */
@@ -61,6 +76,52 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
  * une condition d'usage de cette clé, appliquée par le matériel. Ce n'est pas
  * un paramètre : c'est ce qui se passe quand une méthode d'ici est appelée.
  */
+/**
+ * Sous quelle condition une racine laisse ouvrir un compte — ce que
+ * `GET /v1/version` dit d'elle, sans que rien soit prouvé.
+ *
+ * **Ce n'est pas un secret, et c'est pourquoi l'annuaire le dit** : une racine
+ * qui n'entre que sur invitation refuse toute création qui ne porte pas de
+ * code, et quiconque essaie l'apprend en une requête. La cacher ne protégeait
+ * rien — elle forçait seulement l'application à deviner, ou à échouer d'abord
+ * pour comprendre ensuite.
+ */
+enum class Posture {
+    /** L'annuaire exige une attestation de plate-forme. */
+    Exigee,
+
+    /** Il l'accepte sans l'exiger : un appareil nu entre. */
+    Facultative,
+
+    /** Il n'entre que sur un code émis par son exploitant (`protocole.md` §2.2). */
+    Invitation,
+
+    /**
+     * L'annuaire ne l'a pas dite.
+     *
+     * **Un annuaire d'avant la 0.16.0 ne rend que sa version**, et une valeur
+     * qu'on ne connaît pas viendra d'une version plus récente que celle-ci.
+     * Les deux se traitent pareil : on ne suppose rien, et surtout pas
+     * l'invitation — demander un code là où personne n'en donne serait une
+     * porte fermée sur un annuaire ouvert.
+     */
+    NonDite,
+    ;
+
+    companion object {
+        /** Ce que le fil en dit. Tout ce qui n'est pas reconnu est [NonDite], jamais une erreur. */
+        fun depuisTexte(texte: String?): Posture = when (texte) {
+            "required" -> Exigee
+            "optional" -> Facultative
+            "invitation" -> Invitation
+            else -> NonDite
+        }
+    }
+}
+
+/** Ce qu'un annuaire dit de lui-même à qui n'a encore rien prouvé (`GET /v1/version`). */
+data class Annonce(val version: String, val posture: Posture)
+
 interface Annuaire {
     /**
      * `POST /v1/comptes` — crée le compte et enrôle cet appareil.
@@ -70,8 +131,15 @@ interface Annuaire {
      * signataire — un seul geste biométrique, au moment exact où la preuve est
      * exigée. Le banc et le transport réel font la même chose, chacun avec ce
      * qu'il a.
+     *
+     * **[invitation] n'est donnée que sous la posture [Posture.Invitation]**,
+     * et alors elle est exigée : le code part sous la plate-forme `3`, dans la
+     * case où une chaîne d'attestation voyagerait, et l'annuaire le consomme
+     * dans la transaction qui crée le compte. Sous les autres postures elle
+     * est nulle, et la chaîne reprend sa place — sous `invitation`, seule la
+     * plate-forme `3` entre (`protocole.md` §2.2).
      */
-    suspend fun ouvrirCompte(signataire: Signataire): Compte
+    suspend fun ouvrirCompte(signataire: Signataire, invitation: CodeInvitation? = null): Compte
     /**
      * La clé à montrer à l'autre téléphone pour rejoindre son compte —
      * **depuis le nouveau téléphone**, avant tout le reste.
@@ -152,8 +220,14 @@ interface Annuaire {
      * les miennes si `u` est moi ; vide sans aucune arête — vide, pas une erreur.
      */
     suspend fun machinesDe(utilisateur: Identifiant): List<MachineVisible>
-    /** `GET /v1/version` — la version de l'annuaire qui répond, sans rien prouver. `null` si l'annuaire est trop ancien pour la dire (`404`). */
-    suspend fun version(): String?
+    /**
+     * `GET /v1/version` — ce que l'annuaire dit de lui-même, sans rien prouver :
+     * sa version, et la posture sous laquelle il laisse ouvrir un compte.
+     *
+     * `null` si l'annuaire est trop ancien pour dire même sa version (`404`).
+     * S'il la dit sans dire sa posture, celle-ci est [Posture.NonDite].
+     */
+    suspend fun annonce(): Annonce?
     /** `GET /v1/utilisateurs/{u}` — confirme qu'un identifiant existe, et rien d'autre. */
     suspend fun utilisateurExiste(id: Identifiant): Boolean
     /** `GET /v1/alias/{alias}` — rend l'identifiant, et rien d'autre. */

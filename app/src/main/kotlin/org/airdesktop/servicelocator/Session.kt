@@ -15,6 +15,7 @@ import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.deCetAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
 import org.airdesktop.servicelocator.modele.Appareil
+import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Signataire
@@ -42,7 +43,7 @@ class Session(
      * PARESSEUSEMENT : l'annuaire réel la crée lui-même, avec le défi
      * d'attestation de sa connexion, et ne doit pas la trouver déjà faite.
      */
-    private val ouverture: suspend (() -> Signataire) -> Compte,
+    private val ouverture: suspend (CodeInvitation?, () -> Signataire) -> Compte,
 ) {
     var compte: Compte? by mutableStateOf(null)
         private set
@@ -84,8 +85,8 @@ class Session(
      * de signer — et nulle part avant. Sans confirmation, la clé ne signe pas,
      * et rien ne part.
      */
-    suspend fun ouvrirCompte(activite: FragmentActivity) {
-        compte = ouverture { signataire(activite) }
+    suspend fun ouvrirCompte(activite: FragmentActivity, invitation: CodeInvitation? = null) {
+        compte = ouverture(invitation) { signataire(activite) }
         seDecrire()
     }
 
