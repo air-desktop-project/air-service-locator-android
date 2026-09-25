@@ -400,7 +400,9 @@ class AnnuaireReel(
             val code = Natif.rejoindreAtteste(h, appareil.texte, if (chaine != null) Natif.PLATEFORME_ANDROID else Natif.PLATEFORME_AUCUNE, chaine)
             Log.d("annuaire", "rejoindreAtteste → $code")
             if (code != Natif.OK) {
-                cleARejoindre = null
+                // Le porteur a refusé l'empreinte : rien n'est parti, la clé et
+                // son défi restent bons, et « Valider » redemandera le geste.
+                if (code != Natif.SIGNATURE_REFUSEE) cleARejoindre = null
                 throw refusDeRejoindre(code) ?: ErreurNative(code)
             }
             // La preuve tient : c'est bien la clé que l'autre téléphone a
