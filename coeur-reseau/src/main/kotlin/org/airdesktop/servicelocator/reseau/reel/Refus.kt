@@ -25,7 +25,12 @@ internal fun refusDInvitation(code: Int): ErreurAnnuaire? = when (code) {
  * aujourd'hui —, mais la phrase dit alors d'attendre avant de recommencer.
  */
 internal fun refusDeRejoindre(code: Int): ErreurAnnuaire? = when (code) {
-    Natif.SIGNATURE_REFUSEE -> ErreurAnnuaire.ARecommencer("Identité non confirmée ; rien n'a été envoyé, mais le défi de cette clé est dépensé")
+    // **UN REFUS D'EMPREINTE NE DÉPENSE RIEN** : le porteur a annulé avant
+    // qu'un octet parte, et depuis le client 0.9.1 le défi reste sur la
+    // connexion. La clé préparée vaut toujours : on redemande le geste, sans
+    // nouvelle clé ni nouveau code — recommencer laisserait chez l'annuaire un
+    // appareil apporté, à révoquer à la main.
+    Natif.SIGNATURE_REFUSEE -> ErreurAnnuaire.NonConfirme
     Natif.CHAINE_REFUSEE -> ErreurAnnuaire.ARecommencer("L'annuaire exige une attestation et a refusé celle de cette clé")
     Natif.TROP_D_ESSAIS -> ErreurAnnuaire.ARecommencer("L'annuaire fait patienter après trop d'essais : attendez une minute")
     Natif.REFUSE -> ErreurAnnuaire.ARecommencer("L'annuaire a refusé la preuve de cette clé")

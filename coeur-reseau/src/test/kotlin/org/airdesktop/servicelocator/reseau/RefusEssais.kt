@@ -35,4 +35,13 @@ class RefusEssais {
         assertTrue(refusDeRejoindre(Natif.REFUSE)!!.message!!.contains("refusé la preuve"))
         assertNull(refusDeRejoindre(-99))
     }
+
+    @Test
+    fun unRefusDEmpreinteNeFaitPasRecommencerRejoindre() {
+        // Rien n'est parti : le geste se redemande avec la même clé. Tout ce
+        // qui fait recommencer — nouvelle clé, nouveau code — serait de trop.
+        val refus = refusDeRejoindre(Natif.SIGNATURE_REFUSEE)
+        assertTrue(refus is ErreurAnnuaire.NonConfirme)
+        assertTrue(refus !is ErreurAnnuaire.ARecommencer)
+    }
 }
