@@ -30,13 +30,19 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
      * ainsi (`protocole.md` §2.2) : un code faux, un code expiré et un code
      * déjà consommé rendent le même `403`, parce que distinguer « ce code
      * n'existe pas » de « ce code a servi » dirait à qui en essaie lesquels
-     * ont existé. La quatrième cause — trop d'essais depuis cette adresse,
-     * `429` — arrive par la même porte : le transport ne rend pas le statut,
-     * et la phrase doit donc la couvrir aussi.
+     * ont existé. Trop d'essais depuis cette adresse (`429`) n'est PAS l'une
+     * d'elles : c'est [TropDEssais], qui dit d'attendre et non de changer de code.
      */
     object InvitationRefusee : ErreurAnnuaire(
-        "Ce code n'a pas été accepté : il est peut-être faux, déjà utilisé, ou expiré — demandez-en un autre à qui vous a invité. Après plusieurs essais, l'annuaire fait patienter : attendez une minute avant de réessayer."
+        "Ce code n'a pas été accepté : il est peut-être faux, déjà utilisé, ou expiré — demandez-en un autre à qui vous a invité."
     )
+    /**
+     * `429` — l'annuaire fait patienter après trop d'essais depuis cette
+     * adresse. Ce n'est pas un refus : la même demande, dans une minute, peut
+     * aboutir. Le dire à part évite d'envoyer chercher un autre code
+     * quelqu'un qui n'avait qu'à attendre.
+     */
+    object TropDEssais : ErreurAnnuaire("Trop d'essais : l'annuaire fait patienter. Attendez une minute avant de réessayer.")
     /** Pas de réponse : l'annuaire injoignable, ou la connexion tombée. */
     class Reseau(detail: String) : ErreurAnnuaire("Annuaire injoignable : $detail")
     /** L'appareil n'a pas confirmé l'identité de son porteur ; la clé n'a pas signé, rien n'est parti. */
