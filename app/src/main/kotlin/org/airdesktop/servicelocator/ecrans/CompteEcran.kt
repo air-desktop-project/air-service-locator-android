@@ -181,6 +181,10 @@ fun CompteEcran(nav: NavController) {
                 }
             }
             item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; « Révoquer » (ou un appui long) en révoque un autre ; révoqué, il reste dans l'annuaire, marqué, et « Voir les appareils révoqués » le montre. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme — et efface, à trente jours : avec un seul appareil, perdre ce téléphone efface ce compte.") }
+            if (compte != null) {
+                item { SousTitre("Notifications") }
+                item { SectionNotifications() }
+            }
             item { SousTitre("Annuaire") }
             item { ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text("racines air-desktop-project") }) }
             // Les deux versions, l'application et l'annuaire, lisibles ici parce que c'est l'écran où l'on va quand

@@ -218,6 +218,20 @@ interface Annuaire {
      * poussée ; posé juste après la preuve, reposé quand il change.
      */
     suspend fun decrire(description: Appareil.Description)
+    /**
+     * `PUT /v1/appareils/{moi}/poussee` — le point que le distributeur
+     * UnifiedPush a donné à cet appareil (`protocole.md` §2.2). **Pour soi
+     * seulement**, comme la description ; un seul point par appareil, le neuf
+     * remplace l'ancien.
+     *
+     * **Il n'y a pas de verbe de retrait**, et ce n'est pas un oubli : couper
+     * les notifications, c'est se désinscrire auprès du distributeur ; le
+     * point meurt, et l'annuaire l'apprend au premier envoi. Le point part
+     * aussi avec l'appareil qu'on révoque.
+     *
+     * [ErreurAnnuaire.RequeteInvalide] si l'annuaire refuse la forme du point.
+     */
+    suspend fun deposerPoint(point: String)
 
     /** `GET /v1/autorisations` — les deux sens, révoquées comprises. */
     suspend fun autorisations(): List<Autorisation>

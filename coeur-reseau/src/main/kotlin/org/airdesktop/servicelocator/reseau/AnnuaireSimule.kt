@@ -14,6 +14,7 @@ import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.MachineVisible
 import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.P256
+import org.airdesktop.servicelocator.modele.PointDePoussee
 import org.airdesktop.servicelocator.modele.NonConfirmeException
 import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.modele.Signataire
@@ -71,6 +72,8 @@ class AnnuaireSimule(
     private val parcAppareils = mutableListOf<Appareil>()
     /** La clé sous laquelle chaque appareil enrôlé d'ici est entré — ce que [rejoindre] recoupe. */
     private val clesEnrolees = mutableMapOf<Identifiant, ByteArray>()
+    /** Un point de poussée par appareil, au plus : le neuf remplace l'ancien. */
+    private val points = mutableMapOf<Identifiant, String>()
     private val aretes = mutableListOf<Autorisation>()
     /** Les autres comptes que cet annuaire connaît : identifiant → alias. */
     private val autresComptes = mutableMapOf<Identifiant, String?>()
@@ -182,6 +185,7 @@ class AnnuaireSimule(
         compteLocal = null
         parcAppareils.clear()
         clesEnrolees.clear()
+        points.clear()
         parcMachines.clear()
         aretes.clear()
     }
@@ -274,6 +278,9 @@ class AnnuaireSimule(
         val indice = parcAppareils.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: throw ErreurAnnuaire.Introuvable
         if (parcAppareils[indice].estCeluiCi) throw ErreurAnnuaire.Interdit
         parcAppareils[indice] = parcAppareils[indice].copy(revoqueLe = horloge())
+        // Le point part avec l'appareil, dans la même écriture.
+        points.remove(id)
+        Unit
     }
 
     /** Pour soi seulement : le banc, comme le serveur, ne connaît que l'appareil qui parle. Sans compte, personne à décrire. */
@@ -283,6 +290,20 @@ class AnnuaireSimule(
         if (octets !in 1..Appareil.Description.MODELE_OCTETS_MAX) throw ErreurAnnuaire.RequeteInvalide("modele")
         parcAppareils[indice] = parcAppareils[indice].copy(description = description)
     }
+
+    /**
+     * Pour soi seulement, et sous la forme que le serveur exige — le banc la
+     * juge avec les mêmes règles, et refuse comme lui : `400`, la règle dite.
+     */
+    override suspend fun deposerPoint(point: String) = verrou.withLock {
+        val moi = parcAppareils.firstOrNull { it.estCeluiCi && it.revoqueLe == null } ?: throw ErreurAnnuaire.Introuvable
+        PointDePoussee.refus(point)?.let { throw ErreurAnnuaire.RequeteInvalide("point de poussée — $it") }
+        points[moi.id] = point
+        Unit
+    }
+
+    /** Le point que cet appareil a déposé, ce que le serveur range — pour un essai. */
+    suspend fun pointDe(appareil: Identifiant): String? = verrou.withLock { points[appareil] }
 
     // ── Autorisations ─────────────────────────────────────────────────────────
 
