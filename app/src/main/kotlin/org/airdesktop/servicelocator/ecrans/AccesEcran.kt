@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -54,6 +55,15 @@ fun AccesEcran(nav: NavController) {
     val moi = session.compte?.identifiant
     val accordees = autorisations.filter { it.accordeePar == moi }
     val recues = autorisations.filter { it.accordeeA == moi }
+    // La relecture avec différence : ce qui est neuf depuis la dernière fois qu'on l'a montré, marqué « nouveau » tant
+    // que l'écran reste ouvert — puis retenu comme vu, parce qu'il vient de l'être.
+    var nouvelles by remember { mutableStateOf(emptySet<Identifiant>()) }
+    LaunchedEffect(chargement.valeur) {
+        val lues = chargement.valeur?.first ?: return@LaunchedEffect
+        val lecture = session.lire(lues)
+        nouvelles = nouvelles + lecture.nouvelles.map { it.id }
+        session.montrees(lecture)
+    }
     var aRevoquer by remember { mutableStateOf<Autorisation?>(null) }
     var erreur by remember { mutableStateOf<String?>(null) }
 
@@ -78,7 +88,7 @@ fun AccesEcran(nav: NavController) {
             if (recues.isEmpty()) item { Aide("Personne ne vous a encore accordé d'accès.") }
             items(recues, key = { it.id.texte }) { autorisation ->
                 Column {
-                    LigneAutorisation(autorisation, machines, Sens.RECUE, Modifier)
+                    LigneAutorisation(autorisation, machines, Sens.RECUE, Modifier, nouvelle = autorisation.id in nouvelles)
                     if (!autorisation.estRevoquee) MachinesVisibles(autorisation.accordeePar)
                 }
             }
@@ -114,7 +124,7 @@ enum class Sens { ACCORDEE, RECUE }
  * l'étiquette que l'on a posée soi-même.
  */
 @Composable
-fun LigneAutorisation(autorisation: Autorisation, machines: List<Machine>, sens: Sens, modifier: Modifier) {
+fun LigneAutorisation(autorisation: Autorisation, machines: List<Machine>, sens: Sens, modifier: Modifier, nouvelle: Boolean = false) {
     val titre = when (sens) {
         Sens.ACCORDEE -> autorisation.etiquette.ifEmpty { autorisation.accordeeA.abrege }
         Sens.RECUE -> autorisation.accordeePar.abrege
@@ -125,6 +135,7 @@ fun LigneAutorisation(autorisation: Autorisation, machines: List<Machine>, sens:
         is Autorisation.Portee.Service -> "Service ${machines.flatMap { it.services }.firstOrNull { it.id == p.id }?.nom ?: p.id.abrege}"
     }
     val sous = buildList {
+        if (nouvelle) add("nouveau")
         if (sens == Sens.ACCORDEE && autorisation.etiquette.isNotEmpty()) add(autorisation.accordeeA.abrege)
         add(portee)
         autorisation.revoqueeLe?.let { add("révoquée ${Formats.relatif(it)}") }
@@ -135,6 +146,7 @@ fun LigneAutorisation(autorisation: Autorisation, machines: List<Machine>, sens:
             Text(
                 titre,
                 fontFamily = if (titre.startsWith("u-")) FontFamily.Monospace else null,
+                fontWeight = if (nouvelle) FontWeight.SemiBold else null,
                 textDecoration = if (barre) TextDecoration.LineThrough else null,
                 color = if (barre) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )

@@ -3,6 +3,7 @@ package org.airdesktop.servicelocator
 import android.util.Log
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
@@ -15,11 +16,15 @@ import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.deCetAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
 import org.airdesktop.servicelocator.modele.Appareil
+import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Signataire
+import org.airdesktop.servicelocator.notifications.CarnetNotifications
 import org.airdesktop.servicelocator.reseau.Annuaire
+import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
+import org.airdesktop.servicelocator.reseau.Nouveautes
 
 /**
  * Ce que tous les écrans partagent : l'annuaire à qui parler, et le compte de
@@ -28,6 +33,8 @@ import org.airdesktop.servicelocator.reseau.Annuaire
 class Session(
     val annuaire: Annuaire,
     val identite: IdentiteLocale,
+    /** Le point de poussée et les accès déjà montrés — ce que cet appareil retient des notifications. */
+    val notifications: CarnetNotifications,
     /** D'où vient la clé : le Keystore sur un appareil, une clé logicielle dans un essai. */
     private val signataire: (FragmentActivity) -> Signataire = { CleAppareil.ouOuvrir().avec(it) },
     /** Comment on détruit la clé de cet appareil, une fois qu'elle a servi pour la dernière fois. Le Keystore sur un appareil ; rien dans un essai. */
@@ -48,10 +55,78 @@ class Session(
     var compte: Compte? by mutableStateOf(null)
         private set
 
+    /**
+     * Combien d'accès reçus n'ont pas encore été montrés — ce que l'onglet
+     * « Accès » porte en pastille. Tenu par [relire], remis à zéro quand
+     * l'écran des accès les a montrés.
+     */
+    var nouveautes by mutableIntStateOf(0)
+        private set
+
     /** Relit le compte que l'annuaire connaît pour cet appareil. */
     suspend fun rafraichirCompte() {
         compte = runCatching { annuaire.compte() }.getOrNull()
-        if (compte != null) seDecrire()
+        if (compte != null) {
+            seDecrire()
+            deposerPoint()
+        }
+    }
+
+    /**
+     * Dépose chez l'annuaire le point que le distributeur UnifiedPush a donné,
+     * s'il ne l'a pas déjà pour ce compte. Comme la description, juste après
+     * une preuve — c'est le seul moment où l'appareil parle sur sa propre
+     * connexion ; un point arrivé pendant que l'application dormait part donc
+     * à l'ouverture suivante.
+     *
+     * **Un refus de forme se retient et se dit** (Compte › Notifications) : un
+     * distributeur auto-hébergé hors de `https://` sur 443 ne réveillera jamais
+     * rien, et l'utilisateur doit l'apprendre. Une panne de réseau ne se retient
+     * pas : le dépôt repartira.
+     */
+    fun deposerPoint() {
+        portee.launch {
+            val moi = compte?.identifiant ?: return@launch
+            val point = notifications.point ?: return@launch
+            if (notifications.depose(moi) == point) return@launch
+            runCatching { annuaire.deposerPoint(point) }
+                .onSuccess { notifications.retenirDepose(moi, point) }
+                .onFailure {
+                    Log.i("Session", "le point de poussée n'a pas été déposé : ${it.message}")
+                    if (it is ErreurAnnuaire.RequeteInvalide) notifications.refus = it.champ
+                }
+        }
+    }
+
+    /**
+     * La relecture à l'ouverture (`protocole.md` §2.2) : `GET /v1/autorisations`,
+     * et la différence avec ce qui a déjà été montré. C'est elle, et non la
+     * notification, qui dit ce qui a changé — la notification ne dit que qu'il
+     * y a quelque chose à relire, et elle peut manquer.
+     *
+     * La première lecture sur ce téléphone pose la référence ([Nouveautes]) :
+     * elle est retenue tout de suite, sans rien signaler.
+     */
+    suspend fun relire() {
+        val moi = compte?.identifiant ?: return
+        val autorisations = runCatching { annuaire.autorisations() }.getOrNull() ?: return
+        notifications.aRelire = false
+        val lecture = lire(autorisations)
+        if (notifications.dejaVues(moi) == null) notifications.retenirVues(moi, lecture.aRetenir)
+        nouveautes = lecture.nouvelles.size
+    }
+
+    /** La différence entre ces autorisations et ce que ce téléphone a déjà montré. */
+    fun lire(autorisations: List<Autorisation>): Nouveautes.Lecture {
+        val moi = compte?.identifiant ?: return Nouveautes.Lecture(emptyList(), emptySet())
+        return Nouveautes.lire(autorisations, moi, notifications.dejaVues(moi))
+    }
+
+    /** L'écran des accès a montré cette lecture : ce qu'elle portait de neuf ne l'est plus. */
+    fun montrees(lecture: Nouveautes.Lecture) {
+        val moi = compte?.identifiant ?: return
+        notifications.retenirVues(moi, lecture.aRetenir)
+        nouveautes = 0
     }
 
     /**
@@ -88,6 +163,7 @@ class Session(
     suspend fun ouvrirCompte(activite: FragmentActivity, invitation: CodeInvitation? = null) {
         compte = ouverture(invitation) { signataire(activite) }
         seDecrire()
+        deposerPoint()
     }
 
     /**
@@ -118,6 +194,7 @@ class Session(
         portee.async {
             this@Session.compte = annuaire.rejoindre(compte, appareil, signataire(activite))
             seDecrire()
+            deposerPoint()
         }.await()
     }
 

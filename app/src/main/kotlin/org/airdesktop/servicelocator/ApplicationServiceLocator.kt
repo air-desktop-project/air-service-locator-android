@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
+import org.airdesktop.servicelocator.notifications.CarnetNotifications
+import org.airdesktop.servicelocator.notifications.Nouvelles
 import org.airdesktop.servicelocator.reseau.AnnuaireReel
 import org.airdesktop.servicelocator.reseau.AnnuaireSimule
 import org.airdesktop.servicelocator.reseau.Demonstration
@@ -34,6 +36,13 @@ class ApplicationServiceLocator : Application() {
     var activiteAuPremierPlan: FragmentActivity? = null
         private set
 
+    /**
+     * Ce que cet appareil retient des notifications. **Hors de la session** : le
+     * récepteur UnifiedPush l'écrit dans un processus que le distributeur vient
+     * de réveiller, sans construire d'annuaire ni charger le transport.
+     */
+    val notifications: CarnetNotifications by lazy { CarnetNotifications(this) }
+
     val session: Session by lazy {
         val identite = IdentiteLocale(this)
         if (BuildConfig.ANNUAIRE_ADRESSE.isNotEmpty() && BuildConfig.ANNUAIRE_RACINES.isNotEmpty()) {
@@ -45,15 +54,16 @@ class ApplicationServiceLocator : Application() {
                 cleExiste = { CleAppareil.existe() },
                 effacerCle = { CleAppareil.effacer() },
             )
-            Session(reel, identite) { invitation, _ -> reel.ouvrirCompte(invitation) }
+            Session(reel, identite, notifications) { invitation, _ -> reel.ouvrirCompte(invitation) }
         } else {
             val simule = AnnuaireSimule()
-            Session(simule, identite) { invitation, signataire -> Demonstration.ouvrirCompte(simule, signataire(), invitation) }
+            Session(simule, identite, notifications) { invitation, signataire -> Demonstration.ouvrirCompte(simule, signataire(), invitation) }
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        Nouvelles.creerCanal(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
                 activiteAuPremierPlan = activity as? FragmentActivity

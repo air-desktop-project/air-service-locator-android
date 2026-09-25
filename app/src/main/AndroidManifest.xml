@@ -33,6 +33,14 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!--
+      LES NOTIFICATIONS DISENT « DU NOUVEAU », ET RIEN D'AUTRE : le message que
+      l'annuaire fait porter par le distributeur UnifiedPush est vide. Demandée
+      sous Android 13 et plus au moment où l'utilisateur les active, jamais au
+      lancement ; refusée, la relecture à l'ouverture montre la même chose.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".ApplicationServiceLocator"
         android:allowBackup="false"
@@ -57,5 +65,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Le distributeur UnifiedPush choisi par l'utilisateur appelle ici :
+          exporté, puisque c'est une autre application. Le connecteur écarte
+          tout appel qui ne porte pas le jeton de l'inscription.
+        -->
+        <receiver
+            android:name=".notifications.RecepteurPoussee"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.MESSAGE" />
+                <action android:name="org.unifiedpush.android.connector.UNREGISTERED" />
+                <action android:name="org.unifiedpush.android.connector.NEW_ENDPOINT" />
+                <action android:name="org.unifiedpush.android.connector.REGISTRATION_FAILED" />
+                <action android:name="org.unifiedpush.android.connector.REGISTRATION_REFUSED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

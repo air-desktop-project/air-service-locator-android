@@ -40,8 +40,8 @@ android {
         // lit à l'écran (Compte › Annuaire), et c'est ce qu'un utilisateur
         // cite quand il rapporte quelque chose. `versionCode` est l'entier
         // croissant que le Play Store exige distinct à chaque envoi.
-        versionCode = 15
-        versionName = "0.8.2"
+        versionCode = 16
+        versionName = "0.9.0"
     }
 
     buildTypes {
@@ -136,6 +136,7 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation(libs.unifiedpush.connector)
 
 
     testImplementation(libs.junit)

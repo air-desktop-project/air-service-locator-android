@@ -1,6 +1,8 @@
 package org.airdesktop.servicelocator
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -66,6 +68,9 @@ private val onglets = listOf(
 fun Racine() {
     val session = LocalSession.current
     LaunchedEffect(Unit) { session.rafraichirCompte() }
+    // La relecture à l'ouverture : dès que le compte est connu, ce qu'on a reçu depuis la dernière fois.
+    val compte = session.compte?.identifiant
+    LaunchedEffect(compte) { if (compte != null) session.relire() }
     // Retenu à travers une rotation : la clé montrée et la connexion qui tient son défi vivent dans l'annuaire, pas dans l'écran.
     var rejoindre by rememberSaveable { mutableStateOf(false) }
     if (session.compte == null) {
@@ -96,7 +101,12 @@ private fun Onglets() {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(onglet.icone, null) },
+                            icon = {
+                                // La pastille dit combien d'accès reçus l'écran n'a pas encore montrés — la relecture
+                                // à l'ouverture, visible sans aller la chercher.
+                                val nouveautes = if (onglet.route == Routes.ACCES) LocalSession.current.nouveautes else 0
+                                BadgedBox(badge = { if (nouveautes > 0) Badge { Text("$nouveautes") } }) { Icon(onglet.icone, null) }
+                            },
                             label = { Text(onglet.libelle) },
                         )
                     }

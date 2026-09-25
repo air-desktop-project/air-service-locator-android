@@ -22,6 +22,7 @@ import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.MachineVisible
 import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.NonConfirmeException
+import org.airdesktop.servicelocator.modele.PointDePoussee
 import org.airdesktop.servicelocator.modele.PointEcoute
 import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.modele.Signataire
@@ -726,6 +727,20 @@ class AnnuaireReel(
         val (statut, _) = surLeFil { requete("PUT", "/v1/appareils/${moi.texte}/description", corps) }
         if (statut != 204) throw refus(statut)
         carnet.descriptionPosee = empreinte
+    }
+
+    /**
+     * Pour soi seulement, comme la description. **Le carnet ne retient pas ce
+     * qui a été déposé** : c'est la session qui le sait, parce que c'est elle
+     * qui apprend du distributeur qu'un point est mort (`onUnregistered`) — et
+     * un point redonné identique après une désinscription doit repartir,
+     * l'annuaire a pu l'oublier au premier envoi refusé.
+     */
+    override suspend fun deposerPoint(point: String) {
+        val moi = carnet.appareil ?: throw ErreurAnnuaire.Introuvable
+        val (statut, _) = surLeFil { requete("PUT", "/v1/appareils/${moi.texte}/poussee", PointDePoussee.corps(point)) }
+        if (statut == 400) throw ErreurAnnuaire.RequeteInvalide("point de poussée — ${PointDePoussee.refus(point) ?: "forme refusée"}")
+        if (statut != 204) throw refus(statut)
     }
 
     override suspend fun revoquerAppareil(id: Identifiant) {

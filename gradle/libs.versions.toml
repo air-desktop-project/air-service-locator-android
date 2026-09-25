@@ -26,6 +26,7 @@ navigation = "2.7.7"
 junit = "4.13.2"
 zxing = "3.5.3"
 camerax = "1.4.0"
+unifiedpush = "2.5.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -57,6 +58,20 @@ androidx-camera-core = { group = "androidx.camera", name = "camera-core", versio
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+# ── LE CONNECTEUR UNIFIEDPUSH, EN 2.5.0 ET PAS EN 3.x ────────────────────────
+#
+# Apache-2.0, Kotlin pur (28 Ko, aucun code natif), et sa SEULE dépendance est
+# `kotlin-stdlib` : il ne tire ni FCM, ni les services Google (C19). Il parle au
+# distributeur que l'utilisateur a installé et choisi (ntfy, NextPush, …), par
+# des intentions Android, et à personne d'autre.
+#
+# **La 3.x tire Tink, protobuf et gson** — des bibliothèques Google, pour
+# déchiffrer les messages web push (RFC 8291). Le message de l'annuaire est
+# VIDE (`protocole.md` §2.2) : il n'y a rien à déchiffrer, et rien ne justifie
+# ce graphe. La seule mention de Google dans ce connecteur est une recherche du
+# paquet `com.google.android.gms`, faite seulement si l'application embarque un
+# distributeur FCM — ce qu'elle ne fait pas.
+unifiedpush-connector = { group = "org.unifiedpush.android", name = "connector", version.ref = "unifiedpush" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
