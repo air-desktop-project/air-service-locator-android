@@ -63,6 +63,12 @@ object Natif {
     const val SIGNATURE_REFUSEE = -11
     /** La preuve tient, la chaîne ne prouve rien, et la posture de l'annuaire l'exige (`403`). */
     const val CHAINE_REFUSEE = -12
+    /**
+     * L'annuaire fait patienter : trop d'essais (`429`). Aujourd'hui, cinq
+     * codes d'invitation ratés dans la minute depuis la même adresse. La même
+     * demande, un peu plus tard, peut aboutir : ce n'est pas un refus.
+     */
+    const val TROP_D_ESSAIS = -13
 
     const val PLATEFORME_AUCUNE = 0
     /** L'attestation de clé du Keystore : la chaîne de certificats dans la case. */

@@ -260,7 +260,7 @@ class AnnuaireReel(
             // et le code, lui, aurait peut-être été consommé.
             Log.d("annuaire", "création sur invitation : ${CodeInvitation.NOMBRE_SYMBOLES} octets")
             Natif.creerCompte(h, Natif.PLATEFORME_INVITATION, invitation.octets)
-                ?: if (Natif.dernierCode(h) == Natif.REFUSE) throw ErreurAnnuaire.InvitationRefusee else null
+                ?: refusDInvitation(Natif.dernierCode(h))?.let { throw it }
         } else if (chaine != null) {
             Log.d("annuaire", "création avec attestation de clé : ${chaine.size} octets")
             Natif.creerCompte(h, Natif.PLATEFORME_ANDROID, chaine) ?: run {
@@ -274,6 +274,7 @@ class AnnuaireReel(
         })
             ?: when (val code = Natif.dernierCode(h)) {
                 Natif.SIGNATURE_REFUSEE -> throw ErreurAnnuaire.NonConfirme
+                Natif.TROP_D_ESSAIS -> throw ErreurAnnuaire.TropDEssais
                 Natif.REFUSE -> throw ErreurAnnuaire.PreuveInvalide
                 else -> throw ErreurNative(code)
             }
@@ -400,13 +401,7 @@ class AnnuaireReel(
             Log.d("annuaire", "rejoindreAtteste → $code")
             if (code != Natif.OK) {
                 cleARejoindre = null
-                throw when (code) {
-                    Natif.SIGNATURE_REFUSEE -> ErreurAnnuaire.ARecommencer("Identité non confirmée ; rien n'a été envoyé, mais le défi de cette clé est dépensé")
-                    Natif.CHAINE_REFUSEE -> ErreurAnnuaire.ARecommencer("L'annuaire exige une attestation et a refusé celle de cette clé")
-                    Natif.REFUSE -> ErreurAnnuaire.ARecommencer("L'annuaire a refusé la preuve de cette clé")
-                    Natif.INJOIGNABLE, Natif.NON_CONNECTE -> ErreurAnnuaire.ARecommencer("La connexion est tombée entre le code et la preuve")
-                    else -> ErreurNative(code)
-                }
+                throw refusDeRejoindre(code) ?: ErreurNative(code)
             }
             // La preuve tient : c'est bien la clé que l'autre téléphone a
             // enrôlée, et cet appareil appartient désormais à ce compte. On
