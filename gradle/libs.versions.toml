@@ -21,6 +21,7 @@ lifecycle = "2.8.4"
 activityCompose = "1.9.1"
 composeBom = "2024.06.00"
 biometric = "1.2.0-alpha05"
+fragment = "1.8.3"
 coroutines = "1.8.1"
 navigation = "2.7.7"
 junit = "4.13.2"
@@ -42,6 +43,13 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 # seule branche qui expose `BIOMETRIC_STRONG` combiné à un repli par code de
 # verrouillage.
 androidx-biometric = { group = "androidx.biometric", name = "biometric-ktx", version.ref = "biometric" }
+# `androidx.fragment` NOMMÉE, alors que rien ne l'appelle directement : la
+# biométrie tire la 1.2.5, dont `FragmentActivity` refuse tout code de requête
+# au-delà de 16 bits — or `rememberLauncherForActivityResult` (activity 1.9)
+# en tire au hasard sur 31. La demande de permission de notification faisait
+# tomber l'application au premier toucher d'« Activer » (FP5, 2026-09-26).
+# Dès la 1.3.0, `FragmentActivity` laisse ces codes au registre d'activité.
+androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragment" }
 # Le banc `AnnuaireSimule` est un objet à état partagé entre écrans : un mutex de
 # coroutine, et rien de plus lourd.
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
