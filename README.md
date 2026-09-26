@@ -126,9 +126,9 @@ asl.annuaire.racines=/chemin/vers/racine.pem
 
 ```json
 {"annuaires": [
+  {"adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org", "libelle": "Automatique"},
   {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org"},
-  {"adresse": "argon.air-desktop.org:6630", "nom": "argon.air-desktop.org"},
-  {"adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org", "libelle": "Automatique"}
+  {"adresse": "argon.air-desktop.org:6630", "nom": "argon.air-desktop.org"}
 ]}
 ```
 
@@ -136,7 +136,8 @@ asl.annuaire.racines=/chemin/vers/racine.pem
 adresses sont essayées — ce qui fait marcher l'alias `asl-root`, qui désigne
 les deux racines) ; `nom` est le nom que porte le certificat du serveur ;
 `libelle`, facultatif, ce que l'écran montre à sa place. La première est
-choisie par défaut ; le choix se retient par l'adresse. `racines` est le
+choisie par défaut — c'est le défaut d'un téléphone qui n'a encore rien
+choisi ; un téléphone qui a choisi garde son choix, retenu par l'adresse. `racines` est le
 chemin local de l'autorité qui a signé leurs certificats (son contenu est
 embarqué à la construction — une racine publique, rien de secret), la même
 pour toutes. Un `annuaire.json` illisible fait échouer la construction.
