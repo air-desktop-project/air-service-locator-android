@@ -1,5 +1,6 @@
 package org.airdesktop.servicelocator.reseau
 
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.airdesktop.servicelocator.modele.Appareil
@@ -320,7 +321,17 @@ class AnnuaireSimule(
         private set
 
     /** Le banc ne tient ni connexion ni handle : fermer ne fait que se compter. */
-    override suspend fun fermer() = verrou.withLock { fermetures += 1 }
+    /**
+     * Le banc n'a pas de connexion : il se dit « joint » d'emblée, sous un nom
+     * qui ne se confond avec aucune racine, et « perdu » une fois fermé.
+     */
+    private val suivi = SuiviDeLaRacine(RacineJointe("en mémoire", "banc en mémoire"))
+    override val racineJointe: StateFlow<RacineJointe?> = suivi.racine
+
+    override suspend fun fermer() = verrou.withLock {
+        fermetures += 1
+        suivi.perdue()
+    }
 
     /** Le banc dit ce qu'il est, pour que l'écran ne confonde jamais une démonstration avec un annuaire. */
     override suspend fun annonce(): Annonce = Annonce("banc en mémoire", posture)

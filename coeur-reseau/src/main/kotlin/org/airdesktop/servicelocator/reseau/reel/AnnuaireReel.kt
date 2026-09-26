@@ -3,6 +3,7 @@ package org.airdesktop.servicelocator.reseau
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -75,6 +76,12 @@ class AnnuaireReel(
     private val cleExiste: () -> Boolean,
     /** Détruit la clé de cet appareil — celle qu'on a générée pour rejoindre et qui ne s'attestera plus. */
     private val effacerCle: () -> Unit,
+    /**
+     * Toutes les racines de la liste, pour NOMMER celle que la connexion a
+     * jointe ([RacineJointe.nommer]) — même sous un alias qui les couvre
+     * toutes. Vide : on nomme d'après les seuls [reglages].
+     */
+    private val racinesConnues: List<RacineDAnnuaire> = emptyList(),
 ) : Annuaire {
     /** Où est l'annuaire, sous quel nom, et qui a signé son certificat. */
     /**
@@ -119,6 +126,8 @@ class AnnuaireReel(
     class ErreurNative(val code: Int) : Exception("natif : ${Natif.fauteTexte(code)} ($code)")
 
     private val carnet = Carnet(contexte)
+    private val suivi = SuiviDeLaRacine()
+    override val racineJointe: StateFlow<RacineJointe?> = suivi.racine
     private val verrou = Mutex()
     private var handle = 0L
     private var cleCourante: Signataire? = null
@@ -181,7 +190,7 @@ class AnnuaireReel(
             // **QUELLE RACINE A RÉPONDU.** Sous « Automatique », l'alias rend les adresses des deux racines et la
             // tournée garde la première qui répond : sans cette ligne, rien ne dit laquelle — ni l'application, ni
             // l'annuaire, qui ne journalise pas les connexions (C13).
-            Natif.OK -> Log.d("annuaire", "racine jointe : ${Natif.distante(h) ?: "inconnue"}")
+            Natif.OK -> direLaRacineJointe(h)
             Natif.SIGNATURE_REFUSEE -> throw ErreurAnnuaire.NonConfirme
             Natif.REFUSE -> throw ErreurAnnuaire.PreuveInvalide
             Natif.INJOIGNABLE -> throw ErreurAnnuaire.Reseau("aucun annuaire ne répond")
@@ -189,11 +198,41 @@ class AnnuaireReel(
         }
     }
 
-    private fun connecte(): Boolean {
-        if (handle == 0L) return false
-        // Une requête à vide dit si la tenue vit : `NON_CONNECTE` sinon.
-        return Natif.requete(handle, "GET", "/v1/vu", null) != null || Natif.dernierCode(handle) != Natif.NON_CONNECTE
+    /**
+     * Dit — au journal et à [racineJointe] — quelle racine la connexion a
+     * jointe. Le nom se trouve en résolvant chaque racine de la liste : ici,
+     * sur le fil du verrou (`Dispatchers.IO`), jamais le principal ; une
+     * racine qui ne se résout pas ne se nomme simplement pas.
+     */
+    private fun direLaRacineJointe(h: Long) {
+        val adresse = Natif.distante(h)
+        if (adresse == null) {
+            Log.d("annuaire", "racine jointe : inconnue")
+            suivi.perdue()
+            return
+        }
+        val connues = (racinesConnues.ifEmpty { listOf(RacineDAnnuaire(reglages.adresse, reglages.nom)) })
+            .map { racine -> racine.nom to (runCatching { adressesLitterales(racine.adresse) }.getOrNull() ?: emptyList()) }
+        suivi.jointe(adresse, connues)
+        val nom = suivi.racine.value?.nom
+        Log.d("annuaire", "racine jointe : $adresse${nom?.let { " ($it)" } ?: ""}")
     }
+
+    /**
+     * La connexion tenue vit-elle ? **Une connexion morte se dit perdue ICI** :
+     * c'est avant chaque demande que la tenue est éprouvée, et c'est donc ici
+     * que [racineJointe] apprend qu'elle est tombée en silence.
+     */
+    private fun connecte(): Boolean {
+        if (handle == 0L) return false.also { suivi.perdue() }
+        // Une requête à vide dit si la tenue vit : `NON_CONNECTE` sinon.
+        val vit = Natif.requete(handle, "GET", "/v1/vu", null) != null || Natif.dernierCode(handle) != Natif.NON_CONNECTE
+        if (!vit) suivi.perdue()
+        return vit
+    }
+
+    /** Éprouve la tenue sans la rouvrir : [connecte] met [racineJointe] à jour, et rien ne demande l'empreinte. */
+    override suspend fun verifierLaConnexion() = surLeFil { connecte(); Unit }
 
     /** Une requête de `protocole.md` §2 : méthode, chemin, corps JSON. */
     private fun requete(methode: String, chemin: String, corps: String? = null): Pair<Int, String> =
@@ -205,7 +244,10 @@ class AnnuaireReel(
         if (!connecte()) connecter()
         val rendu = Natif.requete(h, methode, chemin, corps)
             ?: when (val code = Natif.dernierCode(h)) {
-                Natif.INJOIGNABLE, Natif.NON_CONNECTE -> throw ErreurAnnuaire.Reseau("la connexion est tombée")
+                Natif.INJOIGNABLE, Natif.NON_CONNECTE -> {
+                    suivi.perdue()
+                    throw ErreurAnnuaire.Reseau("la connexion est tombée")
+                }
                 else -> throw ErreurNative(code)
             }
         val statut = ((rendu[0].toInt() and 0xFF) shl 8) or (rendu[1].toInt() and 0xFF)
@@ -346,6 +388,7 @@ class AnnuaireReel(
             Natif.libere(handle)
             handle = 0L
         }
+        suivi.perdue()
         cleCourante = null
         cleARejoindre = null
         if (carnet.compte == null && cleExiste()) {
@@ -494,6 +537,7 @@ class AnnuaireReel(
         if (statut != 204) throw refus(statut)
         Natif.libere(h)
         handle = 0L
+        suivi.perdue()
         cleCourante = null
         carnet.vider()
     }

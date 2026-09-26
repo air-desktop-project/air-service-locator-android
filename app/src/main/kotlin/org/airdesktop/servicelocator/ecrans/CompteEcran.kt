@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,6 +93,10 @@ fun CompteEcran(nav: NavController) {
         versionAnnuaire = null
         if (compte != null) versionAnnuaire = Optional.ofNullable(runCatching { annuaire.annonce()?.version }.getOrNull())
     }
+    // La racine effectivement jointe : un état que l'annuaire tient. En arrivant sur l'écran, on éprouve la tenue
+    // SANS la rouvrir — sans empreinte — pour ne pas montrer une connexion tombée en silence.
+    val racineJointe by annuaire.racineJointe.collectAsState()
+    LaunchedEffect(annuaire) { runCatching { annuaire.verifierLaConnexion() } }
 
     Scaffold(topBar = { Barre("Compte") }) { marges ->
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {
@@ -209,6 +214,18 @@ fun CompteEcran(nav: NavController) {
                 } else {
                     ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text(choix?.choisie?.affichee ?: "racines air-desktop-project") })
                 }
+            }
+            // Ce que la connexion a réellement joint — sous « Automatique », la seule façon de savoir laquelle.
+            item {
+                val jointe = racineJointe
+                ListItem(
+                    headlineContent = {
+                        // « Non connecté » en gris, comme sur iOS : un état, pas une erreur.
+                        if (jointe == null) Text("Non connecté", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else Text("Connecté à ${jointe.affichee}")
+                    },
+                    supportingContent = jointe?.takeIf { it.nom != null }?.let { { Text(it.adresse, fontFamily = FontFamily.Monospace) } },
+                )
             }
             if (choix != null && choix.offreUnChoix) item { Aide(TEXTE_RACINE) }
             // Les deux versions, l'application et l'annuaire, lisibles ici parce que c'est l'écran où l'on va quand
