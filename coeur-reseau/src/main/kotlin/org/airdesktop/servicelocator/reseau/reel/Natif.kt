@@ -47,6 +47,11 @@ object Natif {
     /** `statut (2 octets) ‖ corps`, ou `null` si la requête n'a pas pu partir. */
     external fun requete(h: Long, methode: String, chemin: String, corps: ByteArray?): ByteArray?
     external fun identifiant(h: Long): String?
+    /**
+     * L'adresse de l'annuaire que la connexion tenue a effectivement jointe (`asl_appareil_distante`), `null` sans
+     * connexion. Lecture seule du handle : elle peut tourner pendant une attente de `nouvelle`.
+     */
+    external fun distante(h: Long): String?
     external fun fauteTexte(code: Int): String
     /** Ce que la bibliothèque sait dire d'elle-même ici — pour le débogage. */
     external fun diagnostic(): String

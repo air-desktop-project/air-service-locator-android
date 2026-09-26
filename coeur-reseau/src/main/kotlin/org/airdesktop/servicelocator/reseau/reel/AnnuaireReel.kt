@@ -178,7 +178,10 @@ class AnnuaireReel(
         val h = handleOuCreer()
         Log.d("annuaire", "connexion à ${reglages.adresse}…")
         when (val code = Natif.connecter(h).also { Log.d("annuaire", "connecter → $it") }) {
-            Natif.OK -> Unit
+            // **QUELLE RACINE A RÉPONDU.** Sous « Automatique », l'alias rend les adresses des deux racines et la
+            // tournée garde la première qui répond : sans cette ligne, rien ne dit laquelle — ni l'application, ni
+            // l'annuaire, qui ne journalise pas les connexions (C13).
+            Natif.OK -> Log.d("annuaire", "racine jointe : ${Natif.distante(h) ?: "inconnue"}")
             Natif.SIGNATURE_REFUSEE -> throw ErreurAnnuaire.NonConfirme
             Natif.REFUSE -> throw ErreurAnnuaire.PreuveInvalide
             Natif.INJOIGNABLE -> throw ErreurAnnuaire.Reseau("aucun annuaire ne répond")
