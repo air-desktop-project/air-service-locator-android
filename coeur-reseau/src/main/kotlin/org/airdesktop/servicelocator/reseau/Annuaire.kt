@@ -1,5 +1,6 @@
 package org.airdesktop.servicelocator.reseau
 
+import kotlinx.coroutines.flow.StateFlow
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Capacite
@@ -259,6 +260,24 @@ interface Annuaire {
 
     /** `PUT /v1/alias`, `DELETE /v1/alias` avec `null`. */
     suspend fun definirAlias(alias: String?)
+
+    /**
+     * La racine que la connexion tenue a jointe — `null` sans connexion.
+     *
+     * **Un état, pas une requête** : il suit ce que l'annuaire voit passer
+     * (connexion aboutie, connexion perdue), et le lire ne demande jamais
+     * l'empreinte. Changer de racine change d'annuaire, donc d'état : celui du
+     * nouveau part de `null` jusqu'à sa première connexion.
+     */
+    val racineJointe: StateFlow<RacineJointe?>
+
+    /**
+     * Vérifie que la connexion tenue vit encore, **sans en ouvrir une** — donc
+     * sans empreinte — et met [racineJointe] à jour si elle est tombée en
+     * silence. Une connexion ne se dit perdue qu'à la demande suivante ; l'écran
+     * qui montre la racine appelle ceci pour ne pas montrer une connexion morte.
+     */
+    suspend fun verifierLaConnexion() {}
 
     /**
      * Rend ce que cet annuaire tient — sa connexion, son handle natif — parce

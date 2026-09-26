@@ -59,6 +59,7 @@ class ApplicationServiceLocator : Application() {
                     signataire = { defi -> CleAppareil.ouOuvrir(defi).avec { activiteAuPremierPlan } },
                     cleExiste = { CleAppareil.existe() },
                     effacerCle = { CleAppareil.effacer() },
+                    racinesConnues = racines,
                 )
             }
             Session(choix.annuaire, identite, notifications, choix = choix) { invitation, _ -> choix.annuaire.ouvrirCompte(invitation) }
