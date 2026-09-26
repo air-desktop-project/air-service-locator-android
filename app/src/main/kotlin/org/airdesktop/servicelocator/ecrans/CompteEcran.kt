@@ -219,7 +219,11 @@ fun CompteEcran(nav: NavController) {
             item {
                 val jointe = racineJointe
                 ListItem(
-                    headlineContent = { Text(if (jointe == null) "Non connecté" else "Connecté à ${jointe.affichee}") },
+                    headlineContent = {
+                        // « Non connecté » en gris, comme sur iOS : un état, pas une erreur.
+                        if (jointe == null) Text("Non connecté", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else Text("Connecté à ${jointe.affichee}")
+                    },
                     supportingContent = jointe?.takeIf { it.nom != null }?.let { { Text(it.adresse, fontFamily = FontFamily.Monospace) } },
                 )
             }
