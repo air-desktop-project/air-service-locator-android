@@ -20,7 +20,7 @@ coreKtx = "1.13.1"
 lifecycle = "2.8.4"
 activityCompose = "1.9.1"
 composeBom = "2024.06.00"
-biometric = "1.2.0-alpha05"
+biometric = "1.1.0"
 fragment = "1.8.3"
 coroutines = "1.8.1"
 navigation = "2.7.7"
@@ -39,10 +39,13 @@ androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 # `androidx.biometric` PLUTÔT QUE `BiometricPrompt` du framework : ce dernier
 # n'existe qu'à partir d'Android 9, et la bibliothèque de compatibilité rend le
-# même dialogue plus bas. Version alpha, et c'est un choix à revoir : c'est la
-# seule branche qui expose `BIOMETRIC_STRONG` combiné à un repli par code de
-# verrouillage.
-androidx-biometric = { group = "androidx.biometric", name = "biometric-ktx", version.ref = "biometric" }
+# même dialogue plus bas. **La 1.1.0, stable**, et non plus la 1.2.0-alpha05 :
+# l'alpha avait été prise pour combiner `BIOMETRIC_STRONG` et un repli par code
+# de verrouillage, repli que l'application refuse (`IdentiteLocale`). Ce
+# qu'elle emploie — `BiometricManager.canAuthenticate(BIOMETRIC_STRONG)`,
+# `BiometricPrompt` avec un `CryptoObject` de signature — est dans la stable.
+# L'artefact `-ktx` n'existe qu'en alpha, et rien ici ne s'en sert.
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 # `androidx.fragment` NOMMÉE, alors que rien ne l'appelle directement : la
 # biométrie tire la 1.2.5, dont `FragmentActivity` refuse tout code de requête
 # au-delà de 16 bits — or `rememberLauncherForActivityResult` (activity 1.9)
