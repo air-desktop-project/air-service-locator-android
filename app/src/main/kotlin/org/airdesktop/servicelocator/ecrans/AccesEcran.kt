@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,10 +25,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import org.airdesktop.servicelocator.LocalSession
@@ -58,6 +62,18 @@ fun AccesEcran(nav: NavController) {
     // La relecture avec différence : ce qui est neuf depuis la dernière fois qu'on l'a montré, marqué « nouveau » tant
     // que l'écran reste ouvert — puis retenu comme vu, parce qu'il vient de l'être.
     var nouvelles by remember { mutableStateOf(emptySet<Identifiant>()) }
+    // **« NOUVEAU » = PAS ENCORE MONTRÉ.** Quitter l'onglet recompose l'écran et vide ces marques ; passer à
+    // l'arrière-plan, non : l'écran reste composé, et au retour une ligne vue avant le départ restait marquée à côté
+    // de celles qui venaient d'arriver (vu au simulateur iOS le 2026-09-26, même défaut ici). L'arrêt de l'activité
+    // les vide donc aussi : ce qui était à l'écran a été vu.
+    val cycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(cycle) {
+        val observateur = LifecycleEventObserver { _, evenement ->
+            if (evenement == Lifecycle.Event.ON_STOP) nouvelles = emptySet()
+        }
+        cycle.addObserver(observateur)
+        onDispose { cycle.removeObserver(observateur) }
+    }
     LaunchedEffect(chargement.valeur) {
         val lues = chargement.valeur?.first ?: return@LaunchedEffect
         val lecture = session.lire(lues)
