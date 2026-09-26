@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +54,7 @@ import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.reseau.AnnuaireSimule
+import org.airdesktop.servicelocator.reseau.RacineDAnnuaire
 import java.util.Optional
 
 /** Le compte : son identifiant public, son alias, ses appareils, son annuaire. */
@@ -79,8 +82,16 @@ fun CompteEcran(nav: NavController) {
     var effacementDemande by remember { mutableStateOf(false) }
     var effacementEnCours by remember { mutableStateOf(false) }
     var erreurEffacement by remember { mutableStateOf<String?>(null) }
+    // Le choix de la racine : le dialogue ouvert ou non. La racine en service se lit dans `session.choix`.
+    var choixDemande by remember { mutableStateOf(false) }
+    val choix = session.choix
     val compte = session.compte
-    LaunchedEffect(compte) { if (compte != null) versionAnnuaire = Optional.ofNullable(runCatching { session.annuaire.annonce()?.version }.getOrNull()) }
+    // Relue aussi quand la racine change : c'est la version de CELLE-LÀ qu'on montre.
+    val annuaire = session.annuaire
+    LaunchedEffect(compte, annuaire) {
+        versionAnnuaire = null
+        if (compte != null) versionAnnuaire = Optional.ofNullable(runCatching { annuaire.annonce()?.version }.getOrNull())
+    }
 
     Scaffold(topBar = { Barre("Compte") }) { marges ->
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {
@@ -186,7 +197,20 @@ fun CompteEcran(nav: NavController) {
                 item { SectionNotifications() }
             }
             item { SousTitre("Annuaire") }
-            item { ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text("racines air-desktop-project") }) }
+            // La racine à qui ce téléphone parle. Un choix seulement s'il y en a plusieurs ; sinon, ce qu'elle est.
+            item {
+                if (choix != null && choix.offreUnChoix) {
+                    ListItem(
+                        headlineContent = { Text("Racine") },
+                        supportingContent = { Text(choix.choisie.affichee) },
+                        trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        modifier = Modifier.clickable { choixDemande = true },
+                    )
+                } else {
+                    ListItem(headlineContent = { Text("Annuaire") }, supportingContent = { Text(choix?.choisie?.affichee ?: "racines air-desktop-project") })
+                }
+            }
+            if (choix != null && choix.offreUnChoix) item { Aide(TEXTE_RACINE) }
             // Les deux versions, l'application et l'annuaire, lisibles ici parce que c'est l'écran où l'on va quand
             // quelque chose ne va pas — et qu'un écart entre les deux est souvent la réponse.
             item {
@@ -235,6 +259,22 @@ fun CompteEcran(nav: NavController) {
         }
     }
 
+    if (choixDemande && choix != null) {
+        ChoisirLaRacine(
+            racines = choix.racines,
+            choisie = choix.choisie,
+            onAnnuler = { choixDemande = false },
+            onChoisir = { racine ->
+                choixDemande = false
+                erreur = null
+                portee.launch {
+                    // Choisir ne se connecte pas ; la relecture qui suit ouvre la connexion, sous l'empreinte.
+                    runCatching { session.choisirAnnuaire(racine) }
+                        .onSuccess { chargement.recharger() }.onFailure { erreur = it.messageAnnuaire }
+                }
+            },
+        )
+    }
     if (effacementDemande) {
         AlertDialog(
             onDismissRequest = { effacementDemande = false },
@@ -338,4 +378,48 @@ private fun Indisponible(modifier: Modifier, icone: ImageVector, titre: String, 
         Text(titre, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
         Text(texte, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
+}
+
+/**
+ * Ce que choisir une racine change — et surtout ce que ça ne change pas.
+ *
+ * Sur Android, le choix ne touche pas aux notifications : un réveil part de la
+ * racine qui ÉCRIT l'autorisation (décision 9), et le point de poussée de ce
+ * téléphone est répliqué sur toutes (décision 27). C'est la différence avec le
+ * Mac, qui n'entend en direct que la racine qu'il tient.
+ */
+private const val TEXTE_RACINE =
+    "Votre compte, vos appareils et vos accès sont les mêmes sur chaque racine : elles se répliquent. " +
+        "Changer ne change que la connexion — les notifications arrivent quelle que soit la racine choisie. " +
+        "La reconnexion demande votre empreinte."
+
+/** Les racines, une ligne chacune ; la choisie est cochée. Toucher une autre la choisit. */
+@Composable
+private fun ChoisirLaRacine(
+    racines: List<RacineDAnnuaire>,
+    choisie: RacineDAnnuaire,
+    onAnnuler: () -> Unit,
+    onChoisir: (RacineDAnnuaire) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onAnnuler,
+        title = { Text("Racine de l'annuaire") },
+        text = {
+            Column {
+                racines.forEach { racine ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onChoisir(racine) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = racine.adresse == choisie.adresse, onClick = { onChoisir(racine) })
+                        Column {
+                            Text(racine.affichee)
+                            if (racine.libelle != null) Text(racine.nom, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onAnnuler) { Text("Fermer") } },
+    )
 }

@@ -259,4 +259,15 @@ interface Annuaire {
 
     /** `PUT /v1/alias`, `DELETE /v1/alias` avec `null`. */
     suspend fun definirAlias(alias: String?)
+
+    /**
+     * Rend ce que cet annuaire tient — sa connexion, son handle natif — parce
+     * qu'on en choisit un autre ([ChoixDAnnuaire]).
+     *
+     * **Rien du compte n'est touché** : ni la clé de l'appareil, ni le carnet
+     * local. Le compte existe sur chaque racine (elles se répliquent) ; seule
+     * la connexion change. Plus rien ne doit être demandé à cet annuaire
+     * ensuite.
+     */
+    suspend fun fermer()
 }

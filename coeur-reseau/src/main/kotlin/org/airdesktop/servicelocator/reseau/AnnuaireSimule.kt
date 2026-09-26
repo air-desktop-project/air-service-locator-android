@@ -315,6 +315,13 @@ class AnnuaireSimule(
         if (utilisateur == moi.identifiant) parcMachines.map { MachineVisible(it.id, it.nom) } else emptyList()
     }
 
+    /** Combien de fois [fermer] a été appelé — ce qu'un essai de bascule vérifie. */
+    var fermetures = 0
+        private set
+
+    /** Le banc ne tient ni connexion ni handle : fermer ne fait que se compter. */
+    override suspend fun fermer() = verrou.withLock { fermetures += 1 }
+
     /** Le banc dit ce qu'il est, pour que l'écran ne confonde jamais une démonstration avec un annuaire. */
     override suspend fun annonce(): Annonce = Annonce("banc en mémoire", posture)
 

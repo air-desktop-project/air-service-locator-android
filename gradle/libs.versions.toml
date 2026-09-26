@@ -25,6 +25,7 @@ fragment = "1.8.3"
 coroutines = "1.8.1"
 navigation = "2.7.7"
 junit = "4.13.2"
+orgJson = "20240303"
 zxing = "3.5.3"
 camerax = "1.4.0"
 unifiedpush = "2.5.0"
@@ -55,6 +56,10 @@ androidx-biometric = { group = "androidx.biometric", name = "biometric", version
 androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragment" }
 # Le banc `AnnuaireSimule` est un objet à état partagé entre écrans : un mutex de
 # coroutine, et rien de plus lourd.
+# `org.json` POUR LES ESSAIS JVM SEULEMENT : Android l'embarque, mais les essais
+# tournent contre un `android.jar` dont chaque méthode lève « not mocked ». La
+# même API, réelle, sur le chemin des essais ; rien dans l'application.
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 # `Dispatchers.Main` d'Android : le fil principal, où `BiometricPrompt` s'affiche.
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }

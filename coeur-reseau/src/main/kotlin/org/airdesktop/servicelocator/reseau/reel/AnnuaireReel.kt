@@ -351,6 +351,21 @@ class AnnuaireReel(
         }
     }
 
+    /**
+     * On choisit une autre racine : le handle est libéré — la connexion tombe
+     * avec lui, et l'annuaire d'en face le voit comme une fin ordinaire.
+     *
+     * **La clé n'est pas touchée**, sauf celle générée pour rejoindre et qui
+     * n'a rejoint aucun compte : son défi vivait dans cette connexion, elle ne
+     * s'attesterait plus — c'est [abandonner], qui ne détruit jamais la clé
+     * d'un appareil qui a un compte. Le carnet reste : il est à cet appareil,
+     * pas à une racine.
+     *
+     * Sous le verrou, comme tout appel sur le handle : une requête en cours
+     * finit avant qu'on le libère.
+     */
+    override suspend fun fermer() = surLeFil { abandonner() }
+
     override suspend fun annulerRejoindre() = surLeFil {
         if (carnet.compte == null) abandonner()
     }

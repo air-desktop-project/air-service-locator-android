@@ -23,15 +23,17 @@ import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Signataire
 import org.airdesktop.servicelocator.notifications.CarnetNotifications
 import org.airdesktop.servicelocator.reseau.Annuaire
+import org.airdesktop.servicelocator.reseau.ChoixDAnnuaire
 import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
 import org.airdesktop.servicelocator.reseau.Nouveautes
+import org.airdesktop.servicelocator.reseau.RacineDAnnuaire
 
 /**
  * Ce que tous les écrans partagent : l'annuaire à qui parler, et le compte de
  * cet appareil.
  */
 class Session(
-    val annuaire: Annuaire,
+    annuaire: Annuaire,
     val identite: IdentiteLocale,
     /** Le point de poussée et les accès déjà montrés — ce que cet appareil retient des notifications. */
     val notifications: CarnetNotifications,
@@ -45,6 +47,11 @@ class Session(
      */
     private val portee: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     /**
+     * Les racines entre lesquelles choisir, et celle qui sert — `null` sur le
+     * banc en mémoire, qui n'en a qu'une. Voir [choisirAnnuaire].
+     */
+    val choix: ChoixDAnnuaire<*>? = null,
+    /**
      * Comment on ouvre un compte — séparé de l'annuaire parce qu'en
      * démonstration, l'ouverture peuple aussi l'annuaire. La clé est donnée
      * PARESSEUSEMENT : l'annuaire réel la crée lui-même, avec le défi
@@ -52,6 +59,14 @@ class Session(
      */
     private val ouverture: suspend (CodeInvitation?, () -> Signataire) -> Compte,
 ) {
+    /**
+     * L'annuaire à qui parler — celui de la racine choisie. **Un état**, et
+     * non une constante : changer de racine le remplace, et les écrans qui le
+     * lisent se recomposent sur le nouveau.
+     */
+    var annuaire: Annuaire by mutableStateOf(annuaire)
+        private set
+
     var compte: Compte? by mutableStateOf(null)
         private set
 
@@ -196,6 +211,23 @@ class Session(
             seDecrire()
             deposerPoint()
         }.await()
+    }
+
+    /**
+     * Passe à une autre racine ([ChoixDAnnuaire.choisir]) : l'annuaire en
+     * cours est fermé, le suivant fabriqué sans se connecter.
+     *
+     * **Le compte reste** — il est le même sur chaque racine, elles se
+     * répliquent —, et avec lui ce que ce téléphone retient des notifications :
+     * le point de poussée n'est pas redéposé, il est répliqué (décision 27),
+     * et un réveil part de la racine qui écrit l'autorisation, quelle que soit
+     * celle que ce téléphone a choisie (décision 9). C'est la relecture que
+     * l'écran lance ensuite qui ouvre la connexion, sous l'empreinte : jamais
+     * de reconnexion silencieuse.
+     */
+    suspend fun choisirAnnuaire(racine: RacineDAnnuaire) {
+        val choix = choix ?: return
+        if (choix.choisir(racine)) annuaire = choix.annuaire
     }
 
     suspend fun definirAlias(alias: String?) {

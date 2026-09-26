@@ -40,8 +40,8 @@ android {
         // lit à l'écran (Compte › Annuaire), et c'est ce qu'un utilisateur
         // cite quand il rapporte quelque chose. `versionCode` est l'entier
         // croissant que le Play Store exige distinct à chaque envoi.
-        versionCode = 18
-        versionName = "0.9.2"
+        versionCode = 19
+        versionName = "0.10.0"
     }
 
     buildTypes {
@@ -98,25 +98,58 @@ android {
 
 // ── L'ANNUAIRE DE TEST VIENT DE `local.properties` ───────────────────────────
 //
-// Une adresse sur un réseau, le nom d'un certificat, et la racine qui l'a
-// signé : propres à une machine, jamais versionnés. Absents, l'application
-// tourne sur le banc en mémoire.
+// Des adresses sur un réseau, les noms de leurs certificats, et la racine qui
+// les a signés : propres à une machine, jamais versionnés. Absents,
+// l'application tourne sur le banc en mémoire.
+//
+// **Plusieurs racines** — celles entre lesquelles l'utilisateur choisit dans
+// Compte › Annuaire — se donnent par un fichier `annuaire.json`, LA MÊME FORME
+// que celui de l'application iOS (voir `ListeDAnnuaires`) :
+//
+//     asl.annuaire.liste=/chemin/vers/annuaire.json
+//     asl.annuaire.racines=/chemin/vers/racine.pem
+//
+// **Une seule**, l'ancienne forme, reste lue, et donne une liste d'un élément :
 //
 //     asl.annuaire.adresse=192.0.2.1:6630
 //     asl.annuaire.nom=annuaire
 //     asl.annuaire.racines=/chemin/vers/racine.pem
-val annuaireDeTest: Triple<String, String, String> = run {
+//
+// `liste` l'emporte si les deux sont là. Le fichier est vérifié ICI : un JSON
+// illisible fait échouer la construction, plutôt que de livrer une application
+// qui tournerait sans rien dire sur le banc en mémoire. Ce qui passe dans
+// `BuildConfig`, c'est le JSON réécrit sur une ligne ; l'application le relit.
+val annuaireDeTest: Pair<String, String> = run {
     val fichier = rootProject.file("local.properties")
-    if (!fichier.exists()) return@run Triple("", "", "")
+    if (!fichier.exists()) return@run "" to ""
     val proprietes = Properties().apply { fichier.inputStream().use { load(it) } }
     val racines = proprietes.getProperty("asl.annuaire.racines", "").let { chemin ->
         if (chemin.isEmpty()) "" else file(chemin).takeIf { it.exists() }?.readText().orEmpty()
     }
-    Triple(proprietes.getProperty("asl.annuaire.adresse", ""), proprietes.getProperty("asl.annuaire.nom", ""), racines)
+    val liste = proprietes.getProperty("asl.annuaire.liste", "")
+    val json: Any? = when {
+        liste.isNotEmpty() -> {
+            val source = file(liste)
+            require(source.exists()) { "asl.annuaire.liste : « $liste » n'existe pas" }
+            try {
+                groovy.json.JsonSlurper().parseText(source.readText())
+            } catch (e: Exception) {
+                throw GradleException("asl.annuaire.liste : « $liste » n'est pas du JSON lisible (${e.message})")
+            }
+        }
+        proprietes.getProperty("asl.annuaire.adresse", "").isNotEmpty() -> mapOf(
+            "adresse" to proprietes.getProperty("asl.annuaire.adresse"),
+            "nom" to proprietes.getProperty("asl.annuaire.nom", ""),
+        )
+        else -> null
+    }
+    (json?.let { groovy.json.JsonOutput.toJson(it) } ?: "") to racines
 }
-android.defaultConfig.buildConfigField("String", "ANNUAIRE_ADRESSE", "\"${annuaireDeTest.first}\"")
-android.defaultConfig.buildConfigField("String", "ANNUAIRE_NOM", "\"${annuaireDeTest.second}\"")
-android.defaultConfig.buildConfigField("String", "ANNUAIRE_RACINES", "\"${annuaireDeTest.third.replace("\n", "\\n")}\"")
+/** Une chaîne Java littérale : les guillemets et les barres obliques inverses échappés, les fins de ligne écrites `\n`. */
+fun litteral(texte: String): String =
+    "\"" + texte.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""
+android.defaultConfig.buildConfigField("String", "ANNUAIRES", litteral(annuaireDeTest.first))
+android.defaultConfig.buildConfigField("String", "ANNUAIRE_RACINES", litteral(annuaireDeTest.second))
 
 dependencies {
     implementation(project(":coeur-identite"))
