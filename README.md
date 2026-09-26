@@ -115,7 +115,34 @@ Le transport est la bibliothèque native produite par le dépôt client, attendu
 mais `System.loadLibrary` échoue au premier usage du transport réel.
 
 L'annuaire se donne dans `local.properties` (non versionné) et passe dans
-`BuildConfig` :
+`BuildConfig`. **Plusieurs racines**, entre lesquelles l'utilisateur choisit
+dans Compte › Annuaire, se donnent par un fichier `annuaire.json` — la même
+forme que celui de l'application iOS :
+
+```
+asl.annuaire.liste=/chemin/vers/annuaire.json
+asl.annuaire.racines=/chemin/vers/racine.pem
+```
+
+```json
+{"annuaires": [
+  {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org"},
+  {"adresse": "argon.air-desktop.org:6630", "nom": "argon.air-desktop.org"},
+  {"adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org", "libelle": "Automatique"}
+]}
+```
+
+`adresse` est `hôte:port` (un nom se résout sur le téléphone, et toutes ses
+adresses sont essayées — ce qui fait marcher l'alias `asl-root`, qui désigne
+les deux racines) ; `nom` est le nom que porte le certificat du serveur ;
+`libelle`, facultatif, ce que l'écran montre à sa place. La première est
+choisie par défaut ; le choix se retient par l'adresse. `racines` est le
+chemin local de l'autorité qui a signé leurs certificats (son contenu est
+embarqué à la construction — une racine publique, rien de secret), la même
+pour toutes. Un `annuaire.json` illisible fait échouer la construction.
+
+**Une seule racine**, l'ancienne forme, reste lue (et `liste` l'emporte si
+les deux sont là) :
 
 ```
 asl.annuaire.adresse=192.168.1.102:6630
@@ -123,10 +150,8 @@ asl.annuaire.nom=speedy
 asl.annuaire.racines=/chemin/vers/racine.pem
 ```
 
-`nom` est le nom que porte le certificat du serveur ; `racines`, le chemin
-local de la racine qui l'a signé (son contenu est embarqué à la construction —
-une racine publique, rien de secret). Sans ces trois lignes, l'application
-tourne sur le banc en mémoire, peuplé de démonstration.
+Sans l'une ni l'autre, l'application tourne sur le banc en mémoire, peuplé
+de démonstration — c'est ce que fait la CI, qui ne fabrique pas ce fichier.
 
 ## Capturer une attestation de clé
 

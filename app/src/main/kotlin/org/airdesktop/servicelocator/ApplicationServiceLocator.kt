@@ -2,6 +2,7 @@ package org.airdesktop.servicelocator
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import org.airdesktop.servicelocator.identite.CleAppareil
@@ -10,7 +11,10 @@ import org.airdesktop.servicelocator.notifications.CarnetNotifications
 import org.airdesktop.servicelocator.notifications.Nouvelles
 import org.airdesktop.servicelocator.reseau.AnnuaireReel
 import org.airdesktop.servicelocator.reseau.AnnuaireSimule
+import org.airdesktop.servicelocator.reseau.ChoixDAnnuaire
 import org.airdesktop.servicelocator.reseau.Demonstration
+import org.airdesktop.servicelocator.reseau.ListeDAnnuaires
+import org.airdesktop.servicelocator.reseau.MemoireDuChoix
 
 /**
  * Le processus, et ce qui doit vivre aussi longtemps que lui.
@@ -21,9 +25,10 @@ import org.airdesktop.servicelocator.reseau.Demonstration
  * tourné le téléphone. Un geste par connexion, pas par rotation.
  *
  * **C'est ici, et nulle part ailleurs, que l'on choisit qui répond** aux
- * écrans. Si `local.properties` a donné un annuaire (adresse, nom, racine),
- * c'est le transport réel ; sinon, le banc en mémoire, peuplé de
- * démonstration. Les écrans ne voient que l'interface `Annuaire`.
+ * écrans. Si `local.properties` a donné des annuaires (leur liste et leur
+ * racine), c'est le transport réel, vers celle que l'utilisateur a choisie
+ * ([ChoixDAnnuaire]) ; sinon, le banc en mémoire, peuplé de démonstration.
+ * Les écrans ne voient que l'interface `Annuaire`.
  */
 class ApplicationServiceLocator : Application() {
     /**
@@ -45,16 +50,18 @@ class ApplicationServiceLocator : Application() {
 
     val session: Session by lazy {
         val identite = IdentiteLocale(this)
-        if (BuildConfig.ANNUAIRE_ADRESSE.isNotEmpty() && BuildConfig.ANNUAIRE_RACINES.isNotEmpty()) {
-            val reglages = AnnuaireReel.Reglages(BuildConfig.ANNUAIRE_ADRESSE, BuildConfig.ANNUAIRE_NOM, BuildConfig.ANNUAIRE_RACINES.toByteArray())
-            val reel = AnnuaireReel(
-                this,
-                reglages,
-                signataire = { defi -> CleAppareil.ouOuvrir(defi).avec { activiteAuPremierPlan } },
-                cleExiste = { CleAppareil.existe() },
-                effacerCle = { CleAppareil.effacer() },
-            )
-            Session(reel, identite, notifications) { invitation, _ -> reel.ouvrirCompte(invitation) }
+        val racines = ListeDAnnuaires.lire(BuildConfig.ANNUAIRES)
+        if (racines.isNotEmpty() && BuildConfig.ANNUAIRE_RACINES.isNotEmpty()) {
+            val choix = ChoixDAnnuaire(racines, MemoireDuChoixPartagee(this)) { racine ->
+                AnnuaireReel(
+                    this,
+                    AnnuaireReel.Reglages(racine.adresse, racine.nom, BuildConfig.ANNUAIRE_RACINES.toByteArray()),
+                    signataire = { defi -> CleAppareil.ouOuvrir(defi).avec { activiteAuPremierPlan } },
+                    cleExiste = { CleAppareil.existe() },
+                    effacerCle = { CleAppareil.effacer() },
+                )
+            }
+            Session(choix.annuaire, identite, notifications, choix = choix) { invitation, _ -> choix.annuaire.ouvrirCompte(invitation) }
         } else {
             val simule = AnnuaireSimule()
             Session(simule, identite, notifications) { invitation, signataire -> Demonstration.ouvrirCompte(simule, signataire(), invitation) }
@@ -80,4 +87,16 @@ class ApplicationServiceLocator : Application() {
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
     }
+}
+
+/**
+ * Le choix de la racine, retenu dans les préférences de l'application — sous
+ * la clé `annuaire.adresse`, la même que l'application iOS. Par application,
+ * pas par compte : le compte existe sur chaque racine.
+ */
+private class MemoireDuChoixPartagee(contexte: Context) : MemoireDuChoix {
+    private val prefs = contexte.getSharedPreferences("annuaire", Context.MODE_PRIVATE)
+    override var adresse: String?
+        get() = prefs.getString("annuaire.adresse", null)
+        set(valeur) = prefs.edit().putString("annuaire.adresse", valeur).apply()
 }
