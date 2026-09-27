@@ -26,6 +26,17 @@ object Alias {
     const val COMPTE_OCTETS_MIN = 3
     const val COMPTE_OCTETS_MAX = 32
 
+    /**
+     * Ce qu'on peut SAISIR, avant NFC, comme l'annuaire l'admet brut (`ALIAS_DE_COMPTE_BRUT_MAX`,
+     * `ALIAS_DE_MACHINE_BRUT_MAX`) : une forme décomposée peut être plus longue et se recomposer sous la borne, on la
+     * laisse entrer jusque-là — au-delà, l'annuaire la refuse avant même de la normaliser.
+     */
+    const val COMPTE_SAISIE_OCTETS_MAX = 255
+    const val MACHINE_SAISIE_OCTETS_MAX = 480
+
+    /** La version de l'annuaire qui range l'alias d'une machine : en dessous, le champ ne s'affiche pas. */
+    const val VERSION_ALIAS_DE_MACHINE = "0.26.0"
+
     /** Le texte en NFC — la forme que l'annuaire range, et donc celle qu'on lui envoie. */
     fun nfc(texte: String): String = Normalizer.normalize(texte, Normalizer.Form.NFC)
 
@@ -35,6 +46,7 @@ object Alias {
      * peut contenir tout autre chose qu'un « nom.domaine », et c'est voulu. **Non unique.**
      */
     fun pourMachine(texte: String): String? {
+        if (texte.toByteArray(Charsets.UTF_8).size > MACHINE_SAISIE_OCTETS_MAX) return null
         val forme = nfc(texte)
         val octets = forme.toByteArray(Charsets.UTF_8).size
         return forme.takeIf { octets in 1..MACHINE_OCTETS_MAX && admis(it) }
@@ -47,11 +59,22 @@ object Alias {
      * **Unique** sur l'annuaire : c'est lui qui le dit, par un `409`.
      */
     fun pourCompte(texte: String): String? {
+        if (texte.toByteArray(Charsets.UTF_8).size > COMPTE_SAISIE_OCTETS_MAX) return null
         val forme = nfc(texte)
         val octets = forme.toByteArray(Charsets.UTF_8).size
         if (octets !in COMPTE_OCTETS_MIN..COMPTE_OCTETS_MAX || !admis(forme)) return null
         val deuxieme = forme.codePoints().skip(1).findFirst()
         return forme.takeIf { !deuxieme.isPresent || deuxieme.asInt != '-'.code }
+    }
+
+    /**
+     * Cet annuaire range-t-il l'alias d'une machine ? Vrai pour une version semver ≥ 0.26.0 ; **faux pour une version
+     * illisible** (« banc en mémoire », absente) : dans le doute, on ne propose pas un champ que l'annuaire refuserait.
+     */
+    fun aliasDeMachineAdmis(version: String?): Boolean {
+        val parties = version?.split('.')?.takeIf { it.size == 3 }?.map { it.toIntOrNull() ?: return false } ?: return false
+        val (majeur, mineur, _) = parties
+        return majeur > 0 || mineur >= 26
     }
 
     /** Aucun caractère que l'annuaire refuse. */

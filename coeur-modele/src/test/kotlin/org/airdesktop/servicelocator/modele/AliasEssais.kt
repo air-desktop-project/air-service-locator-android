@@ -56,4 +56,26 @@ class AliasDeCompteEssais {
         assertEquals("-thierry", Alias.pourCompte("-thierry"))
         assertEquals("th-ierry", Alias.pourCompte("th-ierry"))
     }
+
+    @Test
+    fun laSaisieAvantNfcEstBornee() {
+        // 256 octets saisis : refusé avant même le NFC, comme l'annuaire.
+        assertNull(Alias.pourCompte("a".repeat(256)))
+        assertNull(Alias.pourMachine("a".repeat(481)))
+        // 480 octets saisis de « e » + accent combinant (3 octets) : 160 fois, 320 octets rangés — trop long après NFC.
+        assertNull(Alias.pourMachine("e\u0301".repeat(160)))
+    }
+}
+
+class VersionDAliasDeMachineEssais {
+    @Test
+    fun leChampNApparaitQueDepuisLaVersionQuiLeRange() {
+        assertEquals(true, Alias.aliasDeMachineAdmis("0.26.0"))
+        assertEquals(true, Alias.aliasDeMachineAdmis("0.27.3"))
+        assertEquals(true, Alias.aliasDeMachineAdmis("1.0.0"))
+        assertEquals(false, Alias.aliasDeMachineAdmis("0.25.0"))
+        assertEquals(false, Alias.aliasDeMachineAdmis("banc en mémoire"))
+        assertEquals(false, Alias.aliasDeMachineAdmis("0.26"))
+        assertEquals(false, Alias.aliasDeMachineAdmis(null))
+    }
 }

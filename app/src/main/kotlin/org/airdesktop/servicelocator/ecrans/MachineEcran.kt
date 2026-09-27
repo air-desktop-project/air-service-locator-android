@@ -25,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,6 +73,12 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
     var erreur by remember { mutableStateOf<String?>(null) }
     var renommer by remember { mutableStateOf(false) }
     var nommerAlias by remember { mutableStateOf(false) }
+    // **LE CHAMP ALIAS N'APPARAÎT QUE SUR UN ANNUAIRE QUI LE RANGE** (≥ 0.26.0), comme sur iOS : une version illisible
+    // ne l'affiche pas. Un `404`/`405` qui arriverait quand même dit « racine trop ancienne » (AnnuaireReel).
+    var aliasAdmis by remember { mutableStateOf(false) }
+    LaunchedEffect(session.annuaire) {
+        aliasAdmis = Alias.aliasDeMachineAdmis(runCatching { session.annuaire.annonce()?.version }.getOrNull())
+    }
     var confirmerRevocation by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -100,7 +107,7 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
                     modifier = Modifier.clickable { renommer = true },
                 )
             }
-            item {
+            if (aliasAdmis) item {
                 ListItem(
                     headlineContent = { Text("Alias") },
                     supportingContent = { Text(machine.alias ?: "aucun") },
@@ -152,7 +159,7 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
             title = { Text("Renommer la machine") },
             text = {
                 Column {
-                    Text("$TEXTE_NOM_D_HOTE Un nom ne retire aucun droit.")
+                    Text("Un nom ne retire aucun droit.")
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         nom, { nom = it }, label = { Text("Nom d'hôte") }, singleLine = true,
@@ -199,7 +206,7 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
                         isError = alias.isNotEmpty() && range == null,
                     )
                     if (machine.alias != null) {
-                        TextButton(onClick = { poser(null) }) { Text("Retirer l'alias", color = MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = { poser(null) }) { Text("Retirer", color = MaterialTheme.colorScheme.error) }
                     }
                 }
             },
@@ -293,5 +300,4 @@ fun CapacitesEcran(nav: NavController, id: Identifiant) {
 
 /** Ce que dit l'aide de l'alias d'une machine. */
 internal const val TEXTE_ALIAS_DE_MACHINE =
-    "Du texte libre — accents, espaces, émoji, ou un nom complet comme « nas.maison.example » —, 253 octets au plus, " +
-        "sensible à la casse. Il ne dépend ni du nom d'hôte ni du domaine, et n'a pas à être unique."
+    "Texte libre, pour vous : un nom complet, avec espaces et accents si vous voulez. Plusieurs machines peuvent porter le même."

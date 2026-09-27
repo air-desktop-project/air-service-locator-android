@@ -5,14 +5,20 @@ import org.junit.Test
 
 class CheminDAliasEssais {
     @Test
-    fun unAliasEnMinusculesAsciiPrendLeCheminQueLesDeuxVersionsServent() {
+    fun unAliasAsciiSansCaractereDeCheminPrendLeChemin() {
         assertEquals("/v1/alias/thierry", cheminDAlias("thierry"))
         assertEquals("/v1/alias/th-ierry2", cheminDAlias("th-ierry2"))
+        // Les majuscules restent dans le chemin : la 0.26.0 les y admet.
+        assertEquals("/v1/alias/Thierry", cheminDAlias("Thierry"))
     }
 
     @Test
     fun toutAutreAliasPrendLeParametrePourcentEncode() {
-        assertEquals("/v1/alias?alias=Thierry", cheminDAlias("Thierry"))
+        assertEquals("/v1/alias?alias=a%20b", cheminDAlias("a b"))
+        assertEquals("/v1/alias?alias=a%2Fb", cheminDAlias("a/b"))
+        assertEquals("/v1/alias?alias=a%3Fb", cheminDAlias("a?b"))
+        assertEquals("/v1/alias?alias=a%25b", cheminDAlias("a%b"))
+        assertEquals("/v1/alias?alias=a%23b", cheminDAlias("a#b"))
         assertEquals("/v1/alias?alias=%C3%89lodie", cheminDAlias("Élodie"))
         // Décomposé à la saisie, composé sur le fil : c'est la forme que l'annuaire range.
         assertEquals("/v1/alias?alias=%C3%89lodie", cheminDAlias("Élodie"))

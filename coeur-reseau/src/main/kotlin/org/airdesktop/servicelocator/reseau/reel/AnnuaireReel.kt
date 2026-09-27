@@ -656,7 +656,7 @@ class AnnuaireReel(
             // vous ». L'écran ne l'appelle que pour une machine à nous, qu'il vient de relire : un `404` y veut dire
             // « verbe inconnu », et c'est ce qu'on affiche, plutôt qu'un « Introuvable » qui ferait croire la machine
             // disparue. Un `405` dit la même chose.
-            404, 405 -> throw ErreurAnnuaire.TropAncien("les alias de machine", "0.26.0")
+            404, 405 -> throw ErreurAnnuaire.AliasDeMachineTropAncien
             else -> throw refus(statut)
         }
         val actuelle = carnet.machines.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable

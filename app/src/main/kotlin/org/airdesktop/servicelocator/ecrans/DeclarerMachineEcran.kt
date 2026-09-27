@@ -53,7 +53,7 @@ fun DeclarerMachineEcran(nav: NavController) {
                     isError = nom.isNotEmpty() && !Machine.nomValide(nom),
                     supportingText = { NomDHoteSousLeChamp(nom) },
                 )
-                Aide(TEXTE_NOM_D_HOTE + " Pour un nom libre — accents, espaces, émoji —, posez un alias sur la fiche de la machine une fois déclarée.")
+                Aide(TEXTE_NOM_D_HOTE)
                 SousTitre("Capacités")
                 ChoixCapacites(capacites) { capacites = it }
                 Aide("Rien n'est coché d'avance. Une machine qui porte les deux a un rayon de dégât plus large : un daemon compromis pourrait aussi énumérer tout ce que vous avez le droit de voir.")
@@ -82,18 +82,14 @@ fun DeclarerMachineEcran(nav: NavController) {
 }
 
 /** Ce que dit l'aide du nom d'une machine, à la déclaration comme au renommage. */
-internal const val TEXTE_NOM_D_HOTE = "Lettres, chiffres et tirets, sans espace ni accent — c'est le nom d'hôte de la machine, rangé en minuscules."
+internal const val TEXTE_NOM_D_HOTE = "Lettres, chiffres et tirets, sans espace ni accent — c'est le nom d'hôte."
 
 /**
- * Sous le champ du nom : la forme que l'annuaire rangera quand elle diffère de la saisie (« Grenier » → « grenier »),
- * ou pourquoi il la refuserait. Rien tant que le champ est vide.
+ * Sous le champ du nom, comme iOS : la règle, puis la forme que l'annuaire rangera quand elle diffère de la saisie
+ * (« Grenier » → « Sera rangé « grenier ». »).
  */
 @Composable
 internal fun NomDHoteSousLeChamp(nom: String) {
-    if (nom.isEmpty()) return
     val range = Machine.nomDHote(nom)
-    when {
-        range == null -> Text("Pas un nom d'hôte : lettres, chiffres et tirets, 63 au plus, sans tiret au bord.")
-        range != nom -> Text("Sera rangé « $range ».")
-    }
+    Text(if (range != null && range != nom) "$TEXTE_NOM_D_HOTE Sera rangé « $range »." else TEXTE_NOM_D_HOTE)
 }

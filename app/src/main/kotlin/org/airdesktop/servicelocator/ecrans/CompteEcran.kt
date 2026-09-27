@@ -360,11 +360,12 @@ fun AliasEcran(nav: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 isError = alias.isNotEmpty() && Alias.pourCompte(alias) == null,
             )
-            Aide("De 3 à 32 octets, accents admis, sensible à la casse : « Thierry » et « thierry » sont deux alias. Le deuxième caractère ne peut pas être un tiret. Il est unique, et public par construction : quiconque peut essayer un alias et découvrir qu'il existe. Il ne rend rien d'autre que votre identifiant — c'est lui, affiché à côté, qui fait foi.")
+            Aide("3 à 32 octets, majuscules et accents permis ; pas de tiret en deuxième caractère.")
+            Aide("Il est unique, et public par construction : quiconque peut essayer un alias et découvrir qu'il existe. Il ne rend rien d'autre que votre identifiant — c'est lui, affiché à côté, qui fait foi.")
             Erreur(erreur)
             if (session.compte?.alias != null) {
                 TextButton(onClick = { definir(null) }, modifier = Modifier.padding(16.dp)) {
-                    Text("Retirer l'alias", color = MaterialTheme.colorScheme.error)
+                    Text("Retirer", color = MaterialTheme.colorScheme.error)
                 }
             }
         }

@@ -3,19 +3,19 @@ package org.airdesktop.servicelocator.reseau
 import org.airdesktop.servicelocator.modele.Alias
 
 /**
- * Le chemin qui résout cet alias de compte.
+ * Le chemin qui résout cet alias de compte, en NFC.
  *
  * # DEUX FORMES, POUR DEUX ANNUAIRES
  *
- * Jusqu'à 0.25.0, l'alias était en minuscules ASCII, dans le chemin (`/v1/alias/{alias}`). Depuis 0.26.0 il est
- * UTF-8 et sensible à la casse, et voyage pourcent-encodé en paramètre (`/v1/alias?alias=…`). Un alias en
- * minuscules ASCII prend le chemin, que les deux versions servent ; tout autre alias prend le paramètre, qu'une
- * 0.25.0 ne connaît pas — elle répondra qu'elle ne le trouve pas, ce qui est vrai : elle ne pouvait pas le tenir.
+ * `/v1/alias/{alias}` est servi par toutes les versions, et depuis 0.26.0 il admet les majuscules ASCII ; un alias en
+ * ASCII qui ne porte aucun caractère qu'un chemin ne peut pas contenir tel quel (`/`, `?`, `%`, `#`, espace) le prend.
+ * Tout autre alias — accentué, avec une espace — prend `/v1/alias?alias=…`, pourcent-encodé, que seule une 0.26.0
+ * connaît : une 0.25.0 répondra qu'elle ne le trouve pas, ce qui est vrai — elle ne pouvait pas le tenir.
  */
 fun cheminDAlias(alias: String): String {
     val forme = Alias.nfc(alias)
-    return if (forme.isNotEmpty() && forme.all { it in 'a'..'z' || it in '0'..'9' || it == '-' }) "/v1/alias/$forme"
-    else "/v1/alias?alias=${pourcentEncoder(forme)}"
+    val dansLeChemin = forme.isNotEmpty() && forme.all { it.code in 0x21..0x7E && it !in "/?%#" }
+    return if (dansLeChemin) "/v1/alias/$forme" else "/v1/alias?alias=${pourcentEncoder(forme)}"
 }
 
 /**

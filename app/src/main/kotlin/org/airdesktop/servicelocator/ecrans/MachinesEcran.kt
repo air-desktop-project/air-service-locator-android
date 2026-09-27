@@ -66,6 +66,7 @@ fun MachinesEcran(nav: NavController) {
             items(enrolees, key = { it.id.texte }) { machine ->
                 ListItem(
                     headlineContent = { Text(machine.affichee) },
+                    // L'alias en titre, le nom d'hôte en sous-titre ; sans alias, le nom seul (comme iOS).
                     supportingContent = { Text(if (machine.alias != null) "${machine.nom} · ${machine.resumeListe}" else machine.resumeListe) },
                     leadingContent = { Pastille(machine.couleur) },
                     trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -92,7 +93,7 @@ private fun LigneEnAttente(machine: Machine, ouvrir: () -> Unit) {
     }
     ListItem(
         headlineContent = { Text(machine.affichee) },
-        supportingContent = { Text(sous) },
+        supportingContent = { Text(if (machine.alias != null) "${machine.nom} · $sous" else sous) },
         leadingContent = { Icon(Icones.horloge, null, tint = Couleurs.attention) },
         trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
         modifier = Modifier.clickable(onClick = ouvrir),

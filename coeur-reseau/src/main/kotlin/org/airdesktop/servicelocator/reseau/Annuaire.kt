@@ -29,7 +29,7 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
      * place du `404` pour les verbes nés APRÈS les applications déployées — l'alias de machine (0.26.0) —, pour que
      * l'écran dise ce qui se passe au lieu d'un « Introuvable. » qui ferait croire la machine disparue.
      */
-    class TropAncien(ce: String, version: String) : ErreurAnnuaire("L'annuaire ne connaît pas encore $ce : il faut la version $version ou plus.")
+    object AliasDeMachineTropAncien : ErreurAnnuaire("Cet annuaire ne sait pas encore ranger l'alias d'une machine (il faut la version 0.26.0).")
     /**
      * Le code d'invitation n'a pas été accepté.
      *
@@ -213,7 +213,7 @@ interface Annuaire {
     /**
      * `PUT /v1/machines/{m}/alias`, `DELETE` avec `null` — l'alias de la machine (0.26.0, décision 47), par son
      * propriétaire seul. Du texte choisi, indépendant du nom et du domaine, non unique ; envoyé en NFC.
-     * [ErreurAnnuaire.TropAncien] sur un annuaire d'avant 0.26.0.
+     * [ErreurAnnuaire.AliasDeMachineTropAncien] sur un annuaire d'avant 0.26.0.
      */
     suspend fun definirAliasMachine(id: Identifiant, alias: String?): Machine
 
