@@ -322,7 +322,7 @@ fun AnnuaireLocalEcran(nav: NavController) {
     var code by remember { mutableStateOf<CodeDInscription?>(null) }
     var retirer by remember { mutableStateOf<Inscription?>(null) }
     // La racine à laquelle l'application parle : c'est elle que la machine joindra pour s'inscrire.
-    val racine = session.choix?.choisie?.adresse ?: "<racine>"
+    val racine = session.choix?.choisie?.affichePourLeJournal ?: "<racine>"
 
     Scaffold(
         topBar = { Barre(TextesDomaines.annuaireLocal, nav) { TextButton(onClick = { declarer = true to null }) { Text(TextesDomaines.declarer) } } },

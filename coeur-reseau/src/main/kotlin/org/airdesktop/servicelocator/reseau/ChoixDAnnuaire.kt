@@ -1,49 +1,103 @@
 package org.airdesktop.servicelocator.reseau
 
+import org.airdesktop.servicelocator.modele.Genre
+import org.airdesktop.servicelocator.modele.Identifiant
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
 /**
+ * Une racine désignée par son **identité** (spec serveur #54, décisions 53–58) :
+ * le `n-…` qu'on doit trouver au bout de la connexion — la clé de son
+ * certificat auto-signé s'y déduit —, et ses **locateurs**, des adresses
+ * LITTÉRALES (`[IPv6]:port` ou `IPv4:port`). Aucun nom : C20, « ASL fonctionne
+ * sans DNS ».
+ */
+data class RacineIdentifiee(val annuaire: String, val locateurs: List<String>)
+
+/**
  * Une racine de l'annuaire, telle que la configuration la décrit.
  *
- * `adresse` est `hôte:port` (un nom se résout au moment de se connecter, et
- * TOUTES ses adresses sont posées — c'est ce qui fait marcher un alias qui
- * désigne plusieurs racines) ; `nom` est celui qu'on EXIGE du certificat ;
- * `libelle`, facultatif, est ce que l'écran montre à la place du nom.
+ * **Deux façons d'y parler, qui peuvent coexister.** Celle d'hier : `adresse`
+ * est `hôte:port` (un nom se résout au moment de se connecter, et TOUTES ses
+ * adresses sont posées) et `nom` est celui qu'on EXIGE du certificat. Celle
+ * d'aujourd'hui : [identites], une ou plusieurs racines jointes par leurs
+ * locateurs et crues par leur clé — plus aucun nom à résoudre. `libelle`,
+ * facultatif, est ce que l'écran montre à la place du nom.
  */
-data class RacineDAnnuaire(val adresse: String, val nom: String, val libelle: String? = null) {
+data class RacineDAnnuaire(
+    val adresse: String,
+    val nom: String,
+    val libelle: String? = null,
+    val identites: List<RacineIdentifiee> = emptyList(),
+) {
     /** Ce que l'écran montre : le libellé s'il y en a un, sinon le nom du certificat. */
     val affichee: String get() = libelle ?: nom
+
+    /** Jointe par l'identité : aucun nom n'est résolu pour elle. */
+    val parIdentite: Boolean get() = identites.isNotEmpty()
+
+    /**
+     * Ce que la préférence retient : l'adresse, **la même clé que les versions
+     * d'avant** (un choix retenu hier le reste) ; sinon les `n-…` joints, pour
+     * une entrée qui n'a plus d'adresse. La règle de l'application iOS.
+     */
+    val cle: String get() = adresse.ifEmpty { identites.joinToString(",") { it.annuaire } }
+
+    /** Ce que le journal dit de la cible : l'adresse, ou le premier locateur et l'identité attendue. */
+    val affichePourLeJournal: String
+        get() = adresse.ifEmpty { identites.firstOrNull()?.let { r -> r.locateurs.firstOrNull()?.let { "$it=${r.annuaire}" } } ?: nom }
+}
+
+/**
+ * Les racines qu'on sait nommer d'après leur identité — pour dire « Connecté à
+ * … » sans rien résoudre. Un `n-…` inconnu se dit abrégé. La même table que
+ * l'application iOS (`RacinesConnues`).
+ */
+object RacinesConnues {
+    val noms: Map<String, String> = mapOf(
+        "n-0PWT8HZD80QMSPPDZ5CQXXYHQC" to "nitrogen.air-desktop.org",
+        "n-3K3P6H252W8K9370QG1YYTWBWB" to "argon.air-desktop.org",
+    )
+
+    fun nom(annuaire: String): String =
+        noms[annuaire] ?: runCatching { Identifiant.analyser(annuaire, Genre.ANNUAIRE).abrege }.getOrDefault(annuaire)
 }
 
 /**
  * La liste des racines, lue dans la forme que l'application iOS lit aussi
- * (`annuaire.json`, dépôt `-ios`, PR #22) :
+ * (`annuaire.json`, dépôt `-ios`, PR #29) — une entrée peut porter la forme
+ * d'hier, la forme identifiée, ou les deux :
  *
  * ```json
  * {"annuaires": [
- *   {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org"},
- *   {"adresse": "argon.air-desktop.org:6630", "nom": "argon.air-desktop.org"},
- *   {"adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org", "libelle": "Automatique"}
+ *   {"libelle": "Automatique", "adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org",
+ *    "racines": [
+ *      {"annuaire": "n-0PWT8HZD80QMSPPDZ5CQXXYHQC", "locateurs": ["[2001:41d0:20a:900::1dd4]:6630", "178.32.16.250:6630"]},
+ *      {"annuaire": "n-3K3P6H252W8K9370QG1YYTWBWB", "locateurs": ["[2001:41d0:20a:900::1d32]:6630", "178.32.16.249:6630"]}]},
+ *   {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org",
+ *    "annuaire": "n-0PWT8HZD80QMSPPDZ5CQXXYHQC", "locateurs": ["[2001:41d0:20a:900::1dd4]:6630", "178.32.16.250:6630"]}
  * ]}
  * ```
  *
+ * L'écriture courte (`annuaire` + `locateurs`) et la longue (`racines`, pour
+ * une entrée qui en couvre plusieurs) se cumulent, la courte en tête.
+ * `adresse`/`nom` sont gardés : les versions d'avant ne lisent qu'eux.
  * **L'ancienne forme reste lue** — un objet seul, `{"adresse", "nom"}` —
- * comme une liste d'un élément : un fichier d'avant la liste ne casse rien.
- * Une seule racine PEM vaut pour toutes (elle vient d'ailleurs).
+ * comme une liste d'un élément.
  */
 object ListeDAnnuaires {
     /**
-     * Les racines décrites, dans leur ordre. **Deux entrées à la même adresse
-     * n'en font qu'une** (la première) : le choix est retenu par l'adresse, et
-     * deux lignes qui la partagent seraient indiscernables une fois retenues.
+     * Les racines décrites, dans leur ordre. **Deux entrées de même [clé]
+     * [RacineDAnnuaire.cle] n'en font qu'une** (la première).
      *
-     * Une entrée sans adresse ou sans nom est sautée ; un texte illisible rend
-     * une liste VIDE — l'application tourne alors sur le banc en mémoire,
-     * comme sans configuration, plutôt que sur une racine devinée.
+     * Un `n-…` de travers ou un locateur qui n'est pas une adresse littérale
+     * est laissé de côté — jamais résolu. Une entrée d'hier (adresse et nom)
+     * n'est gardée que si [avecAutorite] : sans PEM, elle n'aurait rien à
+     * croire. Une entrée sans rien de lisible est sautée ; un texte illisible
+     * rend une liste VIDE — l'application tourne alors sur le banc en mémoire.
      */
-    fun lire(json: String): List<RacineDAnnuaire> {
+    fun lire(json: String, avecAutorite: Boolean = true): List<RacineDAnnuaire> {
         val racine = try {
             JSONObject(json)
         } catch (e: JSONException) {
@@ -56,11 +110,55 @@ object ListeDAnnuaires {
         }
         return entrees
             .mapNotNull { entree ->
-                val adresse = entree.optString("adresse").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                val nom = entree.optString("nom").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                RacineDAnnuaire(adresse, nom, entree.optString("libelle").takeIf { it.isNotEmpty() })
+                val identites = identites(entree)
+                val adresse = entree.optString("adresse")
+                val nom = entree.optString("nom")
+                val hier = adresse.isNotEmpty() && nom.isNotEmpty()
+                if (identites.isEmpty() && !(hier && avecAutorite)) return@mapNotNull null
+                RacineDAnnuaire(
+                    adresse = if (hier) adresse else "",
+                    nom = nom.ifEmpty { RacinesConnues.nom(identites.first().annuaire) },
+                    libelle = entree.optString("libelle").takeIf { it.isNotEmpty() },
+                    identites = identites,
+                )
             }
-            .distinctBy { it.adresse }
+            .distinctBy { it.cle }
+    }
+
+    /** Les racines identifiées d'une entrée : l'écriture courte d'abord, puis `racines`. */
+    private fun identites(entree: JSONObject): List<RacineIdentifiee> {
+        val brutes = mutableListOf<Pair<String, JSONArray?>>()
+        entree.optString("annuaire").takeIf { it.isNotEmpty() }?.let { brutes += it to entree.optJSONArray("locateurs") }
+        entree.optJSONArray("racines")?.let { liste ->
+            for (i in 0 until liste.length()) {
+                val r = liste.optJSONObject(i) ?: continue
+                brutes += r.optString("annuaire") to r.optJSONArray("locateurs")
+            }
+        }
+        return brutes.mapNotNull { (annuaire, locateurs) ->
+            if (runCatching { Identifiant.analyser(annuaire, Genre.ANNUAIRE) }.isFailure) return@mapNotNull null
+            val litteraux = (0 until (locateurs?.length() ?: 0)).mapNotNull { locateurs?.optString(it) }.filter(::estLitteral)
+            litteraux.takeIf { it.isNotEmpty() }?.let { RacineIdentifiee(annuaire, it) }
+        }
+    }
+
+    /**
+     * `[IPv6]:port` ou `IPv4:port`, et rien d'autre : un nom n'est PAS un
+     * locateur (C20). Jugé sans résolveur — une chaîne qui n'a que des chiffres
+     * hexadécimaux et des `:` ne peut pas déclencher de requête DNS.
+     */
+    fun estLitteral(locateur: String): Boolean {
+        val deuxPoints = locateur.lastIndexOf(':').takeIf { it > 0 } ?: return false
+        val port = locateur.substring(deuxPoints + 1).toIntOrNull() ?: return false
+        if (port !in 1..65535) return false
+        val hote = locateur.substring(0, deuxPoints)
+        if (hote.startsWith("[") && hote.endsWith("]")) {
+            val v6 = hote.substring(1, hote.length - 1)
+            if (v6.isEmpty() || !v6.contains(':') || !v6.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' || it == '.' }) return false
+            return runCatching { java.net.InetAddress.getByName(v6) is java.net.Inet6Address }.getOrDefault(false)
+        }
+        val octets = hote.split('.')
+        return octets.size == 4 && octets.all { o -> o.isNotEmpty() && o.length <= 3 && o.all(Char::isDigit) && o.toInt() in 0..255 }
     }
 }
 
@@ -71,7 +169,7 @@ object ListeDAnnuaires {
  * l'application iOS) ; dans un essai, une variable.
  */
 interface MemoireDuChoix {
-    /** L'adresse de la racine retenue, ou `null` si rien ne l'a encore été. */
+    /** La [clé][RacineDAnnuaire.cle] de la racine retenue, ou `null` si rien ne l'a encore été. */
     var adresse: String?
 }
 
@@ -103,7 +201,7 @@ class ChoixDAnnuaire<A : Annuaire>(
     }
 
     /** La racine en service. */
-    var choisie: RacineDAnnuaire = racines.firstOrNull { it.adresse == memoire.adresse } ?: racines.first()
+    var choisie: RacineDAnnuaire = racines.firstOrNull { it.cle == memoire.adresse } ?: racines.first()
         private set
 
     /** L'annuaire de [choisie]. */
@@ -122,12 +220,12 @@ class ChoixDAnnuaire<A : Annuaire>(
      * retenir, une fois le nouveau en place.
      */
     suspend fun choisir(racine: RacineDAnnuaire): Boolean {
-        require(racines.any { it.adresse == racine.adresse }) { "« ${racine.adresse} » n'est pas dans la liste" }
-        if (racine.adresse == choisie.adresse) return false
+        require(racines.any { it.cle == racine.cle }) { "« ${racine.cle} » n'est pas dans la liste" }
+        if (racine.cle == choisie.cle) return false
         annuaire.fermer()
         annuaire = fabrique(racine)
         choisie = racine
-        memoire.adresse = racine.adresse
+        memoire.adresse = racine.cle
         return true
     }
 }

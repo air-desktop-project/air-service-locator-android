@@ -468,7 +468,7 @@ private fun ChoisirLaRacine(
                         Modifier.fillMaxWidth().clickable { onChoisir(racine) }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = racine.adresse == choisie.adresse, onClick = { onChoisir(racine) })
+                        RadioButton(selected = racine.cle == choisie.cle, onClick = { onChoisir(racine) })
                         Column {
                             Text(racine.affichee)
                             if (racine.libelle != null) Text(racine.nom, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

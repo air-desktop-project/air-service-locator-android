@@ -99,7 +99,16 @@ class AnnuaireReel(
      * adresses littérales. `nom` est celui qu'on EXIGE du certificat, jamais
      * déduit de l'adresse.
      */
-    data class Reglages(val adresse: String, val nom: String, val racinesPEM: ByteArray)
+    data class Reglages(
+        val adresse: String,
+        val nom: String,
+        val racinesPEM: ByteArray,
+        /** Les racines jointes par leur identité — vide pour une entrée d'hier. */
+        val identites: List<RacineIdentifiee> = emptyList(),
+    ) {
+        /** Ce que le journal dit de la cible. */
+        val affiche: String get() = RacineDAnnuaire(adresse, nom, identites = identites).affichePourLeJournal
+    }
 
     companion object {
         /**
@@ -161,11 +170,26 @@ class AnnuaireReel(
             Log.e("annuaire", Natif.diagnostic())
             throw ErreurNative(Natif.INTERNE)
         }
-        for (adresse in adressesLitterales(reglages.adresse)) {
-            Log.d("annuaire", "annuaire $adresse (nom exigé ${reglages.nom})")
-            exiger(Natif.annuaire(neuf, adresse, reglages.nom), "annuaire")
+        if (reglages.identites.isNotEmpty()) {
+            // Chaque locateur de chaque racine, avec l'identité qu'on doit y trouver : aucun nom à résoudre, aucun
+            // nom envoyé (C20).
+            for (racine in reglages.identites) {
+                for (locateur in racine.locateurs) {
+                    Log.d("annuaire", "annuaire $locateur (identité ${racine.annuaire})")
+                    exiger(Natif.annuaireIdentifie(neuf, locateur, racine.annuaire), "annuaire_identifie")
+                }
+            }
+        } else {
+            for (adresse in adressesLitterales(reglages.adresse)) {
+                Log.d("annuaire", "annuaire $adresse (nom exigé ${reglages.nom})")
+                exiger(Natif.annuaire(neuf, adresse, reglages.nom), "annuaire")
+            }
         }
-        exiger(Natif.racines(neuf, reglages.racinesPEM), "racines")
+        // **LA BASCULE** : l'autorité d'hier reste posée tant que la configuration en porte une. Une racine
+        // d'aujourd'hui (≤ 0.28) ne présente que sa chaîne, dont les certificats portent ses adresses ; une racine
+        // qui présente son identité est crue par la clé. La même connexion sert donc les deux, sans sonder la
+        // version d'abord — la poignée de main précède tout `GET /v1/version`. La règle de l'application iOS.
+        if (reglages.racinesPEM.isNotEmpty()) exiger(Natif.racines(neuf, reglages.racinesPEM), "racines")
         // **LA CLÉ N'EST POSÉE QUE SI ELLE EXISTE.** Sur un appareil neuf, elle
         // se crée dans `ouvrirCompte` ou `clePourRejoindre`, AVEC le défi
         // d'attestation de la connexion. Une connexion nue n'en a pas besoin.
@@ -191,7 +215,7 @@ class AnnuaireReel(
     /** Ouvre la connexion — et prouve la clé si l'appareil est enrôlé. C'est ici que l'empreinte est demandée, une fois par connexion. */
     private fun connecter() {
         val h = handleOuCreer()
-        Log.d("annuaire", "connexion à ${reglages.adresse}…")
+        Log.d("annuaire", "connexion à ${reglages.affiche}…")
         when (val code = Natif.connecter(h).also { Log.d("annuaire", "connecter → $it") }) {
             // **QUELLE RACINE A RÉPONDU.** Sous « Automatique », l'alias rend les adresses des deux racines et la
             // tournée garde la première qui répond : sans cette ligne, rien ne dit laquelle — ni l'application, ni
@@ -217,9 +241,17 @@ class AnnuaireReel(
             suivi.perdue()
             return
         }
-        val connues = (racinesConnues.ifEmpty { listOf(RacineDAnnuaire(reglages.adresse, reglages.nom)) })
-            .map { racine -> racine.nom to (runCatching { adressesLitterales(racine.adresse) }.getOrNull() ?: emptyList()) }
-        suivi.jointe(adresse, connues)
+        val liste = racinesConnues.ifEmpty { listOf(RacineDAnnuaire(reglages.adresse, reglages.nom, identites = reglages.identites)) }
+        // D'abord par l'identité : le locateur joint dit le `n-…`, la table le nomme — rien n'est résolu.
+        val parIdentite = RacineJointe.nommerParIdentite(adresse, liste)
+        if (parIdentite != null) {
+            suivi.jointe(adresse, parIdentite)
+        } else {
+            // La forme d'hier seulement : on résout les entrées qui n'ont pas d'identité — jamais les autres.
+            val connues = liste.filter { !it.parIdentite }
+                .map { racine -> racine.nom to (runCatching { adressesLitterales(racine.adresse) }.getOrNull() ?: emptyList()) }
+            suivi.jointe(adresse, connues)
+        }
         val nom = suivi.racine.value?.nom
         Log.d("annuaire", "racine jointe : $adresse${nom?.let { " ($it)" } ?: ""}")
     }

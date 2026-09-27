@@ -40,8 +40,8 @@ android {
         // lit à l'écran (Compte › Annuaire), et c'est ce qu'un utilisateur
         // cite quand il rapporte quelque chose. `versionCode` est l'entier
         // croissant que le Play Store exige distinct à chaque envoi.
-        versionCode = 25
-        versionName = "0.13.0"
+        versionCode = 26
+        versionName = "0.14.0"
     }
 
     buildTypes {
@@ -114,6 +114,12 @@ android {
 //     asl.annuaire.adresse=192.0.2.1:6630
 //     asl.annuaire.nom=annuaire
 //     asl.annuaire.racines=/chemin/vers/racine.pem
+//
+// **Chaque entrée peut désigner sa racine par son IDENTITÉ** (`"annuaire":"n-…"` et
+// des `"locateurs"` littéraux, ou `"racines":[…]` pour une entrée qui en couvre
+// plusieurs — voir `ListeDAnnuaires`) : aucun nom n'est alors résolu, et
+// `asl.annuaire.racines` devient facultatif — sans lui, seules les entrées
+// identifiées restent (décision 58, C20).
 //
 // `liste` l'emporte si les deux sont là. Le fichier est vérifié ICI : un JSON
 // illisible fait échouer la construction, plutôt que de livrer une application
