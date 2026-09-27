@@ -135,8 +135,8 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
             domaines?.let { lus ->
                 item {
                     ListItem(
-                        headlineContent = { Text("Domaine") },
-                        supportingContent = { Text(lus.firstOrNull { it.id == rangeeDans }?.affiche ?: "aucun") },
+                        headlineContent = { Text(TextesDomaines.domaineDeLaMachine) },
+                        supportingContent = { Text(lus.firstOrNull { it.id == rangeeDans }?.affiche ?: TextesDomaines.aucun) },
                         trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         modifier = Modifier.clickable { choisirDomaine = true },
                     )
@@ -250,13 +250,13 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
         var choisi by remember { mutableStateOf(rangeeDans) }
         AlertDialog(
             onDismissRequest = { choisirDomaine = false },
-            title = { Text("Domaine de la machine") },
+            title = { Text(TextesDomaines.ranger) },
             text = {
                 Column {
                     options.forEach { option ->
                         ListItem(
                             leadingContent = { RadioButton(selected = choisi == option?.id, onClick = { choisi = option?.id }) },
-                            headlineContent = { Text(option?.affiche ?: "Aucun") },
+                            headlineContent = { Text(option?.affiche ?: TextesDomaines.retirerDuDomaine) },
                             modifier = Modifier.clickable { choisi = option?.id },
                         )
                     }

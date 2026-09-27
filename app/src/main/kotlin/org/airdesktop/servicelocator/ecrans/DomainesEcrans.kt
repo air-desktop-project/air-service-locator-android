@@ -43,37 +43,64 @@ import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.EtatDInscription
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Inscription
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
-// ── Les textes, dits une fois ────────────────────────────────────────────────
+// ── Les textes, à la lettre ceux d'iOS/macOS (`TextesDomaines`) ────────────────
 
-internal const val TEXTE_DOMAINES =
-    "Un domaine rassemble des machines. Votre compte en a toujours au moins un ; il n'est pas dans le domaine, il le possède."
-internal const val TEXTE_ALIAS_DE_DOMAINE =
-    "Texte libre, visible de tous les comptes : n'importe qui peut chercher un domaine par son alias. Plusieurs domaines peuvent porter le même — c'est l'identifiant qui fait foi."
-internal const val TEXTE_ANNUAIRE_LOCAL =
-    "Un annuaire que vous faites tourner chez vous, sur l'une de vos machines, pour vos domaines. Les racines l'inscrivent après qu'un de leurs administrateurs l'a accepté."
-internal const val TEXTE_CODE_D_INSCRIPTION =
-    "À taper sur la machine, dans les vingt-quatre heures :"
-internal const val TEXTE_ADMINISTRATION =
-    "Les annuaires locaux qui demandent à être inscrits. Un administrateur suffit ; un refus l'emporte sur une acceptation, même venue d'une autre racine."
+/**
+ * Les mots des domaines, des annuaires locaux et de l'administration des racines — **identiques sur les deux
+ * plates-formes**, recopiés de `TextesDomaines` (application iOS/macOS). Un texte qui change change des deux côtés.
+ */
+internal object TextesDomaines {
+    const val domaines = "Domaines"
+    const val aucunDomaine = "Aucun domaine."
+    const val creer = "Créer un domaine"
+    const val aliasFacultatif = "Alias (facultatif)"
+    const val hebergeRacines = "Hébergé par : les racines"
+    fun hebergeAnnuaire(n: Identifiant) = "Hébergé par : l'annuaire ${n.texte}"
+    const val supprimer = "Supprimer le domaine"
+    const val confirmerSuppression = "Les machines qui y sont rangées n'y seront plus. Rien d'autre ne part."
+    const val machinesRangees = "Machines rangées ici"
+    const val aucuneMachine = "Aucune machine rangée dans ce domaine."
+    const val domaineDeLaMachine = "Domaine"
+    const val aucun = "aucun"
+    const val ranger = "Ranger dans un domaine"
+    const val retirerDuDomaine = "Retirer du domaine"
+    const val confier = "Confier à mon annuaire local"
+    const val rendreAuxRacines = "Rendre aux racines"
+    const val annuaireLocal = "Mon annuaire local"
+    const val aucunAnnuaire = "Aucun annuaire local déclaré."
+    const val declarer = "Déclarer un annuaire local"
+    const val adresse = "Adresse (hôte:port)"
+    const val adresseAide = "L'adresse où la machine qui l'héberge écoute."
+    const val codeTitre = "Code d'inscription"
+    const val codeAide = "À présenter sur la machine dans les 24 heures :"
+    /** `racine` : l'adresse de la racine à laquelle l'application parle ; `<racine.pem>` et `<clé>` restent littéraux. */
+    fun commande(code: String, racine: String) = "asl-server --register $code --directory $racine --ca <racine.pem> --identity-key <clé>"
+    const val secondMembre = "Déclarer le second membre de la paire"
+    const val retirer = "Retirer l'annuaire"
+    const val confirmerRetrait = "La paire entière est retirée ; les domaines qu'elle héberge reviennent aux racines."
+    const val administration = "Administration des racines"
+    const val aucuneInscription = "Aucune inscription en attente."
+    const val accepter = "Accepter"
+    const val refuser = "Refuser"
+    fun confirmerAcceptation(membre: String, adresse: String, proprietaire: String) =
+        "L'annuaire $membre ($adresse), du compte $proprietaire, servira les domaines qu'on lui confiera."
+    const val confirmerRefus = "L'annuaire ne pourra pas servir de domaine. Un refus l'emporte même sur une acceptation passée."
 
-private val format = DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault())
+    /** Le mot d'un état d'inscription ; un état inconnu, tel que l'annuaire l'a dit. */
+    fun etat(inscription: Inscription): String = when (inscription.etat) {
+        EtatDInscription.Attendue -> "code pas encore présenté"
+        EtatDInscription.EnAttente -> "en attente de la décision des racines"
+        EtatDInscription.Acceptee -> "acceptée"
+        EtatDInscription.Refusee -> "refusée"
+        EtatDInscription.Retiree -> "retirée"
+        EtatDInscription.Inconnu -> inscription.motDeLEtat
+    }
+}
 
 /** Ce qu'on dit de ce qui héberge un domaine. */
 internal fun libelleHebergeur(domaine: Domaine): String =
-    domaine.hebergePar?.let { "Hébergé par l'annuaire local ${it.abrege}" } ?: "Hébergé par les racines"
-
-/** Le mot d'un état d'inscription, tel qu'on le montre. */
-internal fun libelleDInscription(inscription: Inscription): String = when (inscription.etat) {
-    EtatDInscription.Attendue -> "Code en attente de la machine" + (inscription.expireA?.let { " — jusqu'au ${format.format(it)}" } ?: "")
-    EtatDInscription.EnAttente -> "En attente d'un administrateur des racines"
-    EtatDInscription.Acceptee -> "Inscrit"
-    EtatDInscription.Refusee -> "Refusé"
-    EtatDInscription.Retiree -> "Retiré"
-    EtatDInscription.Inconnu -> inscription.motDeLEtat
-}
+    domaine.hebergePar?.let { TextesDomaines.hebergeAnnuaire(it) } ?: TextesDomaines.hebergeRacines
 
 // ── Domaines ─────────────────────────────────────────────────────────────────
 
@@ -87,7 +114,7 @@ fun DomainesEcran(nav: NavController) {
     var erreur by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        topBar = { Barre("Domaines", nav) { TextButton(onClick = { creer = true }) { Text("Créer") } } },
+        topBar = { Barre(TextesDomaines.domaines, nav) { TextButton(onClick = { creer = true }) { Text(TextesDomaines.creer) } } },
     ) { marges ->
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {
             item { Erreur(chargement.erreur ?: erreur) }
@@ -104,13 +131,13 @@ fun DomainesEcran(nav: NavController) {
                     modifier = Modifier.clickable { nav.navigate(Routes.domaine(domaine.id)) },
                 )
             }
-            item { Aide(TEXTE_DOMAINES) }
+            if (chargement.valeur?.isEmpty() == true) item { Aide(TextesDomaines.aucunDomaine) }
         }
     }
 
     if (creer) {
         DialogueDAlias(
-            titre = "Nouveau domaine",
+            titre = TextesDomaines.creer,
             initial = "",
             facultatif = true,
             onAnnuler = { creer = false },
@@ -154,26 +181,26 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
             if (detail == null) return@LazyColumn
             val domaine = detail.domaine
             val proprietaire = domaine.proprietaire == moi
-            item { SousTitre("Domaine") }
+            item { SousTitre(TextesDomaines.domaineDeLaMachine) }
             item { LigneIdentifiant("Identifiant", domaine.id) }
             item {
                 ListItem(
                     headlineContent = { Text("Alias") },
-                    supportingContent = { Text(domaine.alias ?: "aucun") },
+                    supportingContent = { Text(domaine.alias ?: TextesDomaines.aucun) },
                     trailingContent = if (domaine.peut(Domaine.ADMINISTRER)) ({ Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) else null,
                     modifier = if (domaine.peut(Domaine.ADMINISTRER)) Modifier.clickable { nommer = true } else Modifier,
                 )
             }
             item {
                 ListItem(
-                    headlineContent = { Text("Hébergement") },
-                    supportingContent = { Text(libelleHebergeur(domaine)) },
+                    headlineContent = { Text(libelleHebergeur(domaine)) },
+                    supportingContent = if (proprietaire) ({ Text(if (domaine.hebergePar == null) TextesDomaines.confier else TextesDomaines.rendreAuxRacines) }) else null,
                     trailingContent = if (proprietaire) ({ Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) else null,
                     modifier = if (proprietaire) Modifier.clickable { choisirHebergeur = true } else Modifier,
                 )
             }
-            item { SousTitre("Machines") }
-            if (detail.machines.isEmpty()) item { Aide("Aucune machine rangée ici — on range une de ses machines depuis sa fiche.") }
+            item { SousTitre(TextesDomaines.machinesRangees) }
+            if (detail.machines.isEmpty()) item { Aide(TextesDomaines.aucuneMachine) }
             items(detail.machines, key = { it.machine.texte }) { machine ->
                 ListItem(
                     headlineContent = { Text(machine.affichee) },
@@ -181,13 +208,11 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
                 )
             }
             if (proprietaire) {
-                item { SousTitre("Supprimer") }
                 item {
                     TextButton(onClick = { supprimer = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
-                        Text("Supprimer ce domaine", color = MaterialTheme.colorScheme.error)
+                        Text(TextesDomaines.supprimer, color = MaterialTheme.colorScheme.error)
                     }
                 }
-                item { Aide("Ses machines en sortent, son alias et ses groupes partent. Votre dernier domaine ne se supprime pas.") }
             }
         }
     }
@@ -208,17 +233,17 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
         var choisi by remember { mutableStateOf(domaine.hebergePar) }
         AlertDialog(
             onDismissRequest = { choisirHebergeur = false },
-            title = { Text("Hébergement") },
+            title = { Text(TextesDomaines.confier) },
             text = {
                 Column {
                     options.forEach { option ->
                         ListItem(
                             leadingContent = { RadioButton(selected = choisi == option, onClick = { choisi = option }) },
-                            headlineContent = { Text(option?.let { "Annuaire local ${it.abrege}" } ?: "Les racines") },
+                            headlineContent = { Text(option?.let { TextesDomaines.confier + " — " + it.texte } ?: TextesDomaines.rendreAuxRacines) },
                             modifier = Modifier.clickable { choisi = option },
                         )
                     }
-                    if (options.size == 1) Aide("Aucun annuaire local inscrit : déclarez-en un depuis Compte › Mon annuaire local.")
+                    if (options.size == 1) Aide(TextesDomaines.aucunAnnuaire)
                 }
             },
             confirmButton = {
@@ -233,13 +258,13 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
     if (supprimer) {
         AlertDialog(
             onDismissRequest = { supprimer = false },
-            title = { Text("Supprimer « ${domaine.affiche} » ?") },
-            text = { Text("Ses machines en sortent, son alias, ses groupes et les droits qui le visent partent. Rien ne revient.") },
+            title = { Text(TextesDomaines.supprimer) },
+            text = { Text(TextesDomaines.confirmerSuppression) },
             confirmButton = {
                 TextButton(onClick = {
                     supprimer = false
                     agir({ session.annuaire.supprimerDomaine(id) }, apres = { nav.popBackStack() })
-                }) { Text("Supprimer", color = MaterialTheme.colorScheme.error) }
+                }) { Text(TextesDomaines.supprimer, color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { supprimer = false }) { Text("Annuler") } },
         )
@@ -264,17 +289,16 @@ private fun DialogueDAlias(
         text = {
             Column {
                 OutlinedTextField(
-                    texte, { texte = it }, label = { Text("Alias") }, singleLine = true,
+                    texte, { texte = it }, label = { Text(if (facultatif) TextesDomaines.aliasFacultatif else "Alias") }, singleLine = true,
                     isError = texte.isNotEmpty() && range == null, modifier = Modifier.fillMaxWidth(),
                 )
-                Aide(TEXTE_ALIAS_DE_DOMAINE)
             }
         },
         confirmButton = {
             TextButton(
                 enabled = (facultatif && texte.isEmpty()) || (range != null && range != initial),
                 onClick = { onValider(if (texte.isEmpty()) null else range) },
-            ) { Text(if (facultatif) "Créer" else "Enregistrer") }
+            ) { Text(if (facultatif) TextesDomaines.creer else "Enregistrer") }
         },
         dismissButton = {
             if (retirable) TextButton(onClick = { onValider(null) }) { Text("Retirer", color = MaterialTheme.colorScheme.error) }
@@ -297,38 +321,39 @@ fun AnnuaireLocalEcran(nav: NavController) {
     var declarer by remember { mutableStateOf<Pair<Boolean, Identifiant?>>(false to null) }
     var code by remember { mutableStateOf<CodeDInscription?>(null) }
     var retirer by remember { mutableStateOf<Inscription?>(null) }
+    // La racine à laquelle l'application parle : c'est elle que la machine joindra pour s'inscrire.
+    val racine = session.choix?.choisie?.adresse ?: "<racine>"
 
     Scaffold(
-        topBar = { Barre("Mon annuaire local", nav) { TextButton(onClick = { declarer = true to null }) { Text("Déclarer") } } },
+        topBar = { Barre(TextesDomaines.annuaireLocal, nav) { TextButton(onClick = { declarer = true to null }) { Text(TextesDomaines.declarer) } } },
     ) { marges ->
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {
             item { Erreur(chargement.erreur ?: erreur) }
             code?.let { c ->
-                item { SousTitre("Code d'inscription") }
-                item { Aide(TEXTE_CODE_D_INSCRIPTION) }
+                item { SousTitre(TextesDomaines.codeTitre) }
+                item { Aide(TextesDomaines.codeAide) }
                 item {
                     ListItem(
-                        headlineContent = { Text("asl-server --register ${c.code}", fontFamily = FontFamily.Monospace) },
-                        supportingContent = { Text("Valable jusqu'au ${format.format(c.expireA)}") },
+                        headlineContent = { Text(TextesDomaines.commande(c.code, racine), fontFamily = FontFamily.Monospace) },
                     )
                 }
             }
-            if (inscriptions.isEmpty() && chargement.valeur != null) item { Aide("Aucun annuaire local déclaré.") }
+            if (inscriptions.isEmpty() && chargement.valeur != null) item { Aide(TextesDomaines.aucunAnnuaire) }
             // Un annuaire par titulaire ; les déclarations qui attendent encore leur machine, à part.
             val parAnnuaire = inscriptions.groupBy { it.annuaire }
             parAnnuaire.forEach { (annuaire, membres) ->
-                item { SousTitre(annuaire?.let { "Annuaire ${it.abrege}" } ?: "Déclaré, pas encore présenté") }
+                item { SousTitre(annuaire?.texte ?: TextesDomaines.codeTitre) }
                 items(membres) { inscription ->
                     ListItem(
                         headlineContent = { Text(inscription.adresse, fontFamily = FontFamily.Monospace) },
                         supportingContent = {
                             Column {
-                                Text(libelleDInscription(inscription))
+                                Text(TextesDomaines.etat(inscription))
                                 inscription.membre?.let { Text(it.texte, fontFamily = FontFamily.Monospace) }
                             }
                         },
                         trailingContent = if (inscription.membre != null && inscription.etat in setOf(EtatDInscription.EnAttente, EtatDInscription.Acceptee)) ({
-                            TextButton(onClick = { retirer = inscription }) { Text("Retirer", color = MaterialTheme.colorScheme.error) }
+                            TextButton(onClick = { retirer = inscription }) { Text(TextesDomaines.retirer, color = MaterialTheme.colorScheme.error) }
                         }) else null,
                     )
                 }
@@ -336,11 +361,10 @@ fun AnnuaireLocalEcran(nav: NavController) {
                 val vivants = membres.count { it.membre != null && it.etat in setOf(EtatDInscription.EnAttente, EtatDInscription.Acceptee) }
                 if (annuaire != null && titulaireAccepte && vivants < 2) item {
                     TextButton(onClick = { declarer = true to annuaire }, modifier = Modifier.padding(horizontal = 8.dp)) {
-                        Text("Déclarer le second membre")
+                        Text(TextesDomaines.secondMembre)
                     }
                 }
             }
-            item { Aide(TEXTE_ANNUAIRE_LOCAL) }
         }
     }
 
@@ -350,14 +374,14 @@ fun AnnuaireLocalEcran(nav: NavController) {
         val forme = Alias.adresseDAnnuaire(adresse)
         AlertDialog(
             onDismissRequest = { declarer = false to null },
-            title = { Text(if (second == null) "Déclarer mon annuaire local" else "Déclarer le second membre") },
+            title = { Text(if (second == null) TextesDomaines.declarer else TextesDomaines.secondMembre) },
             text = {
                 Column {
                     OutlinedTextField(
-                        adresse, { adresse = it }, label = { Text("hôte:port") }, singleLine = true,
+                        adresse, { adresse = it }, label = { Text(TextesDomaines.adresse) }, singleLine = true,
                         isError = adresse.isNotEmpty() && forme == null, modifier = Modifier.fillMaxWidth(),
                     )
-                    Aide("L'adresse où les racines et vos appareils le joignent, par exemple speedy.exemple.org:6630.")
+                    Aide(TextesDomaines.adresseAide)
                 }
             },
             confirmButton = {
@@ -368,7 +392,7 @@ fun AnnuaireLocalEcran(nav: NavController) {
                             if (second == null) session.annuaire.declarerAnnuaire(forme!!) else session.annuaire.declarerSecondMembre(second, forme!!)
                         }.onSuccess { code = it; erreur = null; chargement.recharger() }.onFailure { erreur = it.messageAnnuaire }
                     }
-                }) { Text("Déclarer") }
+                }) { Text(TextesDomaines.declarer) }
             },
             dismissButton = { TextButton(onClick = { declarer = false to null }) { Text("Annuler") } },
         )
@@ -377,13 +401,8 @@ fun AnnuaireLocalEcran(nav: NavController) {
         val titulaire = inscription.estTitulaire
         AlertDialog(
             onDismissRequest = { retirer = null },
-            title = { Text(if (titulaire) "Retirer l'annuaire ?" else "Retirer ce membre ?") },
-            text = {
-                Text(
-                    if (titulaire) "L'annuaire entier est retiré, son second avec lui ; ses domaines reviennent aux racines."
-                    else "Ce membre ne porte plus l'annuaire ; l'autre continue.",
-                )
-            },
+            title = { Text(TextesDomaines.retirer) },
+            text = { Text(TextesDomaines.confirmerRetrait) },
             confirmButton = {
                 TextButton(onClick = {
                     retirer = null
@@ -393,7 +412,7 @@ fun AnnuaireLocalEcran(nav: NavController) {
                             if (titulaire) session.annuaire.retirerAnnuaire(annuaire) else session.annuaire.retirerMembre(annuaire, inscription.membre!!)
                         }.onSuccess { erreur = null; chargement.recharger() }.onFailure { erreur = it.messageAnnuaire }
                     }
-                }) { Text("Retirer", color = MaterialTheme.colorScheme.error) }
+                }) { Text(TextesDomaines.retirer, color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { retirer = null }) { Text("Annuler") } },
         )
@@ -412,42 +431,41 @@ fun AdministrationDesRacinesEcran(nav: NavController) {
     // La décision à confirmer : l'inscription, et accepter ou refuser.
     var decision by remember { mutableStateOf<Pair<Inscription, Boolean>?>(null) }
 
-    Scaffold(topBar = { Barre("Inscriptions", nav) }) { marges ->
+    Scaffold(topBar = { Barre(TextesDomaines.administration, nav) }) { marges ->
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {
             item { Erreur(chargement.erreur ?: erreur) }
             val liste = chargement.valeur
             if (chargement.valeur == null && chargement.erreur == null) return@LazyColumn
-            if (liste.isNullOrEmpty()) item { Aide("Aucune inscription n'attend.") }
+            if (liste.isNullOrEmpty()) item { Aide(TextesDomaines.aucuneInscription) }
             items(liste.orEmpty()) { inscription ->
                 ListItem(
                     headlineContent = { Text(inscription.adresse, fontFamily = FontFamily.Monospace) },
                     supportingContent = {
                         Column {
-                            inscription.membre?.let { Text("Membre ${it.texte}", fontFamily = FontFamily.Monospace) }
-                            inscription.proprietaire?.let { Text("Compte ${it.texte}", fontFamily = FontFamily.Monospace) }
-                            inscription.annuaire?.takeIf { it != inscription.membre }?.let { Text("Second membre de ${it.abrege}") }
+                            inscription.membre?.let { Text(it.texte, fontFamily = FontFamily.Monospace) }
+                            inscription.proprietaire?.let { Text(it.texte, fontFamily = FontFamily.Monospace) }
                         }
                     },
                     trailingContent = {
                         Column(horizontalAlignment = Alignment.End) {
-                            TextButton(onClick = { decision = inscription to true }) { Text("Accepter") }
-                            TextButton(onClick = { decision = inscription to false }) { Text("Refuser", color = MaterialTheme.colorScheme.error) }
+                            TextButton(onClick = { decision = inscription to true }) { Text(TextesDomaines.accepter) }
+                            TextButton(onClick = { decision = inscription to false }) { Text(TextesDomaines.refuser, color = MaterialTheme.colorScheme.error) }
                         }
                     },
                 )
             }
-            item { Aide(TEXTE_ADMINISTRATION) }
         }
     }
 
     decision?.let { (inscription, accepte) ->
         AlertDialog(
             onDismissRequest = { decision = null },
-            title = { Text(if (accepte) "Accepter cet annuaire ?" else "Refuser cet annuaire ?") },
+            title = { Text(if (accepte) TextesDomaines.accepter else TextesDomaines.refuser) },
             text = {
                 Text(
-                    if (accepte) "${inscription.adresse} pourra héberger les domaines de son propriétaire, et les racines serviront ses services."
-                    else "Le refus l'emporte, y compris sur une acceptation d'un autre administrateur. Pour revenir dessus, il faudra une inscription neuve.",
+                    if (accepte) TextesDomaines.confirmerAcceptation(
+                        inscription.membre?.texte ?: "?", inscription.adresse, inscription.proprietaire?.texte ?: "?",
+                    ) else TextesDomaines.confirmerRefus,
                 )
             },
             confirmButton = {
@@ -459,7 +477,7 @@ fun AdministrationDesRacinesEcran(nav: NavController) {
                             .onSuccess { erreur = null; chargement.recharger() }
                             .onFailure { erreur = it.messageAnnuaire }
                     }
-                }) { Text(if (accepte) "Accepter" else "Refuser", color = if (accepte) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+                }) { Text(if (accepte) TextesDomaines.accepter else TextesDomaines.refuser, color = if (accepte) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { decision = null }) { Text("Annuler") } },
         )

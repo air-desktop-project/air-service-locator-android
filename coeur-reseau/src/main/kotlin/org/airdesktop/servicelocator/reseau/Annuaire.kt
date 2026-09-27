@@ -39,9 +39,9 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
     /** `403` au rattachement : ni `rattacher` ni `administrer` sur ce domaine. */
     object SansDroitDeRattacher : ErreurAnnuaire("Vous n'avez pas le droit de ranger une machine dans ce domaine.")
     /** `409` à la déclaration du second membre : l'annuaire en a déjà deux (décision 49). */
-    object PaireComplete : ErreurAnnuaire("Cet annuaire a déjà ses deux membres.")
+    object PaireComplete : ErreurAnnuaire("Un second membre est déjà déclaré, en attente ou accepté.")
     /** `409` à la décision : l'inscription a été refusée ou retirée ; redemander, c'est en déclarer une neuve (décision 51). */
-    object InscriptionTranchee : ErreurAnnuaire("Cette inscription a été refusée ou retirée : il faut en déclarer une nouvelle.")
+    object InscriptionTranchee : ErreurAnnuaire("Cette inscription est déjà refusée ou retirée : elle ne peut plus être acceptée.")
     /**
      * Le code d'invitation n'a pas été accepté.
      *

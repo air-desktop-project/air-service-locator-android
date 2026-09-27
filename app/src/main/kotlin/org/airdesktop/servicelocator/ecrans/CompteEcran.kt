@@ -212,27 +212,24 @@ fun CompteEcran(nav: NavController) {
             }
             item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; « Révoquer » (ou un appui long) en révoque un autre ; révoqué, il reste dans l'annuaire, marqué, et « Voir les appareils révoqués » le montre. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme — et efface, à trente jours : avec un seul appareil, perdre ce téléphone efface ce compte.") }
             if (compte != null && domainesServis) {
-                item { SousTitre("Domaines") }
+                item { SousTitre(TextesDomaines.domaines) }
                 item {
                     ListItem(
-                        headlineContent = { Text("Mes domaines") },
-                        supportingContent = { Text("Ce qui rassemble vos machines, leur alias, ce qui les héberge.") },
+                        headlineContent = { Text(TextesDomaines.domaines) },
                         trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         modifier = Modifier.clickable { nav.navigate(Routes.DOMAINES) },
                     )
                 }
                 if (annuairesLocauxServis) item {
                     ListItem(
-                        headlineContent = { Text("Mon annuaire local") },
-                        supportingContent = { Text("L'annuaire qui tient vos domaines chez vous, et son inscription.") },
+                        headlineContent = { Text(TextesDomaines.annuaireLocal) },
                         trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         modifier = Modifier.clickable { nav.navigate(Routes.ANNUAIRE_LOCAL) },
                     )
                 }
                 if (administreLesRacines) item {
                     ListItem(
-                        headlineContent = { Text("Administration des racines") },
-                        supportingContent = { Text("Les annuaires locaux qui demandent à être inscrits.") },
+                        headlineContent = { Text(TextesDomaines.administration) },
                         trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         modifier = Modifier.clickable { nav.navigate(Routes.INSCRIPTIONS) },
                     )
