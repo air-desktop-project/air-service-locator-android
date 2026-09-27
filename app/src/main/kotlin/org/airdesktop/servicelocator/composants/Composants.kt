@@ -37,7 +37,6 @@ import org.airdesktop.servicelocator.modele.Joignabilite
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
-import org.airdesktop.servicelocator.reseau.RacinesConnues
 
 /** Un point de couleur : ce que l'on met devant une machine ou un service. */
 @Composable
@@ -181,20 +180,37 @@ val Service.couleur: Color
     }
 
 /**
- * D'où vient la sonde d'un service fédéré (serveur 0.32.0, décision 60) — **les mots de l'application iOS/macOS**, à
- * aligner avec elle.
+ * D'où vient la sonde d'un service fédéré (serveur 0.32.0, décision 60) — **à la lettre les mots de l'application
+ * iOS/macOS** (PR iOS #32). Un texte qui change change des deux côtés.
  */
 internal object TextesSonde {
-    /** L'annuaire local dont le rapport est retenu, nommé s'il est connu, abrégé sinon. */
-    fun rapportePar(annuaire: Identifiant) = "rapporté par ${RacinesConnues.nom(annuaire.texte)}"
+    /** Le verdict joignable d'une sonde faite de l'intérieur : l'annuaire local est aussi la machine. */
+    const val joignableDepuisLaMachine = "Joignable depuis la machine"
 
-    /** Le verdict d'une sonde faite de l'intérieur : l'annuaire local est aussi la machine. */
-    const val joignableDeLInterieur = "Joignable depuis la machine elle-même — pas vérifié de l'extérieur"
+    /** Qui a sondé, et quand — remplace « depuis l'annuaire, … » quand `sonde_par` est connu. */
+    fun rapportePar(annuaire: Identifiant, depuis: java.time.Instant) = "rapporté par l'annuaire ${annuaire.abrege}, ${Formats.relatif(depuis)}"
+
+    /** La mise en garde, sous un verdict joignable obtenu de l'intérieur. */
+    const val miseEnGarde = "Sondé depuis la machine elle-même : pas vérifié de l'extérieur."
 }
 
-/** Le mot du verdict : « joignable » ne se dit pas d'une sonde faite de l'intérieur. */
+/** Le mot du verdict : « Joignable depuis la machine » pour une sonde faite de l'intérieur, sinon comme avant. */
 internal fun libelleDuVerdict(verdict: Joignabilite, service: Service): String =
-    if (verdict is Joignabilite.Joignable && service.sondeLocale) TextesSonde.joignableDeLInterieur else verdict.libelle
+    if (verdict is Joignabilite.Joignable && service.sondeLocale) TextesSonde.joignableDepuisLaMachine else verdict.libelle
+
+/** Le détail du verdict : « rapporté par l'annuaire … » quand on sait qui a sondé ; « en cours », « UDP » inchangés. */
+internal fun detailDuVerdict(verdict: Joignabilite, service: Service): String {
+    val par = service.sondePar ?: return verdict.detail
+    return when (verdict) {
+        is Joignabilite.Joignable -> TextesSonde.rapportePar(par, verdict.depuis)
+        is Joignabilite.Injoignable -> TextesSonde.rapportePar(par, verdict.depuis)
+        else -> verdict.detail
+    }
+}
+
+/** La mise en garde, seulement pour un verdict joignable obtenu de l'intérieur ; `null` sinon. */
+internal fun miseEnGardeDuVerdict(verdict: Joignabilite?, service: Service): String? =
+    if (verdict is Joignabilite.Joignable && service.sondeLocale) TextesSonde.miseEnGarde else null
 
 val Service.libelleEtat: String
     get() = when (etat) {
@@ -204,7 +220,7 @@ val Service.libelleEtat: String
 
 val Service.detailEtat: String
     get() = when (val e = etat) {
-        is Service.Etat.Annonce -> resume?.detail ?: ""
+        is Service.Etat.Annonce -> resume?.let { detailDuVerdict(it, this) } ?: ""
         // La date n'est connue que si l'on a vu le départ, et le motif pas toujours : l'annuaire n'en range ni l'un ni l'autre.
         is Service.Etat.Parti -> listOfNotNull(
             e.volontaire?.let { if (it) "arrêt volontaire" else "inactivité" } ?: "motif inconnu",

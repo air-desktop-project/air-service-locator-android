@@ -25,14 +25,14 @@ import org.airdesktop.servicelocator.composants.Formats
 import org.airdesktop.servicelocator.composants.Icones
 import org.airdesktop.servicelocator.composants.LigneIdentifiant
 import org.airdesktop.servicelocator.composants.Pastille
-import org.airdesktop.servicelocator.composants.TextesSonde
 import org.airdesktop.servicelocator.composants.SousTitre
 import org.airdesktop.servicelocator.composants.couleur
-import org.airdesktop.servicelocator.composants.detail
+import org.airdesktop.servicelocator.composants.detailDuVerdict
 import org.airdesktop.servicelocator.composants.detailEtat
 import org.airdesktop.servicelocator.composants.libelle
 import org.airdesktop.servicelocator.composants.libelleDuVerdict
 import org.airdesktop.servicelocator.composants.libelleEtat
+import org.airdesktop.servicelocator.composants.miseEnGardeDuVerdict
 import org.airdesktop.servicelocator.composants.rememberChargement
 import org.airdesktop.servicelocator.modele.Candidat
 import org.airdesktop.servicelocator.modele.Diagnostic
@@ -69,6 +69,7 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
                     supportingContent = {
                         Column {
                             Text(service.detailEtat)
+                            miseEnGardeDuVerdict(service.resume, service)?.let { Text(it, color = Couleurs.attention) }
                             (service.etat as? Service.Etat.Annonce)?.let { Text("annoncé ${Formats.relatif(it.depuis)}") }
                             if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre : chaque annonce remplace la précédente.", color = Couleurs.attention)
                         }
@@ -122,8 +123,8 @@ private fun LignePoint(point: String, verdict: Joignabilite?, service: Service) 
             Column {
                 if (verdict != null) {
                     Text(libelleDuVerdict(verdict, service), style = MaterialTheme.typography.labelLarge)
-                    Text(verdict.detail)
-                    service.sondePar?.let { Text(TextesSonde.rapportePar(it)) }
+                    Text(detailDuVerdict(verdict, service))
+                    miseEnGardeDuVerdict(verdict, service)?.let { Text(it, color = Couleurs.attention) }
                     if (verdict is Joignabilite.Joignable && verdict.candidat.isNotEmpty()) {
                         Text("vers ${verdict.candidat}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                     }
