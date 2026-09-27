@@ -65,8 +65,8 @@ fun MachinesEcran(nav: NavController) {
             }
             items(enrolees, key = { it.id.texte }) { machine ->
                 ListItem(
-                    headlineContent = { Text(machine.nom) },
-                    supportingContent = { Text(machine.resumeListe) },
+                    headlineContent = { Text(machine.affichee) },
+                    supportingContent = { Text(if (machine.alias != null) "${machine.nom} · ${machine.resumeListe}" else machine.resumeListe) },
                     leadingContent = { Pastille(machine.couleur) },
                     trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable { nav.navigate(Routes.machine(machine.id)) },
@@ -91,7 +91,7 @@ private fun LigneEnAttente(machine: Machine, ouvrir: () -> Unit) {
         is Machine.Cle.Enrolee -> ""
     }
     ListItem(
-        headlineContent = { Text(machine.nom) },
+        headlineContent = { Text(machine.affichee) },
         supportingContent = { Text(sous) },
         leadingContent = { Icon(Icones.horloge, null, tint = Couleurs.attention) },
         trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },

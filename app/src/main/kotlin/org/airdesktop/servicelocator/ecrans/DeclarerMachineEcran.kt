@@ -48,11 +48,12 @@ fun DeclarerMachineEcran(nav: NavController) {
         Column(Modifier.fillMaxSize().padding(marges)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
-                    nom, { nom = it }, label = { Text("Nom") }, singleLine = true,
+                    nom, { nom = it }, label = { Text("Nom d'hôte") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     isError = nom.isNotEmpty() && !Machine.nomValide(nom),
+                    supportingText = { NomDHoteSousLeChamp(nom) },
                 )
-                Aide("Pour vous, jamais pour la machine. Accents et émoji acceptés, 64 octets au plus.")
+                Aide(TEXTE_NOM_D_HOTE + " Pour un nom libre — accents, espaces, émoji —, posez un alias sur la fiche de la machine une fois déclarée.")
                 SousTitre("Capacités")
                 ChoixCapacites(capacites) { capacites = it }
                 Aide("Rien n'est coché d'avance. Une machine qui porte les deux a un rayon de dégât plus large : un daemon compromis pourrait aussi énumérer tout ce que vous avez le droit de voir.")
@@ -77,5 +78,22 @@ fun DeclarerMachineEcran(nav: NavController) {
                 ) { Text("Déclarer") }
             }
         }
+    }
+}
+
+/** Ce que dit l'aide du nom d'une machine, à la déclaration comme au renommage. */
+internal const val TEXTE_NOM_D_HOTE = "Lettres, chiffres et tirets, sans espace ni accent — c'est le nom d'hôte de la machine, rangé en minuscules."
+
+/**
+ * Sous le champ du nom : la forme que l'annuaire rangera quand elle diffère de la saisie (« Grenier » → « grenier »),
+ * ou pourquoi il la refuserait. Rien tant que le champ est vide.
+ */
+@Composable
+internal fun NomDHoteSousLeChamp(nom: String) {
+    if (nom.isEmpty()) return
+    val range = Machine.nomDHote(nom)
+    when {
+        range == null -> Text("Pas un nom d'hôte : lettres, chiffres et tirets, 63 au plus, sans tiret au bord.")
+        range != nom -> Text("Sera rangé « $range ».")
     }
 }

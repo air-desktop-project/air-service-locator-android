@@ -3,6 +3,7 @@ package org.airdesktop.servicelocator.reseau
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.airdesktop.servicelocator.modele.Alias
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Capacite
@@ -84,9 +85,6 @@ class AnnuaireSimule(
         /** Il n'y a pas de canal : trente-deux zéros, et le banc le dit. Un transport réel dérive cette valeur de sa connexion TLS. */
         val LIAISON_DE_CANAL = ByteArray(Messages.LIAISON_OCTETS)
 
-        /** Un alias se compare : ASCII, lettres, chiffres, tiret, 3 à 32. */
-        fun aliasValide(alias: String): Boolean =
-            alias.length in 3..32 && alias.all { it.code < 128 && (it.isLetterOrDigit() || it == '-') }
     }
 
     // ── Compte ────────────────────────────────────────────────────────────────
@@ -193,11 +191,10 @@ class AnnuaireSimule(
 
     override suspend fun definirAlias(alias: String?) = verrou.withLock {
         val compte = compteLocal ?: throw ErreurAnnuaire.Introuvable
-        if (alias != null) {
-            if (!aliasValide(alias)) throw ErreurAnnuaire.RequeteInvalide("alias")
-            if (autresComptes.values.any { it.equals(alias, ignoreCase = true) }) throw ErreurAnnuaire.AliasPris
-        }
-        compteLocal = compte.copy(alias = alias)
+        val range = alias?.let { Alias.pourCompte(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias") }
+        // Unique, et sensible à la casse : « Thierry » n'empêche pas « thierry ».
+        if (range != null && autresComptes.values.any { it == range }) throw ErreurAnnuaire.AliasPris
+        compteLocal = compte.copy(alias = range)
     }
 
     // ── Machines ──────────────────────────────────────────────────────────────
@@ -206,8 +203,8 @@ class AnnuaireSimule(
 
     override suspend fun declarerMachine(nom: String, capacites: Set<Capacite>): Machine = verrou.withLock {
         if (compteLocal == null) throw ErreurAnnuaire.Introuvable
-        if (!Machine.nomValide(nom)) throw ErreurAnnuaire.RequeteInvalide("nom")
-        val machine = Machine(neuf(Genre.MACHINE), nom, capacites, Machine.Cle.Attendue(code()))
+        val range = Machine.nomDHote(nom) ?: throw ErreurAnnuaire.RequeteInvalide("nom")
+        val machine = Machine(neuf(Genre.MACHINE), range, capacites, Machine.Cle.Attendue(code()))
         parcMachines += machine
         machine
     }
@@ -217,8 +214,7 @@ class AnnuaireSimule(
         val indice = indiceMachine(id)
         var machine = parcMachines[indice]
         if (nom != null) {
-            if (!Machine.nomValide(nom)) throw ErreurAnnuaire.RequeteInvalide("nom")
-            machine = machine.copy(nom = nom)
+            machine = machine.copy(nom = Machine.nomDHote(nom) ?: throw ErreurAnnuaire.RequeteInvalide("nom"))
         }
         if (capacites != null) {
             // Retirer la capacité d'annonce ferme les connexions, donc fait
@@ -247,6 +243,13 @@ class AnnuaireSimule(
         val actuelle = parcMachines[indice]
         if (actuelle.cle !is Machine.Cle.Enrolee) throw ErreurAnnuaire.Introuvable
         parcMachines[indice] = fermerConnexions(actuelle).copy(cle = Machine.Cle.Revoquee(horloge()))
+    }
+
+    override suspend fun definirAliasMachine(id: Identifiant, alias: String?): Machine = verrou.withLock {
+        val indice = indiceMachine(id)
+        val range = alias?.let { Alias.pourMachine(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias") }
+        parcMachines[indice] = parcMachines[indice].copy(alias = range)
+        parcMachines[indice]
     }
 
     private fun indiceMachine(id: Identifiant): Int =
@@ -313,7 +316,7 @@ class AnnuaireSimule(
     /** La règle du serveur : mes machines si c'est moi ; le banc n'a de machines que pour le compte local, les autres rendent vide. */
     override suspend fun machinesDe(utilisateur: Identifiant): List<MachineVisible> = verrou.withLock {
         val moi = compteLocal ?: throw ErreurAnnuaire.Introuvable
-        if (utilisateur == moi.identifiant) parcMachines.map { MachineVisible(it.id, it.nom) } else emptyList()
+        if (utilisateur == moi.identifiant) parcMachines.map { MachineVisible(it.id, it.nom, it.alias) } else emptyList()
     }
 
     /** Combien de fois [fermer] a été appelé — ce qu'un essai de bascule vérifie. */
@@ -341,8 +344,9 @@ class AnnuaireSimule(
     private fun existe(id: Identifiant) = id == compteLocal?.identifiant || autresComptes.containsKey(id)
 
     override suspend fun identifiantPourAlias(alias: String): Identifiant? = verrou.withLock {
-        compteLocal?.takeIf { it.alias.equals(alias, ignoreCase = true) }?.identifiant
-            ?: autresComptes.entries.firstOrNull { it.value.equals(alias, ignoreCase = true) }?.key
+        val cherche = Alias.nfc(alias)
+        compteLocal?.takeIf { it.alias == cherche }?.identifiant
+            ?: autresComptes.entries.firstOrNull { it.value == cherche }?.key
     }
 
     override suspend fun accorder(beneficiaire: Identifiant, portee: Autorisation.Portee, etiquette: String): Autorisation = verrou.withLock {

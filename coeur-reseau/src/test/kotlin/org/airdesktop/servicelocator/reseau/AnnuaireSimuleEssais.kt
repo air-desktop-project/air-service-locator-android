@@ -168,11 +168,30 @@ class AnnuaireSimuleEssais {
     @Test
     fun unAliasPrisRendConflit() = avecCompte { annuaire ->
         annuaire.inscrireAutreCompte(id(Genre.UTILISATEUR, 9), "vero")
-        assertThrows(ErreurAnnuaire.AliasPris::class.java) { runBlocking { annuaire.definirAlias("VERO") } }
+        assertThrows(ErreurAnnuaire.AliasPris::class.java) { runBlocking { annuaire.definirAlias("vero") } }
+        // Sensible à la casse (0.26.0) : « Vero » n'est pas « vero », et se résout vers qui le tient.
+        annuaire.definirAlias("Vero")
+        assertEquals(annuaire.compte()?.identifiant, annuaire.identifiantPourAlias("Vero"))
+        assertEquals(id(Genre.UTILISATEUR, 9), annuaire.identifiantPourAlias("vero"))
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.definirAlias("u-thierry") } }
         annuaire.definirAlias("thierry")
         assertEquals("thierry", annuaire.compte()?.alias)
         annuaire.definirAlias(null)
         assertNull(annuaire.compte()?.alias)
+    }
+
+    @Test
+    fun leNomEstUnNomDHoteEtLAliasDuTexteChoisi() = avecCompte { annuaire ->
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.declarerMachine("salle à manger", emptySet()) } }
+        val machine = annuaire.declarerMachine("Grenier", emptySet())
+        assertEquals("grenier", machine.nom)
+        assertNull(machine.alias)
+        val nommee = annuaire.definirAliasMachine(machine.id, "Salle à manger 🏠")
+        assertEquals("Salle à manger 🏠", nommee.alias)
+        assertEquals("Salle à manger 🏠", nommee.affichee)
+        assertEquals("Salle à manger 🏠", annuaire.machinesDe(annuaire.compte()!!.identifiant).single().affichee)
+        assertNull(annuaire.definirAliasMachine(machine.id, null).alias)
+        assertThrows(ErreurAnnuaire.RequeteInvalide::class.java) { runBlocking { annuaire.definirAliasMachine(machine.id, "") } }
     }
 
     @Test

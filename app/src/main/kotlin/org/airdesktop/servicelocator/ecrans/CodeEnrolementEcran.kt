@@ -79,7 +79,7 @@ fun CodeEnrolementEcran(nav: NavController, id: Identifiant) {
         while (true) { delay(1_000); maintenant = Instant.now() }
     }
 
-    Scaffold(topBar = { Barre("Enrôler ${machine?.nom ?: ""}", nav) }) { marges ->
+    Scaffold(topBar = { Barre("Enrôler ${machine?.affichee ?: ""}", nav) }) { marges ->
         Column(
             Modifier.fillMaxSize().padding(marges).padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

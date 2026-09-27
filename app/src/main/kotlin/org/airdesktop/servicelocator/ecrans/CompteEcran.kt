@@ -53,8 +53,8 @@ import org.airdesktop.servicelocator.composants.LigneIdentifiant
 import org.airdesktop.servicelocator.composants.SousTitre
 import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
+import org.airdesktop.servicelocator.modele.Alias
 import org.airdesktop.servicelocator.modele.Appareil
-import org.airdesktop.servicelocator.reseau.AnnuaireSimule
 import org.airdesktop.servicelocator.reseau.RacineDAnnuaire
 import java.util.Optional
 
@@ -348,7 +348,7 @@ fun AliasEcran(nav: NavController) {
         topBar = {
             Barre("Alias public", nav) {
                 TextButton(
-                    enabled = AnnuaireSimule.aliasValide(alias) && alias != session.compte?.alias,
+                    enabled = Alias.pourCompte(alias).let { it != null && it != session.compte?.alias },
                     onClick = { definir(alias) },
                 ) { Text("Enregistrer") }
             }
@@ -358,8 +358,9 @@ fun AliasEcran(nav: NavController) {
             OutlinedTextField(
                 alias, { alias = it }, label = { Text("alias") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                isError = alias.isNotEmpty() && Alias.pourCompte(alias) == null,
             )
-            Aide("Lettres, chiffres et tirets, de 3 à 32. Il est public par construction : quiconque peut essayer un alias et découvrir qu'il existe. Il ne rend rien d'autre que votre identifiant.")
+            Aide("De 3 à 32 octets, accents admis, sensible à la casse : « Thierry » et « thierry » sont deux alias. Le deuxième caractère ne peut pas être un tiret. Il est unique, et public par construction : quiconque peut essayer un alias et découvrir qu'il existe. Il ne rend rien d'autre que votre identifiant — c'est lui, affiché à côté, qui fait foi.")
             Erreur(erreur)
             if (session.compte?.alias != null) {
                 TextButton(onClick = { definir(null) }, modifier = Modifier.padding(16.dp)) {
