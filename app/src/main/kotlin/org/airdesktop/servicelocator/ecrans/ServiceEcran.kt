@@ -27,10 +27,12 @@ import org.airdesktop.servicelocator.composants.LigneIdentifiant
 import org.airdesktop.servicelocator.composants.Pastille
 import org.airdesktop.servicelocator.composants.SousTitre
 import org.airdesktop.servicelocator.composants.couleur
-import org.airdesktop.servicelocator.composants.detail
+import org.airdesktop.servicelocator.composants.detailDuVerdict
 import org.airdesktop.servicelocator.composants.detailEtat
 import org.airdesktop.servicelocator.composants.libelle
+import org.airdesktop.servicelocator.composants.libelleDuVerdict
 import org.airdesktop.servicelocator.composants.libelleEtat
+import org.airdesktop.servicelocator.composants.miseEnGardeDuVerdict
 import org.airdesktop.servicelocator.composants.rememberChargement
 import org.airdesktop.servicelocator.modele.Candidat
 import org.airdesktop.servicelocator.modele.Diagnostic
@@ -67,6 +69,7 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
                     supportingContent = {
                         Column {
                             Text(service.detailEtat)
+                            miseEnGardeDuVerdict(service.resume, service)?.let { Text(it, color = Couleurs.attention) }
                             (service.etat as? Service.Etat.Annonce)?.let { Text("annoncé ${Formats.relatif(it.depuis)}") }
                             if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre : chaque annonce remplace la précédente.", color = Couleurs.attention)
                         }
@@ -74,7 +77,7 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
                 )
             }
             item { SousTitre("Points d'écoute") }
-            items(service.points, key = { it.texte }) { point -> LignePoint(point.texte, service.joignabilite[point]) }
+            items(service.points, key = { it.texte }) { point -> LignePoint(point.texte, service.joignabilite[point], service) }
             item { Aide("Le verdict est celui de l'annuaire, qui a lui-même essayé d'ouvrir une connexion vers ce port. Un point UDP ne se sonde pas : aucune poignée de main, aucun écho générique.") }
             if (service.candidats.isNotEmpty()) {
                 item { SousTitre("Candidats") }
@@ -112,15 +115,16 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
 }
 
 @Composable
-private fun LignePoint(point: String, verdict: Joignabilite?) {
+private fun LignePoint(point: String, verdict: Joignabilite?, service: Service) {
     ListItem(
         leadingContent = { Pastille(verdict?.couleur ?: Couleurs.parti, 8) },
         headlineContent = { Text(point, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) },
         supportingContent = {
             Column {
                 if (verdict != null) {
-                    Text(verdict.libelle, style = MaterialTheme.typography.labelLarge)
-                    Text(verdict.detail)
+                    Text(libelleDuVerdict(verdict, service), style = MaterialTheme.typography.labelLarge)
+                    Text(detailDuVerdict(verdict, service))
+                    miseEnGardeDuVerdict(verdict, service)?.let { Text(it, color = Couleurs.attention) }
                     if (verdict is Joignabilite.Joignable && verdict.candidat.isNotEmpty()) {
                         Text("vers ${verdict.candidat}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                     }

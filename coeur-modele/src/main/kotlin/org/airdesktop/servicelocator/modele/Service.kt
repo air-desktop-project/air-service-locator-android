@@ -65,6 +65,16 @@ data class Service(
     val oscille: Boolean = false,
     /** Ce que l'annuaire a répondu à l'annonce ; absent pour un service parti. */
     val diagnostic: Diagnostic? = null,
+    /**
+     * L'annuaire local dont le rapport est retenu (`sonde_par`, serveur 0.32.0, décision 60) — celui qui a sondé —,
+     * pour un service d'une machine confiée à un annuaire local ; `null` pour un service que la racine tient elle-même.
+     */
+    val sondePar: Identifiant? = null,
+    /**
+     * Le daemon est venu de l'adresse même où l'on joint cet annuaire local (`sonde_locale`) : l'annuaire et la machine
+     * sont le même hôte, et la sonde s'est faite **de l'intérieur** — « joignable » n'y dit rien de l'extérieur.
+     */
+    val sondeLocale: Boolean = false,
 ) {
     /** La connexion EST le bail : elle est tenue, ou elle est fermée. */
     sealed interface Etat {

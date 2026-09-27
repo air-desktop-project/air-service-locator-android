@@ -43,6 +43,8 @@ import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.EtatDInscription
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Inscription
+import org.airdesktop.servicelocator.reseau.RacinesConnues
+import org.airdesktop.servicelocator.reseau.RacineDAnnuaire
 
 // ── Les textes, à la lettre ceux d'iOS/macOS (`TextesDomaines`) ────────────────
 
@@ -57,6 +59,9 @@ internal object TextesDomaines {
     const val aliasFacultatif = "Alias (facultatif)"
     const val hebergeRacines = "Hébergé par : les racines"
     fun hebergeAnnuaire(n: Identifiant) = "Hébergé par : l'annuaire ${n.texte}"
+    const val pasDAlias = "pas d'alias"
+    const val proprietaire = "Propriétaire"
+    const val vous = "vous"
     const val supprimer = "Supprimer le domaine"
     const val confirmerSuppression = "Les machines qui y sont rangées n'y seront plus. Rien d'autre ne part."
     const val machinesRangees = "Machines rangées ici"
@@ -102,6 +107,41 @@ internal object TextesDomaines {
 internal fun libelleHebergeur(domaine: Domaine): String =
     domaine.hebergePar?.let { TextesDomaines.hebergeAnnuaire(it) } ?: TextesDomaines.hebergeRacines
 
+/** Ce qu'une ligne de la liste en dit : l'alias, ou l'identifiant entier, dit sans alias — l'abrégé ne distingue pas deux domaines. */
+internal fun titreComplet(domaine: Domaine): String = domaine.alias ?: "${domaine.id.texte} - ${TextesDomaines.pasDAlias}"
+
+/**
+ * Qui sert un domaine, et à quelles adresses le joindre — la règle de l'application iOS (`Hebergement`).
+ *
+ * Les racines, ce sont celles que l'application connaît ([RacineDAnnuaire.identites]), chacune une fois avec ses
+ * locateurs ; un annuaire local, ce sont les adresses déclarées de ses membres. **Ce qu'on ne sait pas, on ne
+ * l'invente pas** : pas d'adresse, pas de ligne.
+ */
+internal data class Hebergement(val titre: String, val serveurs: List<Serveur>) {
+    data class Serveur(val nom: String, val adresses: List<String>)
+
+    companion object {
+        fun de(domaine: Domaine, racines: List<RacineDAnnuaire>, locaux: List<Inscription>): Hebergement {
+            val n = domaine.hebergePar
+            val serveurs = if (n == null) {
+                // Une même racine figure sous plusieurs entrées (« Automatique » et la sienne) : on la dit une fois.
+                racines.flatMap { it.identites }.distinctBy { it.annuaire }.map { Serveur(RacinesConnues.nom(it.annuaire), it.locateurs) }
+            } else {
+                locaux.filter { it.annuaire == n }.map { Serveur((it.membre ?: n).abrege, listOf(it.adresse)) }
+            }
+            return Hebergement(libelleHebergeur(domaine), serveurs)
+        }
+    }
+}
+
+/** Les serveurs d'un domaine, un par ligne : le nom, puis ses adresses. */
+@Composable
+private fun Locateurs(hebergement: Hebergement) {
+    hebergement.serveurs.forEach { serveur ->
+        Text("${serveur.nom} — ${serveur.adresses.joinToString(" · ")}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 // ── Domaines ─────────────────────────────────────────────────────────────────
 
 /** Mes domaines, et ceux où l'un de mes groupes tient un droit. */
@@ -110,6 +150,11 @@ fun DomainesEcran(nav: NavController) {
     val session = LocalSession.current
     val portee = rememberCoroutineScope()
     val chargement = rememberChargement { session.annuaire.domaines() }
+    // Qui sert un domaine confié à un annuaire local : les adresses déclarées de ses membres — demandées seulement s'il y en a un.
+    val locaux = rememberChargement {
+        if (session.annuaire.domaines().any { it.hebergePar != null }) runCatching { session.annuaire.annuairesLocaux() }.getOrDefault(emptyList()) else emptyList()
+    }
+    val racines = session.choix?.racines.orEmpty()
     var creer by remember { mutableStateOf(false) }
     var erreur by remember { mutableStateOf<String?>(null) }
 
@@ -119,12 +164,13 @@ fun DomainesEcran(nav: NavController) {
         LazyColumn(Modifier.fillMaxSize().padding(marges)) {
             item { Erreur(chargement.erreur ?: erreur) }
             items(chargement.valeur.orEmpty(), key = { it.id.texte }) { domaine ->
+                val hebergement = Hebergement.de(domaine, racines, locaux.valeur.orEmpty())
                 ListItem(
-                    headlineContent = { Text(domaine.affiche) },
+                    headlineContent = { Text(titreComplet(domaine)) },
                     supportingContent = {
                         Column {
-                            if (domaine.alias != null) Text(domaine.id.texte, fontFamily = FontFamily.Monospace)
-                            Text(libelleHebergeur(domaine))
+                            Text(if (domaine.alias == null) hebergement.titre else "${domaine.id.texte} · ${hebergement.titre}")
+                            Locateurs(hebergement)
                         }
                     },
                     trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -161,11 +207,10 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
     val chargement = rememberChargement { session.annuaire.domaine(id) }
     val detail = chargement.valeur
     val moi = session.compte?.identifiant
-    // Les annuaires locaux acceptés dont je suis titulaire : ceux à qui je peux confier ce domaine.
-    val mesAnnuaires = rememberChargement {
-        runCatching { session.annuaire.annuairesLocaux() }.getOrDefault(emptyList())
-            .filter { it.estTitulaire && it.etat == EtatDInscription.Acceptee }
-    }
+    // Les annuaires locaux : leurs adresses disent qui sert ce domaine ; les acceptés dont je suis titulaire sont ceux à
+    // qui je peux le confier.
+    val locaux = rememberChargement { runCatching { session.annuaire.annuairesLocaux() }.getOrDefault(emptyList()) }
+    val mesAnnuaires = locaux.valeur.orEmpty().filter { it.estTitulaire && it.etat == EtatDInscription.Acceptee }
     var erreur by remember { mutableStateOf<String?>(null) }
     var nommer by remember { mutableStateOf(false) }
     var choisirHebergeur by remember { mutableStateOf(false) }
@@ -185,6 +230,14 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
             item { LigneIdentifiant("Identifiant", domaine.id) }
             item {
                 ListItem(
+                    headlineContent = { Text(TextesDomaines.proprietaire) },
+                    supportingContent = {
+                        Text(if (proprietaire) "${domaine.proprietaire.texte} (${TextesDomaines.vous})" else domaine.proprietaire.texte, fontFamily = FontFamily.Monospace)
+                    },
+                )
+            }
+            item {
+                ListItem(
                     headlineContent = { Text("Alias") },
                     supportingContent = { Text(domaine.alias ?: TextesDomaines.aucun) },
                     trailingContent = if (domaine.peut(Domaine.ADMINISTRER)) ({ Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) else null,
@@ -192,9 +245,15 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
                 )
             }
             item {
+                val hebergement = Hebergement.de(domaine, session.choix?.racines.orEmpty(), locaux.valeur.orEmpty())
                 ListItem(
-                    headlineContent = { Text(libelleHebergeur(domaine)) },
-                    supportingContent = if (proprietaire) ({ Text(if (domaine.hebergePar == null) TextesDomaines.confier else TextesDomaines.rendreAuxRacines) }) else null,
+                    headlineContent = { Text(hebergement.titre) },
+                    supportingContent = {
+                        Column {
+                            Locateurs(hebergement)
+                            if (proprietaire) Text(if (domaine.hebergePar == null) TextesDomaines.confier else TextesDomaines.rendreAuxRacines)
+                        }
+                    },
                     trailingContent = if (proprietaire) ({ Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) else null,
                     modifier = if (proprietaire) Modifier.clickable { choisirHebergeur = true } else Modifier,
                 )
@@ -229,7 +288,7 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
         )
     }
     if (choisirHebergeur) {
-        val options: List<Identifiant?> = listOf<Identifiant?>(null) + mesAnnuaires.valeur.orEmpty().mapNotNull { it.annuaire }
+        val options: List<Identifiant?> = listOf<Identifiant?>(null) + mesAnnuaires.mapNotNull { it.annuaire }
         var choisi by remember { mutableStateOf(domaine.hebergePar) }
         AlertDialog(
             onDismissRequest = { choisirHebergeur = false },
