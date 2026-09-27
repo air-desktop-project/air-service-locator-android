@@ -30,6 +30,14 @@ data class RacineJointe(val adresse: String, val nom: String?) {
          * La même règle que l'application iOS (`RacineJointe.nommer`), pour que
          * les deux disent la même chose de la même connexion.
          */
+        /**
+         * Le nom de la racine dont un locateur est [adresse], **d'après son identité** : le `n-…` que l'entrée
+         * attend à ce locateur, nommé par [RacinesConnues] — sans rien résoudre (C20). `null` si aucune entrée
+         * identifiée ne porte ce locateur. La règle de l'application iOS (`RacineJointe.nommer(_:identites:)`).
+         */
+        fun nommerParIdentite(adresse: String, racines: List<RacineDAnnuaire>): String? =
+            racines.flatMap { it.identites }.firstOrNull { adresse in it.locateurs }?.let { RacinesConnues.nom(it.annuaire) }
+
         fun nommer(adresse: String, parmi: List<Pair<String, List<String>>>): String? =
             parmi.filter { (_, adresses) -> adresse in adresses }
                 .minByOrNull { (_, adresses) -> adresses.size }
@@ -57,6 +65,11 @@ class SuiviDeLaRacine(initiale: RacineJointe? = null) {
      */
     fun jointe(adresse: String, connues: List<Pair<String, List<String>>>) {
         etat.value = RacineJointe(adresse, RacineJointe.nommer(adresse, connues))
+    }
+
+    /** La connexion a abouti sur [adresse], nommée d'avance ([RacineJointe.nommerParIdentite]). */
+    fun jointe(adresse: String, nom: String) {
+        etat.value = RacineJointe(adresse, nom)
     }
 
     /** Plus de connexion tenue. */

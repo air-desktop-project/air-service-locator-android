@@ -50,12 +50,13 @@ class ApplicationServiceLocator : Application() {
 
     val session: Session by lazy {
         val identite = IdentiteLocale(this)
-        val racines = ListeDAnnuaires.lire(BuildConfig.ANNUAIRES)
-        if (racines.isNotEmpty() && BuildConfig.ANNUAIRE_RACINES.isNotEmpty()) {
+        // Le PEM n'est plus exigé (décision 58) : sans lui, seules les entrées identifiées restent.
+        val racines = ListeDAnnuaires.lire(BuildConfig.ANNUAIRES, avecAutorite = BuildConfig.ANNUAIRE_RACINES.isNotEmpty())
+        if (racines.isNotEmpty()) {
             val choix = ChoixDAnnuaire(racines, MemoireDuChoixPartagee(this)) { racine ->
                 AnnuaireReel(
                     this,
-                    AnnuaireReel.Reglages(racine.adresse, racine.nom, BuildConfig.ANNUAIRE_RACINES.toByteArray()),
+                    AnnuaireReel.Reglages(racine.adresse, racine.nom, BuildConfig.ANNUAIRE_RACINES.toByteArray(), racine.identites),
                     signataire = { defi -> CleAppareil.ouOuvrir(defi).avec { activiteAuPremierPlan } },
                     cleExiste = { CleAppareil.existe() },
                     effacerCle = { CleAppareil.effacer() },
@@ -92,7 +93,7 @@ class ApplicationServiceLocator : Application() {
 
 /**
  * Le choix de la racine, retenu dans les préférences de l'application — sous
- * la clé `annuaire.adresse`, la même que l'application iOS. Par application,
+ * la clé `annuaire.adresse` (elle retient la [clé][RacineDAnnuaire.cle] : l'adresse, sinon les `n-…`), la même que l'application iOS. Par application,
  * pas par compte : le compte existe sur chaque racine.
  */
 private class MemoireDuChoixPartagee(contexte: Context) : MemoireDuChoix {
