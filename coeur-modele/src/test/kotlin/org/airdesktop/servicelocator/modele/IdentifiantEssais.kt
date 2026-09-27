@@ -78,15 +78,24 @@ class CodeEnrolementEssais {
 
 class NomDeMachineEssais {
     @Test
-    fun toutLutf8SaufCeQuiRetourneSesVoisins() {
-        assertTrue(Machine.nomValide("grenier"))
-        assertTrue(Machine.nomValide("serveur été 🏠"))
+    fun unNomDeMachineEstUnNomDHoteRangeEnMinuscules() {
+        assertEquals("grenier", Machine.nomDHote("grenier"))
+        assertEquals("grenier", Machine.nomDHote("Grenier"))
+        assertEquals("serveur-cave", Machine.nomDHote("serveur-cave"))
+        assertEquals("nas2", Machine.nomDHote("NAS2"))
+        assertEquals("a".repeat(63), Machine.nomDHote("a".repeat(63)))
+    }
+
+    @Test
+    fun ceQuiNeSertPasDeNomDHoteEstRefuse() {
         assertFalse(Machine.nomValide(""))
-        assertFalse(Machine.nomValide("é".repeat(33)))  // 66 octets
-        assertFalse(Machine.nomValide("a\"b"))
-        assertFalse(Machine.nomValide("a\\b"))
-        assertFalse(Machine.nomValide("a\tb"))
-        assertFalse(Machine.nomValide("a‮b"))
-        assertFalse(Machine.nomValide("﻿a"))
+        assertFalse(Machine.nomValide("a".repeat(64)))
+        assertFalse(Machine.nomValide("-cave"))
+        assertFalse(Machine.nomValide("cave-"))
+        assertFalse(Machine.nomValide("salle à manger"))
+        assertFalse(Machine.nomValide("salle-à-manger"))
+        assertFalse(Machine.nomValide("grenier.maison"))
+        assertFalse(Machine.nomValide("serveur_cave"))
+        assertFalse(Machine.nomValide("🏠"))
     }
 }

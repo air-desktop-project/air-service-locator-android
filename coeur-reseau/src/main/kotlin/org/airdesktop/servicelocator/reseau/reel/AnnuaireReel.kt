@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.airdesktop.servicelocator.modele.Alias
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Candidat
@@ -543,12 +544,14 @@ class AnnuaireReel(
     }
 
     override suspend fun definirAlias(alias: String?) {
+        // En NFC, la forme que l'annuaire range (0.26.0) : sans quoi un « é » décomposé ferait un autre alias.
+        val range = alias?.let { Alias.pourCompte(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias") }
         val (statut, _) = surLeFil {
-            if (alias != null) requete("PUT", "/v1/alias", JSONObject().put("alias", alias).toString())
+            if (range != null) requete("PUT", "/v1/alias", JSONObject().put("alias", range).toString())
             else requete("DELETE", "/v1/alias")
         }
         if (statut != 204) throw refus(statut)
-        carnet.compte = carnet.compte?.copy(alias = alias)
+        carnet.compte = carnet.compte?.copy(alias = range)
     }
 
     // ── Machines ──────────────────────────────────────────────────────────────
@@ -578,8 +581,12 @@ class AnnuaireReel(
             "revoquee" -> Machine.Cle.Revoquee(millis(objet, "revoquee_a") ?: Instant.now(), code(objet))
             else -> Machine.Cle.Attendue(code(objet))
         }
-        return Machine(id, objet.getString("nom"), capacites, cle)
+        return Machine(id, objet.getString("nom"), capacites, cle, alias = texte(objet, "alias"))
     }
+
+    /** Un champ texte facultatif : absent ou `null` en JSON, c'est `null` — jamais la chaîne « null ». */
+    private fun texte(objet: JSONObject, cle: String): String? =
+        if (objet.has(cle) && !objet.isNull(cle)) objet.getString(cle) else null
 
     /**
      * Ce que le serveur rend, complété de ce que cet appareil sait : le code
@@ -608,6 +615,9 @@ class AnnuaireReel(
     }
 
     override suspend fun declarerMachine(nom: String, capacites: Set<Capacite>): Machine {
+        // **LA FORME QUE L'ANNUAIRE RANGERA** (0.26.0) : un nom d'hôte, en minuscules. L'envoyer ainsi garde le carnet
+        // d'accord avec lui ; un nom qu'il refuserait ne part pas.
+        val nom = Machine.nomDHote(nom) ?: throw ErreurAnnuaire.RequeteInvalide("nom")
         val corps = JSONObject().put("nom", nom).put("capacites", JSONArray(Capacite.entries.filter { it in capacites }.map { it.libelle }))
         val (statut, rendu) = surLeFil { requete("POST", "/v1/machines", corps.toString()) }
         if (statut != 201) throw refus(statut)
@@ -622,6 +632,7 @@ class AnnuaireReel(
 
     override suspend fun modifierMachine(id: Identifiant, nom: String?, capacites: Set<Capacite>?): Machine {
         if (nom == null && capacites == null) throw ErreurAnnuaire.RequeteInvalide("{}")
+        val nom = nom?.let { Machine.nomDHote(it) ?: throw ErreurAnnuaire.RequeteInvalide("nom") }
         val corps = JSONObject()
         nom?.let { corps.put("nom", it) }
         capacites?.let { c -> corps.put("capacites", JSONArray(Capacite.entries.filter { it in c }.map { it.libelle })) }
@@ -629,6 +640,27 @@ class AnnuaireReel(
         if (statut != 204) throw refus(statut)
         val actuelle = carnet.machines.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable
         val modifiee = actuelle.copy(nom = nom ?: actuelle.nom, capacites = capacites ?: actuelle.capacites)
+        carnet.remplacer(modifiee)
+        return modifiee
+    }
+
+    override suspend fun definirAliasMachine(id: Identifiant, alias: String?): Machine {
+        val range = alias?.let { Alias.pourMachine(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias") }
+        val chemin = "/v1/machines/${id.texte}/alias"
+        val (statut, _) = surLeFil {
+            if (range != null) requete("PUT", chemin, JSONObject().put("alias", range).toString()) else requete("DELETE", chemin)
+        }
+        when (statut) {
+            204 -> Unit
+            // **UN ANNUAIRE D'AVANT 0.26.0 NE CONNAÎT PAS CE CHEMIN**, et le dit par un `404` — le même que « pas à
+            // vous ». L'écran ne l'appelle que pour une machine à nous, qu'il vient de relire : un `404` y veut dire
+            // « verbe inconnu », et c'est ce qu'on affiche, plutôt qu'un « Introuvable » qui ferait croire la machine
+            // disparue. Un `405` dit la même chose.
+            404, 405 -> throw ErreurAnnuaire.AliasDeMachineTropAncien
+            else -> throw refus(statut)
+        }
+        val actuelle = carnet.machines.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable
+        val modifiee = actuelle.copy(alias = range)
         carnet.remplacer(modifiee)
         return modifiee
     }
@@ -822,7 +854,7 @@ class AnnuaireReel(
         return (0 until liste.length()).mapNotNull { i ->
             val objet = liste.getJSONObject(i)
             val id = runCatching { Identifiant.analyser(objet.getString("machine"), Genre.MACHINE) }.getOrNull() ?: return@mapNotNull null
-            MachineVisible(id, objet.getString("nom"))
+            MachineVisible(id, objet.getString("nom"), texte(objet, "alias"))
         }
     }
 
@@ -869,7 +901,7 @@ class AnnuaireReel(
         surLeFil { requete("GET", "/v1/utilisateurs/${id.texte}") }.first == 200
 
     override suspend fun identifiantPourAlias(alias: String): Identifiant? {
-        val (statut, corps) = surLeFil { requete("GET", "/v1/alias/$alias") }
+        val (statut, corps) = surLeFil { requete("GET", cheminDAlias(alias)) }
         if (statut != 200) return null
         return Identifiant.analyser(JSONObject(corps).getString("identifiant"), Genre.UTILISATEUR)
     }
@@ -961,6 +993,7 @@ class Carnet(contexte: Context) {
     private fun fiche(machine: Machine): JSONObject = JSONObject().apply {
         put("id", machine.id.texte)
         put("nom", machine.nom)
+        machine.alias?.let { put("alias", it) }
         put("capacites", JSONArray(machine.capacites.map { it.libelle }))
         when (val cle = machine.cle) {
             is Machine.Cle.Attendue -> { put("cle", "attendue"); cle.code?.let { put("code", it.symboles); put("expire_le", it.expireLe.toEpochMilli()) } }
@@ -981,6 +1014,6 @@ class Carnet(contexte: Context) {
             "revoquee" -> Machine.Cle.Revoquee(Instant.ofEpochMilli(objet.getLong("revoquee_le")), code)
             else -> Machine.Cle.Attendue(code)
         }
-        return Machine(id, objet.getString("nom"), capacites, cle)
+        return Machine(id, objet.getString("nom"), capacites, cle, alias = if (objet.has("alias")) objet.getString("alias") else null)
     }
 }

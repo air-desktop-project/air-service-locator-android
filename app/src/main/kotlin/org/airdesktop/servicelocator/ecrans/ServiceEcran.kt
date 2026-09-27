@@ -106,7 +106,7 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
             }
             item { SousTitre("Service") }
             item { LigneIdentifiant("Identifiant public", service.id, partageable = true) }
-            item { ListItem(headlineContent = { Text("Machine") }, supportingContent = { Text(fiche.nom) }) }
+            item { ListItem(headlineContent = { Text("Machine") }, supportingContent = { Text(fiche.affichee) }) }
         }
     }
 }

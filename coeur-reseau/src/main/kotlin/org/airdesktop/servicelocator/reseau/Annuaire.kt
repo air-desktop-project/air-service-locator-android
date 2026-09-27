@@ -25,6 +25,12 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
     /** `501` — l'annuaire ne sait pas encore le dire (les expositions). */
     object NonImplemente : ErreurAnnuaire("L'annuaire ne sait pas encore le dire.")
     /**
+     * Le verbe n'existe pas sur cet annuaire : il est d'une version antérieure à celle qui l'a introduit. Rendu à la
+     * place du `404` pour les verbes nés APRÈS les applications déployées — l'alias de machine (0.26.0) —, pour que
+     * l'écran dise ce qui se passe au lieu d'un « Introuvable. » qui ferait croire la machine disparue.
+     */
+    object AliasDeMachineTropAncien : ErreurAnnuaire("Cet annuaire ne sait pas encore ranger l'alias d'une machine (il faut la version 0.26.0).")
+    /**
      * Le code d'invitation n'a pas été accepté.
      *
      * **Une seule phrase pour trois causes**, et c'est l'annuaire qui le veut
@@ -204,6 +210,12 @@ interface Annuaire {
     suspend fun emettreCode(machine: Identifiant): CodeEnrolement
     /** `DELETE /v1/machines/{m}/cle` — effet immédiat : connexions fermées, baux tombés. La machine reste. */
     suspend fun revoquerCle(machine: Identifiant)
+    /**
+     * `PUT /v1/machines/{m}/alias`, `DELETE` avec `null` — l'alias de la machine (0.26.0, décision 47), par son
+     * propriétaire seul. Du texte choisi, indépendant du nom et du domaine, non unique ; envoyé en NFC.
+     * [ErreurAnnuaire.AliasDeMachineTropAncien] sur un annuaire d'avant 0.26.0.
+     */
+    suspend fun definirAliasMachine(id: Identifiant, alias: String?): Machine
 
     suspend fun appareils(): List<Appareil>
     /**
@@ -251,7 +263,10 @@ interface Annuaire {
     suspend fun annonce(): Annonce?
     /** `GET /v1/utilisateurs/{u}` — confirme qu'un identifiant existe, et rien d'autre. */
     suspend fun utilisateurExiste(id: Identifiant): Boolean
-    /** `GET /v1/alias/{alias}` — rend l'identifiant, et rien d'autre. */
+    /**
+     * `GET /v1/alias/{alias}`, ou `GET /v1/alias?alias=…` pour un alias hors de l'ASCII — rend l'identifiant, et
+     * rien d'autre. **Sensible à la casse** (0.26.0) : « Thierry » et « thierry » peuvent être deux comptes.
+     */
     suspend fun identifiantPourAlias(alias: String): Identifiant?
     /** `POST /v1/autorisations` — accorde, et notifie le bénéficiaire. */
     suspend fun accorder(beneficiaire: Identifiant, portee: Autorisation.Portee, etiquette: String): Autorisation

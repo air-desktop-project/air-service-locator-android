@@ -17,12 +17,20 @@ enum class Capacite(val libelle: String) {
 /** Une machine déclarée depuis l'application — celle qui sert un service comme celle qui le consomme. */
 data class Machine(
     val id: Identifiant,
-    /** Libre, pour l'humain. 1 à 64 octets, tout l'UTF-8 sauf `"`, `\` et les contrôles. */
+    /**
+     * Son nom d'hôte (0.26.0, décision 47) : lettres ASCII, chiffres, tiret, rangé en minuscules — voir
+     * [nomDHote]. Un nom rangé avant 0.26.0 peut être du texte libre : il s'affiche tel quel.
+     */
     val nom: String,
     val capacites: Set<Capacite>,
     val cle: Cle,
     val services: List<Service> = emptyList(),
+    /** Du texte choisi, indépendant du nom et du domaine — voir [Alias.pourMachine]. Absent tant qu'on n'en pose pas. */
+    val alias: String? = null,
 ) {
+    /** Ce qu'on montre d'abord : l'alias quand il existe, le nom sinon. */
+    val affichee: String get() = alias ?: nom
+
     /**
      * Ce que l'annuaire sait de la clé Ed25519 de la machine.
      *
@@ -58,24 +66,28 @@ data class Machine(
     val unServiceOscille: Boolean get() = services.any { it.oscille }
 
     companion object {
-        /** Le nom respecte-t-il les règles de `docs/modele.md` §2.3 ? */
-        fun nomValide(nom: String): Boolean {
-            val octets = nom.toByteArray(Charsets.UTF_8).size
-            if (octets !in 1..64) return false
-            var i = 0
-            while (i < nom.length) {
-                val point = nom.codePointAt(i)
-                val refuse = point == '"'.code || point == '\\'.code ||
-                    point < 0x20 || point == 0x7F ||            // C0 et DEL
-                    point in 0x80..0x9F ||                      // C1
-                    point == 0xFEFF ||                          // marque d'ordre
-                    point in 0x202A..0x202E ||                  // forceurs de sens
-                    point in 0x2066..0x2069
-                if (refuse) return false
-                i += Character.charCount(point)
-            }
-            return true
+        /** Un nom d'hôte fait au plus une étiquette DNS (RFC 1123 §2.1). */
+        const val NOM_OCTETS_MAX = 63
+
+        /**
+         * Le nom tel que l'annuaire le rangera — en minuscules —, ou `null` s'il le refuserait.
+         *
+         * # UN NOM D'HÔTE, PAS UN TEXTE LIBRE (0.26.0, décision 47)
+         *
+         * Lettres ASCII, chiffres, tiret, un à soixante-trois octets, ni tiret en tête ni en queue :
+         * ce qu'accepte `hostname`, et ce qu'on écrit devant un domaine sans l'encoder. Le DNS
+         * compare sans casse ; l'annuaire range donc une forme, la minuscule, et « Grenier » devient
+         * « grenier ». Le texte libre — accents, espaces, émoji — va dans l'[alias].
+         */
+        fun nomDHote(nom: String): String? {
+            if (nom.isEmpty() || nom.length > NOM_OCTETS_MAX) return null
+            if (nom.first() == '-' || nom.last() == '-') return null
+            if (!nom.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '-' }) return null
+            return nom.lowercase()
         }
+
+        /** L'annuaire accepterait-il ce nom ? */
+        fun nomValide(nom: String): Boolean = nomDHote(nom) != null
     }
 }
 
@@ -84,4 +96,7 @@ data class Machine(
  * `GET /v1/utilisateurs/{u}/machines`) : son identifiant et son nom — rien d'autre, ni capacités, ni clé, ni code,
  * qui n'appartiennent qu'au propriétaire.
  */
-data class MachineVisible(val id: Identifiant, val nom: String)
+data class MachineVisible(val id: Identifiant, val nom: String, val alias: String? = null) {
+    /** L'alias quand il existe, le nom sinon — comme [Machine.affichee]. */
+    val affichee: String get() = alias ?: nom
+}

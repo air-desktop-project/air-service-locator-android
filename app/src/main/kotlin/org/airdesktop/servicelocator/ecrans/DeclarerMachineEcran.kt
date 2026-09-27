@@ -48,11 +48,12 @@ fun DeclarerMachineEcran(nav: NavController) {
         Column(Modifier.fillMaxSize().padding(marges)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
-                    nom, { nom = it }, label = { Text("Nom") }, singleLine = true,
+                    nom, { nom = it }, label = { Text("Nom d'hôte") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     isError = nom.isNotEmpty() && !Machine.nomValide(nom),
+                    supportingText = { NomDHoteSousLeChamp(nom) },
                 )
-                Aide("Pour vous, jamais pour la machine. Accents et émoji acceptés, 64 octets au plus.")
+                Aide(TEXTE_NOM_D_HOTE)
                 SousTitre("Capacités")
                 ChoixCapacites(capacites) { capacites = it }
                 Aide("Rien n'est coché d'avance. Une machine qui porte les deux a un rayon de dégât plus large : un daemon compromis pourrait aussi énumérer tout ce que vous avez le droit de voir.")
@@ -78,4 +79,17 @@ fun DeclarerMachineEcran(nav: NavController) {
             }
         }
     }
+}
+
+/** Ce que dit l'aide du nom d'une machine, à la déclaration comme au renommage. */
+internal const val TEXTE_NOM_D_HOTE = "Lettres, chiffres et tirets, sans espace ni accent — c'est le nom d'hôte."
+
+/**
+ * Sous le champ du nom, comme iOS : la règle, puis la forme que l'annuaire rangera quand elle diffère de la saisie
+ * (« Grenier » → « Sera rangé « grenier ». »).
+ */
+@Composable
+internal fun NomDHoteSousLeChamp(nom: String) {
+    val range = Machine.nomDHote(nom)
+    Text(if (range != null && range != nom) "$TEXTE_NOM_D_HOTE Sera rangé « $range »." else TEXTE_NOM_D_HOTE)
 }

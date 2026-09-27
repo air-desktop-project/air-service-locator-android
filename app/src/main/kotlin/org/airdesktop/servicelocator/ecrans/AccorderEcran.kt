@@ -118,16 +118,16 @@ fun AccorderEcran(nav: NavController) {
                     textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                LigneVerdict(verdict)
+                LigneVerdict(verdict, beneficiaire?.takeIf { verdict == Verdict.EXISTE && !saisie.trim().startsWith("u-") })
                 Aide("Un identifiant u-… que la personne vous a transmis, ou son alias public. L'annuaire ne connaît ni nom, ni courriel.")
 
                 SousTitre("Portée")
                 Choix("Tout mon compte", null, choix == ChoixPortee.TOUT) { choix = ChoixPortee.TOUT }
-                Choix("Une machine", machines.firstOrNull { it.id == machine }?.nom, choix == ChoixPortee.MACHINE) { choix = ChoixPortee.MACHINE }
+                Choix("Une machine", machines.firstOrNull { it.id == machine }?.affichee, choix == ChoixPortee.MACHINE) { choix = ChoixPortee.MACHINE }
                 if (choix == ChoixPortee.MACHINE) {
-                    Menu(machines.map { it.id to it.nom }, machine) { machine = it }
+                    Menu(machines.map { it.id to it.affichee }, machine) { machine = it }
                 }
-                val services = machines.flatMap { m -> m.services.map { s -> s.id to "${m.nom} · ${s.nom}" } }
+                val services = machines.flatMap { m -> m.services.map { s -> s.id to "${m.affichee} · ${s.nom}" } }
                 Choix("Un service", services.firstOrNull { it.first == service }?.second, choix == ChoixPortee.SERVICE) { choix = ChoixPortee.SERVICE }
                 if (choix == ChoixPortee.SERVICE) {
                     Menu(services, service) { service = it }
@@ -186,7 +186,7 @@ fun AccorderEcran(nav: NavController) {
 }
 
 @Composable
-private fun LigneVerdict(verdict: Verdict) {
+private fun LigneVerdict(verdict: Verdict, parAlias: Identifiant? = null) {
     val (texte, couleur, icone) = when (verdict) {
         Verdict.VIDE -> return
         Verdict.RECHERCHE -> Triple("Vérification…", MaterialTheme.colorScheme.onSurfaceVariant, null)
@@ -197,6 +197,14 @@ private fun LigneVerdict(verdict: Verdict) {
     Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (icone != null) Icon(icone, null, Modifier.width(16.dp), tint = couleur)
         Text(texte, style = MaterialTheme.typography.bodySmall, color = couleur, fontWeight = FontWeight.Medium)
+    }
+    // **C'EST L'IDENTIFIANT QUI FAIT FOI** (0.26.0) : un alias est sensible à la casse et peut en imiter un autre
+    // (« thierry » à côté de « Thierry », une lettre cyrillique) ; l'identifiant, lui, ne se contrefait pas.
+    if (parAlias != null) {
+        Text(
+            parAlias.texte, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp),
+        )
     }
 }
 

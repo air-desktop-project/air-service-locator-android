@@ -147,7 +147,7 @@ fun LigneAutorisation(autorisation: Autorisation, machines: List<Machine>, sens:
     }
     val portee = when (val p = autorisation.portee) {
         Autorisation.Portee.Tout -> if (sens == Sens.ACCORDEE) "Tout mon compte" else "Tout son compte"
-        is Autorisation.Portee.Machine -> "Machine ${machines.firstOrNull { it.id == p.id }?.nom ?: p.id.abrege}"
+        is Autorisation.Portee.Machine -> "Machine ${machines.firstOrNull { it.id == p.id }?.affichee ?: p.id.abrege}"
         is Autorisation.Portee.Service -> "Service ${machines.flatMap { it.services }.firstOrNull { it.id == p.id }?.nom ?: p.id.abrege}"
     }
     val sous = buildList {
@@ -197,7 +197,7 @@ private fun MachinesVisibles(de: Identifiant) {
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             else -> machines!!.forEach { machine ->
-                Text(machine.nom, style = MaterialTheme.typography.bodyMedium)
+                Text(machine.affichee, style = MaterialTheme.typography.bodyMedium)
                 Text(machine.id.texte, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

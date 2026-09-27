@@ -71,6 +71,8 @@ object Demonstration {
                     listOf(Candidat(PointEcoute.Protocole.UDP, "203.0.113.4", 9_100, Candidat.Origine.REFLEXIF)),
                 ),
             ),
+            // Un nom d'hôte, et un alias qui dit autre chose — c'est ce que le nom ne peut plus porter.
+            alias = "Le grenier de la maison",
         )
         val bureau = Machine(
             id(Genre.MACHINE, 20), "bureau", setOf(Capacite.ANNONCE, Capacite.LECTURE), Machine.Cle.Enrolee(ilYA(5 * jour)),

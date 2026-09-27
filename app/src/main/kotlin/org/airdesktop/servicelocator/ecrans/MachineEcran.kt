@@ -25,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,7 @@ import org.airdesktop.servicelocator.composants.detailEtat
 import org.airdesktop.servicelocator.composants.libelleEtat
 import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
+import org.airdesktop.servicelocator.modele.Alias
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
@@ -70,11 +72,18 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
     val machine = chargement.valeur
     var erreur by remember { mutableStateOf<String?>(null) }
     var renommer by remember { mutableStateOf(false) }
+    var nommerAlias by remember { mutableStateOf(false) }
+    // **LE CHAMP ALIAS N'APPARAÎT QUE SUR UN ANNUAIRE QUI LE RANGE** (≥ 0.26.0), comme sur iOS : une version illisible
+    // ne l'affiche pas. Un `404`/`405` qui arriverait quand même dit « racine trop ancienne » (AnnuaireReel).
+    var aliasAdmis by remember { mutableStateOf(false) }
+    LaunchedEffect(session.annuaire) {
+        aliasAdmis = Alias.aliasDeMachineAdmis(runCatching { session.annuaire.annonce()?.version }.getOrNull())
+    }
     var confirmerRevocation by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            Barre(machine?.nom ?: "", nav) {
+            Barre(machine?.affichee ?: "", nav) {
                 TextButton(onClick = { renommer = true }, enabled = machine != null) { Text("Renommer") }
             }
         },
@@ -90,6 +99,22 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
             }
             item { SousTitre("Machine") }
             item { LigneIdentifiant("Identifiant public", machine.id) }
+            item {
+                ListItem(
+                    headlineContent = { Text("Nom d'hôte") },
+                    supportingContent = { Text(machine.nom, fontFamily = FontFamily.Monospace) },
+                    trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { renommer = true },
+                )
+            }
+            if (aliasAdmis) item {
+                ListItem(
+                    headlineContent = { Text("Alias") },
+                    supportingContent = { Text(machine.alias ?: "aucun") },
+                    trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { nommerAlias = true },
+                )
+            }
             item {
                 ListItem(
                     headlineContent = { Text("Capacités") },
@@ -134,9 +159,13 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
             title = { Text("Renommer la machine") },
             text = {
                 Column {
-                    Text("Pour vous, jamais pour la machine. Un nom ne retire aucun droit.")
+                    Text("Un nom ne retire aucun droit.")
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(nom, { nom = it }, label = { Text("Nom") }, singleLine = true)
+                    OutlinedTextField(
+                        nom, { nom = it }, label = { Text("Nom d'hôte") }, singleLine = true,
+                        isError = nom.isNotEmpty() && !Machine.nomValide(nom),
+                        supportingText = { NomDHoteSousLeChamp(nom) },
+                    )
                 }
             },
             confirmButton = {
@@ -155,10 +184,43 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
         )
     }
 
+    if (nommerAlias && machine != null) {
+        var alias by remember { mutableStateOf(machine.alias ?: "") }
+        val range = Alias.pourMachine(alias)
+        fun poser(valeur: String?) {
+            nommerAlias = false
+            portee.launch {
+                runCatching { session.annuaire.definirAliasMachine(id, valeur) }
+                    .onSuccess { chargement.recharger() }.onFailure { erreur = it.messageAnnuaire }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { nommerAlias = false },
+            title = { Text("Alias de la machine") },
+            text = {
+                Column {
+                    Text(TEXTE_ALIAS_DE_MACHINE)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        alias, { alias = it }, label = { Text("Alias") }, singleLine = true,
+                        isError = alias.isNotEmpty() && range == null,
+                    )
+                    if (machine.alias != null) {
+                        TextButton(onClick = { poser(null) }) { Text("Retirer", color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = range != null && range != machine.alias, onClick = { poser(range) }) { Text("Enregistrer") }
+            },
+            dismissButton = { TextButton(onClick = { nommerAlias = false }) { Text("Annuler") } },
+        )
+    }
+
     if (confirmerRevocation && machine != null) {
         AlertDialog(
             onDismissRequest = { confirmerRevocation = false },
-            title = { Text("Révoquer la clé de ${machine.nom} ?") },
+            title = { Text("Révoquer la clé de ${machine.affichee} ?") },
             text = { Text("Les connexions de la machine sont fermées à la seconde et ses annonces tombent. Elle garde son nom, ses capacités et ses services ; il faudra saisir un nouveau code sur place.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -236,3 +298,6 @@ fun CapacitesEcran(nav: NavController, id: Identifiant) {
     }
 }
 
+/** Ce que dit l'aide de l'alias d'une machine. */
+internal const val TEXTE_ALIAS_DE_MACHINE =
+    "Texte libre, pour vous : un nom complet, avec espaces et accents si vous voulez. Plusieurs machines peuvent porter le même."
