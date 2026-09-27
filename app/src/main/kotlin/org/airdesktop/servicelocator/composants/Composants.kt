@@ -37,6 +37,7 @@ import org.airdesktop.servicelocator.modele.Joignabilite
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
+import org.airdesktop.servicelocator.reseau.RacinesConnues
 
 /** Un point de couleur : ce que l'on met devant une machine ou un service. */
 @Composable
@@ -179,9 +180,25 @@ val Service.couleur: Color
         is Service.Etat.Parti -> Couleurs.parti
     }
 
+/**
+ * D'où vient la sonde d'un service fédéré (serveur 0.32.0, décision 60) — **les mots de l'application iOS/macOS**, à
+ * aligner avec elle.
+ */
+internal object TextesSonde {
+    /** L'annuaire local dont le rapport est retenu, nommé s'il est connu, abrégé sinon. */
+    fun rapportePar(annuaire: Identifiant) = "rapporté par ${RacinesConnues.nom(annuaire.texte)}"
+
+    /** Le verdict d'une sonde faite de l'intérieur : l'annuaire local est aussi la machine. */
+    const val joignableDeLInterieur = "Joignable depuis la machine elle-même — pas vérifié de l'extérieur"
+}
+
+/** Le mot du verdict : « joignable » ne se dit pas d'une sonde faite de l'intérieur. */
+internal fun libelleDuVerdict(verdict: Joignabilite, service: Service): String =
+    if (verdict is Joignabilite.Joignable && service.sondeLocale) TextesSonde.joignableDeLInterieur else verdict.libelle
+
 val Service.libelleEtat: String
     get() = when (etat) {
-        is Service.Etat.Annonce -> resume?.libelle ?: "Annoncé"
+        is Service.Etat.Annonce -> resume?.let { libelleDuVerdict(it, this) } ?: "Annoncé"
         is Service.Etat.Parti -> "Parti"
     }
 

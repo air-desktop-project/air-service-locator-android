@@ -11,21 +11,17 @@ import kotlinx.coroutines.withContext
 import org.airdesktop.servicelocator.modele.Alias
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
-import org.airdesktop.servicelocator.modele.Candidat
 import org.airdesktop.servicelocator.modele.Capacite
 import org.airdesktop.servicelocator.modele.CodeEnrolement
 import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
-import org.airdesktop.servicelocator.modele.Diagnostic
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
-import org.airdesktop.servicelocator.modele.Joignabilite
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.MachineVisible
 import org.airdesktop.servicelocator.modele.Messages
 import org.airdesktop.servicelocator.modele.NonConfirmeException
 import org.airdesktop.servicelocator.modele.PointDePoussee
-import org.airdesktop.servicelocator.modele.PointEcoute
 import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.modele.Signataire
 import org.airdesktop.servicelocator.modele.CodeDInscription
@@ -33,6 +29,7 @@ import org.airdesktop.servicelocator.modele.DetailDuDomaine
 import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.Inscription
 import org.airdesktop.servicelocator.reseau.LectureDesDomaines
+import org.airdesktop.servicelocator.reseau.LectureDesServices
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
@@ -732,55 +729,7 @@ class AnnuaireReel(
     private suspend fun services(machine: Identifiant): List<Service> {
         val (statut, corps) = surLeFil { requete("GET", "/v1/machines/${machine.texte}/services") }
         if (statut != 200) return emptyList()
-        val liste = JSONArray(corps)
-        return (0 until liste.length()).mapNotNull { i ->
-            val enveloppe = liste.getJSONObject(i)
-            val id = runCatching { Identifiant.analyser(enveloppe.getString("service"), Genre.SERVICE) }.getOrNull() ?: return@mapNotNull null
-            val nom = enveloppe.optString("nom").ifEmpty { id.abrege }
-            val objet = enveloppe.optJSONObject("annonce")
-            if (enveloppe.optString("etat") != "annonce" || objet == null) {
-                // Parti — et le serveur ne sait plus toujours si c'était voulu.
-                val volontaire = if (enveloppe.isNull("volontaire")) null else enveloppe.optBoolean("volontaire")
-                return@mapNotNull Service(id, nom, emptyList(), Service.Etat.Parti(volontaire, millis(enveloppe, "parti_a")))
-            }
-            val points = mutableListOf<PointEcoute>()
-            val joignabilite = mutableMapOf<PointEcoute, Joignabilite>()
-            val candidats = mutableListOf<Candidat>()
-            val verdicts = objet.optJSONArray("joignabilite") ?: JSONArray()
-            for (j in 0 until verdicts.length()) {
-                val v = verdicts.getJSONObject(j)
-                val protocole = PointEcoute.Protocole.entries.firstOrNull { it.libelle == v.optString("protocole") } ?: continue
-                val point = PointEcoute(protocole, v.optInt("port"))
-                points += point
-                joignabilite[point] = when (v.optString("verdict")) {
-                    "joignable" -> {
-                        val candidat = v.optString("candidat")
-                        adresseEtPort(candidat)?.let { (adresse, port) -> candidats += Candidat(protocole, adresse, port, Candidat.Origine.REFLEXIF) }
-                        Joignabilite.Joignable(millis(v, "a") ?: Instant.now(), candidat)
-                    }
-                    "injoignable" -> Joignabilite.Injoignable(millis(v, "a") ?: Instant.now())
-                    "non_sonde" -> Joignabilite.NonSonde
-                    else -> Joignabilite.EnCours
-                }
-            }
-            // Ce que l'annuaire a répondu au daemon, tel quel.
-            val vu = objet.optJSONObject("vu_depuis")
-            val diagnostic = Diagnostic(
-                vuDepuis = vu?.let { v -> v.optString("adresse").let { a -> if (a.contains(':')) "[$a]:${v.optInt("port")}" else "$a:${v.optInt("port")}" } },
-                derriereNat = Diagnostic.Nat.entries.firstOrNull { it.libelle == objet.optString("derriere_nat") },
-                keepaliveSecondes = if (objet.has("keepalive_secondes")) objet.getInt("keepalive_secondes") else null,
-                inactiviteSecondes = if (objet.has("inactivite_secondes")) objet.getInt("inactivite_secondes") else null,
-            )
-            Service(id, nom, points, Service.Etat.Annonce(millis(enveloppe, "annonce_a") ?: Instant.now()), joignabilite, candidats, diagnostic = diagnostic)
-        }
-    }
-
-    /** `[2001:db8::1]:49152` ou `203.0.113.4:49152`. */
-    private fun adresseEtPort(texte: String): Pair<String, Int>? {
-        val deuxPoints = texte.lastIndexOf(':').takeIf { it > 0 } ?: return null
-        val port = texte.substring(deuxPoints + 1).toIntOrNull() ?: return null
-        val adresse = texte.substring(0, deuxPoints).removePrefix("[").removeSuffix("]")
-        return adresse to port
+        return LectureDesServices.services(corps)
     }
 
     // ── Appareils ─────────────────────────────────────────────────────────────
