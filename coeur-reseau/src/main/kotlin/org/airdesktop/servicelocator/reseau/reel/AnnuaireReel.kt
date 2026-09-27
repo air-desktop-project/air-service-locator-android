@@ -28,6 +28,11 @@ import org.airdesktop.servicelocator.modele.PointDePoussee
 import org.airdesktop.servicelocator.modele.PointEcoute
 import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.modele.Signataire
+import org.airdesktop.servicelocator.modele.CodeDInscription
+import org.airdesktop.servicelocator.modele.DetailDuDomaine
+import org.airdesktop.servicelocator.modele.Domaine
+import org.airdesktop.servicelocator.modele.Inscription
+import org.airdesktop.servicelocator.reseau.LectureDesDomaines
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
@@ -895,6 +900,121 @@ class AnnuaireReel(
         if (statut != 200) throw refus(statut)
         val objet = JSONObject(corps)
         return Annonce(objet.getString("version"), Posture.depuisTexte(objet.optString("posture").ifEmpty { null }))
+    }
+
+    // ── Domaines et annuaires locaux ─────────────────────────────────────────
+
+    override suspend fun domaines(): List<Domaine> {
+        val (statut, corps) = surLeFil { requete("GET", "/v1/domaines") }
+        if (statut != 200) throw refus(statut)
+        return LectureDesDomaines.domaines(corps)
+    }
+
+    override suspend fun domaine(id: Identifiant): DetailDuDomaine {
+        val (statut, corps) = surLeFil { requete("GET", "/v1/domaines/${id.texte}") }
+        if (statut != 200) throw refus(statut)
+        return LectureDesDomaines.detail(corps) ?: throw ErreurAnnuaire.RequeteInvalide("domaine illisible")
+    }
+
+    override suspend fun creerDomaine(alias: String?): Identifiant {
+        val corps = JSONObject()
+        alias?.let { corps.put("alias", Alias.pourDomaine(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias")) }
+        val (statut, rendu) = surLeFil { requete("POST", "/v1/domaines", corps.toString()) }
+        if (statut != 201) throw refus(statut)
+        return LectureDesDomaines.domaineCree(rendu) ?: throw ErreurAnnuaire.RequeteInvalide("domaine absent")
+    }
+
+    override suspend fun definirAliasDomaine(id: Identifiant, alias: String?) {
+        val range = alias?.let { Alias.pourDomaine(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias") }
+        val chemin = "/v1/domaines/${id.texte}/alias"
+        val (statut, _) = surLeFil {
+            if (range != null) requete("PUT", chemin, JSONObject().put("alias", range).toString()) else requete("DELETE", chemin)
+        }
+        if (statut != 204) throw refus(statut)
+    }
+
+    override suspend fun supprimerDomaine(id: Identifiant) {
+        val (statut, _) = surLeFil { requete("DELETE", "/v1/domaines/${id.texte}") }
+        when (statut) {
+            204 -> Unit
+            409 -> throw ErreurAnnuaire.DernierDomaine
+            else -> throw refus(statut)
+        }
+    }
+
+    override suspend fun rattacher(machine: Identifiant, domaine: Identifiant?) {
+        val chemin = "/v1/machines/${machine.texte}/domaine"
+        val (statut, _) = surLeFil {
+            if (domaine != null) requete("PUT", chemin, JSONObject().put("domaine", domaine.texte).toString()) else requete("DELETE", chemin)
+        }
+        when (statut) {
+            204 -> Unit
+            403 -> throw ErreurAnnuaire.SansDroitDeRattacher
+            else -> throw refus(statut)
+        }
+    }
+
+    override suspend fun annuairesLocaux(): List<Inscription> {
+        val (statut, corps) = surLeFil { requete("GET", "/v1/annuaires") }
+        if (statut != 200) throw refus(statut)
+        return LectureDesDomaines.inscriptions(corps)
+    }
+
+    override suspend fun declarerAnnuaire(adresse: String): CodeDInscription {
+        val forme = Alias.adresseDAnnuaire(adresse) ?: throw ErreurAnnuaire.RequeteInvalide("adresse")
+        val (statut, rendu) = surLeFil { requete("POST", "/v1/annuaires", JSONObject().put("adresse", forme).toString()) }
+        if (statut != 201) throw refus(statut)
+        return LectureDesDomaines.code(rendu) ?: throw ErreurAnnuaire.RequeteInvalide("code absent")
+    }
+
+    override suspend fun declarerSecondMembre(annuaire: Identifiant, adresse: String): CodeDInscription {
+        val forme = Alias.adresseDAnnuaire(adresse) ?: throw ErreurAnnuaire.RequeteInvalide("adresse")
+        val (statut, rendu) = surLeFil {
+            requete("POST", "/v1/annuaires/${annuaire.texte}/membres", JSONObject().put("adresse", forme).toString())
+        }
+        when (statut) {
+            201 -> Unit
+            409 -> throw ErreurAnnuaire.PaireComplete
+            else -> throw refus(statut)
+        }
+        return LectureDesDomaines.code(rendu) ?: throw ErreurAnnuaire.RequeteInvalide("code absent")
+    }
+
+    override suspend fun retirerAnnuaire(annuaire: Identifiant) {
+        val (statut, _) = surLeFil { requete("DELETE", "/v1/annuaires/${annuaire.texte}") }
+        if (statut != 204) throw refus(statut)
+    }
+
+    override suspend fun retirerMembre(annuaire: Identifiant, membre: Identifiant) {
+        val (statut, _) = surLeFil { requete("DELETE", "/v1/annuaires/${annuaire.texte}/membres/${membre.texte}") }
+        if (statut != 204) throw refus(statut)
+    }
+
+    override suspend fun confier(domaine: Identifiant, annuaire: Identifiant?) {
+        val chemin = "/v1/domaines/${domaine.texte}/hebergeur"
+        val (statut, _) = surLeFil {
+            if (annuaire != null) requete("PUT", chemin, JSONObject().put("annuaire", annuaire.texte).toString()) else requete("DELETE", chemin)
+        }
+        if (statut != 204) throw refus(statut)
+    }
+
+    override suspend fun inscriptionsEnAttente(): List<Inscription>? {
+        val (statut, corps) = surLeFil { requete("GET", "/v1/inscriptions") }
+        // **UN `404` DIT « VOUS N'ADMINISTREZ PAS LES RACINES »**, pas une panne : c'est ce qui décide si l'écran existe.
+        if (statut == 404) return null
+        if (statut != 200) throw refus(statut)
+        return LectureDesDomaines.inscriptions(corps)
+    }
+
+    override suspend fun decider(membre: Identifiant, accepte: Boolean) {
+        val (statut, _) = surLeFil {
+            requete("POST", "/v1/inscriptions/${membre.texte}/decision", JSONObject().put("accepte", accepte).toString())
+        }
+        when (statut) {
+            200, 204 -> Unit
+            409 -> throw ErreurAnnuaire.InscriptionTranchee
+            else -> throw refus(statut)
+        }
     }
 
     override suspend fun utilisateurExiste(id: Identifiant): Boolean =

@@ -24,6 +24,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import org.airdesktop.servicelocator.composants.Icones
 import org.airdesktop.servicelocator.ecrans.AccesEcran
+import org.airdesktop.servicelocator.ecrans.AdministrationDesRacinesEcran
+import org.airdesktop.servicelocator.ecrans.AnnuaireLocalEcran
+import org.airdesktop.servicelocator.ecrans.DomaineEcran
+import org.airdesktop.servicelocator.ecrans.DomainesEcran
 import org.airdesktop.servicelocator.ecrans.AccorderEcran
 import org.airdesktop.servicelocator.ecrans.AccueilEcran
 import org.airdesktop.servicelocator.ecrans.AliasEcran
@@ -49,7 +53,11 @@ object Routes {
     const val ALIAS = "compte/alias"
     const val ENROLER_APPAREIL = "compte/enroler-appareil"
     const val EXPOSITIONS = "compte/expositions"
+    const val DOMAINES = "compte/domaines"
+    const val ANNUAIRE_LOCAL = "compte/annuaire-local"
+    const val INSCRIPTIONS = "compte/inscriptions"
     fun machine(id: Identifiant) = "machines/${id.texte}"
+    fun domaine(id: Identifiant) = "compte/domaines/${id.texte}"
     fun code(id: Identifiant) = "machines/${id.texte}/code"
     fun capacites(id: Identifiant) = "machines/${id.texte}/capacites"
     fun service(machine: Identifiant, service: Identifiant) = "machines/${machine.texte}/services/${service.texte}"
@@ -129,6 +137,10 @@ private fun Onglets() {
             composable(Routes.ALIAS) { AliasEcran(nav) }
             composable(Routes.ENROLER_APPAREIL) { EnrolerAppareilEcran(nav) }
             composable(Routes.EXPOSITIONS) { ExpositionsEcran(nav) }
+            composable(Routes.DOMAINES) { DomainesEcran(nav) }
+            composable("compte/domaines/{id}") { DomaineEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!)) }
+            composable(Routes.ANNUAIRE_LOCAL) { AnnuaireLocalEcran(nav) }
+            composable(Routes.INSCRIPTIONS) { AdministrationDesRacinesEcran(nav) }
         }
     }
 }

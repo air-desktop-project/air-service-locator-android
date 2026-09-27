@@ -4,10 +4,14 @@ import kotlinx.coroutines.flow.StateFlow
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.modele.Autorisation
 import org.airdesktop.servicelocator.modele.Capacite
+import org.airdesktop.servicelocator.modele.CodeDInscription
 import org.airdesktop.servicelocator.modele.CodeEnrolement
 import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
+import org.airdesktop.servicelocator.modele.DetailDuDomaine
+import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.Identifiant
+import org.airdesktop.servicelocator.modele.Inscription
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.MachineVisible
 import org.airdesktop.servicelocator.modele.Signataire
@@ -30,6 +34,14 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
      * l'écran dise ce qui se passe au lieu d'un « Introuvable. » qui ferait croire la machine disparue.
      */
     object AliasDeMachineTropAncien : ErreurAnnuaire("Cet annuaire ne sait pas encore ranger l'alias d'une machine (il faut la version 0.26.0).")
+    /** `409` à la suppression d'un domaine : c'est le dernier, et un compte en garde toujours un (décision 30). */
+    object DernierDomaine : ErreurAnnuaire("C'est votre dernier domaine : un compte en garde toujours un.")
+    /** `403` au rattachement : ni `rattacher` ni `administrer` sur ce domaine. */
+    object SansDroitDeRattacher : ErreurAnnuaire("Vous n'avez pas le droit de ranger une machine dans ce domaine.")
+    /** `409` à la déclaration du second membre : l'annuaire en a déjà deux (décision 49). */
+    object PaireComplete : ErreurAnnuaire("Cet annuaire a déjà ses deux membres.")
+    /** `409` à la décision : l'inscription a été refusée ou retirée ; redemander, c'est en déclarer une neuve (décision 51). */
+    object InscriptionTranchee : ErreurAnnuaire("Cette inscription a été refusée ou retirée : il faut en déclarer une nouvelle.")
     /**
      * Le code d'invitation n'a pas été accepté.
      *
@@ -275,6 +287,45 @@ interface Annuaire {
 
     /** `PUT /v1/alias`, `DELETE /v1/alias` avec `null`. */
     suspend fun definirAlias(alias: String?)
+
+    // ── Domaines (serveur 0.23.0) et annuaires locaux (0.27.0) — `protocole.md` §2.2 ─────────────────────────────
+
+    /** `GET /v1/domaines` — les miens, et ceux où l'un de mes groupes tient un droit. */
+    suspend fun domaines(): List<Domaine>
+    /** `GET /v1/domaines/{d}` — le domaine et les machines qu'on y voit ; [ErreurAnnuaire.Introuvable] sans droit. */
+    suspend fun domaine(id: Identifiant): DetailDuDomaine
+    /** `POST /v1/domaines` — un domaine de plus à ce compte, alias facultatif (envoyé en NFC). */
+    suspend fun creerDomaine(alias: String?): Identifiant
+    /** `PUT /v1/domaines/{d}/alias`, `DELETE` avec `null` — `administrer`. Jamais « pris » : l'alias de domaine n'est pas unique. */
+    suspend fun definirAliasDomaine(id: Identifiant, alias: String?)
+    /** `DELETE /v1/domaines/{d}` — propriétaire seulement ; [ErreurAnnuaire.DernierDomaine] pour le dernier. */
+    suspend fun supprimerDomaine(id: Identifiant)
+    /**
+     * `PUT /v1/machines/{m}/domaine`, `DELETE` avec `null` — range MA machine dans un domaine où je peux ranger (une
+     * machine déjà rangée est déplacée), ou l'en sort. [ErreurAnnuaire.SansDroitDeRattacher] sans le droit.
+     */
+    suspend fun rattacher(machine: Identifiant, domaine: Identifiant?)
+
+    /** `GET /v1/annuaires` — mes annuaires locaux, membre par membre, et mes déclarations qui attendent. */
+    suspend fun annuairesLocaux(): List<Inscription>
+    /** `POST /v1/annuaires` — déclare mon annuaire local ; rend le code à taper sur la machine (vingt-quatre heures). */
+    suspend fun declarerAnnuaire(adresse: String): CodeDInscription
+    /** `POST /v1/annuaires/{n}/membres` — le second membre, sa paire de secours ; [ErreurAnnuaire.PaireComplete] s'il y en a déjà deux. */
+    suspend fun declarerSecondMembre(annuaire: Identifiant, adresse: String): CodeDInscription
+    /** `DELETE /v1/annuaires/{n}` — l'annuaire entier ; ses domaines reviennent aux racines. */
+    suspend fun retirerAnnuaire(annuaire: Identifiant)
+    /** `DELETE /v1/annuaires/{n}/membres/{n2}` — le second seulement. */
+    suspend fun retirerMembre(annuaire: Identifiant, membre: Identifiant)
+    /** `PUT /v1/domaines/{d}/hebergeur`, `DELETE` avec `null` — confie mon domaine à mon annuaire accepté, ou le rend aux racines. */
+    suspend fun confier(domaine: Identifiant, annuaire: Identifiant?)
+
+    /**
+     * `GET /v1/inscriptions` — celles qui attendent un administrateur des racines. **`null` pour qui n'en est pas un**
+     * (l'annuaire répond `404`) : c'est ce qui décide si l'écran d'administration existe.
+     */
+    suspend fun inscriptionsEnAttente(): List<Inscription>?
+    /** `POST /v1/inscriptions/{membre}/decision` — un administrateur suffit ; le refus l'emporte. */
+    suspend fun decider(membre: Identifiant, accepte: Boolean)
 
     /**
      * La racine que la connexion tenue a jointe — `null` sans connexion.

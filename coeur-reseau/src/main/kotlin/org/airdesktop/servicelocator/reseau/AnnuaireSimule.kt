@@ -11,6 +11,12 @@ import org.airdesktop.servicelocator.modele.CodeEnrolement
 import org.airdesktop.servicelocator.modele.CodeInvitation
 import org.airdesktop.servicelocator.modele.Compte
 import org.airdesktop.servicelocator.modele.Genre
+import org.airdesktop.servicelocator.modele.MachineDuDomaine
+import org.airdesktop.servicelocator.modele.Inscription
+import org.airdesktop.servicelocator.modele.EtatDInscription
+import org.airdesktop.servicelocator.modele.Domaine
+import org.airdesktop.servicelocator.modele.DetailDuDomaine
+import org.airdesktop.servicelocator.modele.CodeDInscription
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.MachineVisible
@@ -81,6 +87,20 @@ class AnnuaireSimule(
     private val autresComptes = mutableMapOf<Identifiant, String?>()
     private val alea = SecureRandom()
 
+    /** Un domaine du compte : son alias, ce qui l'héberge (`null` : les racines). Supprimé, il sort de la liste. */
+    private data class DomaineRange(val id: Identifiant, var alias: String?, var hebergePar: Identifiant?)
+    private val parcDomaines = mutableListOf<DomaineRange>()
+    /** Machine → domaine où elle est rangée. Une machine dans un domaine au plus (décision 30). */
+    private val rattachements = mutableMapOf<Identifiant, Identifiant>()
+    /** Mes annuaires locaux, membre par membre, et mes déclarations qui attendent — ce que `GET /v1/annuaires` rend. */
+    private val mesInscriptions = mutableListOf<Inscription>()
+    /** Les codes émis ici qui ne se sont pas encore présentés : code → la ligne `attendue` qu'ils remplaceront. */
+    private val codesDInscription = mutableMapOf<String, Pair<Identifiant?, Inscription>>()
+    /** Ce banc administre-t-il les racines ? Faux par défaut : `GET /v1/inscriptions` rend alors `404`. */
+    private var administrateur = false
+    /** Les inscriptions qui attendent un administrateur des racines. */
+    private val enAttente = mutableListOf<Inscription>()
+
     companion object {
         /** Il n'y a pas de canal : trente-deux zéros, et le banc le dit. Un transport réel dérive cette valeur de sa connexion TLS. */
         val LIAISON_DE_CANAL = ByteArray(Messages.LIAISON_OCTETS)
@@ -122,6 +142,8 @@ class AnnuaireSimule(
             if (posture == Posture.Invitation && invitation != null) invitationsVivantes.remove(invitation.symboles)
             val compte = Compte(neuf(Genre.UTILISATEUR))
             compteLocal = compte
+            // Le premier domaine naît avec le compte, dans la même transaction (décision 30).
+            parcDomaines += DomaineRange(neuf(Genre.DOMAINE), null, null)
             parcAppareils += Appareil(neuf(Genre.APPAREIL), "Cet appareil", Appareil.Biometrie.EMPREINTE, horloge(), estCeluiCi = true)
             compte
         }
@@ -187,6 +209,10 @@ class AnnuaireSimule(
         points.clear()
         parcMachines.clear()
         aretes.clear()
+        parcDomaines.clear()
+        rattachements.clear()
+        mesInscriptions.clear()
+        codesDInscription.clear()
     }
 
     override suspend fun definirAlias(alias: String?) = verrou.withLock {
@@ -381,6 +407,147 @@ class AnnuaireSimule(
         if (existant >= 0) services[existant] = service else services += service
         parcMachines[indice] = actuelle.copy(services = services)
     }
+
+    // ── Domaines et annuaires locaux ─────────────────────────────────────────
+
+    private fun moi(): Identifiant = compteLocal?.identifiant ?: throw ErreurAnnuaire.NonReconnu
+
+    private fun domaineVu(d: DomaineRange, moi: Identifiant) = Domaine(
+        id = d.id, proprietaire = moi, alias = d.alias, hebergePar = d.hebergePar,
+        droits = setOf(Domaine.ADMINISTRER, Domaine.RATTACHER, Domaine.VOIR, Domaine.LOCALISER),
+    )
+
+    override suspend fun domaines(): List<Domaine> = verrou.withLock {
+        val moi = moi()
+        parcDomaines.map { domaineVu(it, moi) }
+    }
+
+    override suspend fun domaine(id: Identifiant): DetailDuDomaine = verrou.withLock {
+        val moi = moi()
+        val d = parcDomaines.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable
+        val machines = parcMachines.filter { rattachements[it.id] == id }.map { MachineDuDomaine(it.id, moi, it.nom, it.alias) }
+        DetailDuDomaine(domaineVu(d, moi), machines)
+    }
+
+    override suspend fun creerDomaine(alias: String?): Identifiant = verrou.withLock {
+        moi()
+        val range = alias?.let { Alias.pourDomaine(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias") }
+        val id = neuf(Genre.DOMAINE)
+        parcDomaines += DomaineRange(id, range, null)
+        id
+    }
+
+    override suspend fun definirAliasDomaine(id: Identifiant, alias: String?) = verrou.withLock {
+        moi()
+        val range = alias?.let { Alias.pourDomaine(it) ?: throw ErreurAnnuaire.RequeteInvalide("alias") }
+        (parcDomaines.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable).alias = range
+    }
+
+    override suspend fun supprimerDomaine(id: Identifiant) = verrou.withLock {
+        moi()
+        val d = parcDomaines.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable
+        if (parcDomaines.size == 1) throw ErreurAnnuaire.DernierDomaine
+        parcDomaines.remove(d)
+        rattachements.entries.removeIf { it.value == id }
+        Unit
+    }
+
+    override suspend fun rattacher(machine: Identifiant, domaine: Identifiant?) = verrou.withLock {
+        moi()
+        if (parcMachines.none { it.id == machine }) throw ErreurAnnuaire.Introuvable
+        if (domaine == null) { rattachements.remove(machine); return@withLock }
+        if (parcDomaines.none { it.id == domaine }) throw ErreurAnnuaire.Introuvable
+        rattachements[machine] = domaine
+    }
+
+    /** Le domaine où une machine est rangée — pour l'écran d'une machine, et pour un banc. */
+    suspend fun domaineDe(machine: Identifiant): Identifiant? = verrou.withLock { rattachements[machine] }
+
+    override suspend fun annuairesLocaux(): List<Inscription> = verrou.withLock { moi(); mesInscriptions.toList() }
+
+    private fun emettreCodeDInscription(annuaire: Identifiant?, adresse: String): CodeDInscription {
+        val forme = Alias.adresseDAnnuaire(adresse) ?: throw ErreurAnnuaire.RequeteInvalide("adresse")
+        val code = CodeDInscription(code().symboles, horloge().plusSeconds(24 * 3600))
+        val attendue = Inscription(EtatDInscription.Attendue, "attendue", null, annuaire, null, forme, code.expireA)
+        mesInscriptions += attendue
+        codesDInscription[code.code] = annuaire to attendue
+        return code
+    }
+
+    override suspend fun declarerAnnuaire(adresse: String): CodeDInscription = verrou.withLock {
+        moi()
+        emettreCodeDInscription(null, adresse)
+    }
+
+    override suspend fun declarerSecondMembre(annuaire: Identifiant, adresse: String): CodeDInscription = verrou.withLock {
+        moi()
+        val membres = mesInscriptions.filter { it.annuaire == annuaire && it.etat in setOf(EtatDInscription.EnAttente, EtatDInscription.Acceptee) }
+        if (membres.none { it.estTitulaire && it.etat == EtatDInscription.Acceptee }) throw ErreurAnnuaire.Introuvable
+        if (membres.size >= 2) throw ErreurAnnuaire.PaireComplete
+        emettreCodeDInscription(annuaire, adresse)
+    }
+
+    override suspend fun retirerAnnuaire(annuaire: Identifiant) = verrou.withLock {
+        moi()
+        if (mesInscriptions.none { it.annuaire == annuaire }) throw ErreurAnnuaire.Introuvable
+        mesInscriptions.replaceAll { if (it.annuaire == annuaire && it.membre != null) it.copy(etat = EtatDInscription.Retiree, motDeLEtat = "retirée") else it }
+        // Ses domaines reviennent aux racines.
+        parcDomaines.filter { it.hebergePar == annuaire }.forEach { it.hebergePar = null }
+    }
+
+    override suspend fun retirerMembre(annuaire: Identifiant, membre: Identifiant) {
+        if (annuaire == membre) return retirerAnnuaire(annuaire)
+        verrou.withLock {
+            moi()
+            val i = mesInscriptions.indexOfFirst { it.annuaire == annuaire && it.membre == membre }
+            if (i < 0) throw ErreurAnnuaire.Introuvable
+            mesInscriptions[i] = mesInscriptions[i].copy(etat = EtatDInscription.Retiree, motDeLEtat = "retirée")
+        }
+    }
+
+    override suspend fun confier(domaine: Identifiant, annuaire: Identifiant?) = verrou.withLock {
+        moi()
+        val d = parcDomaines.firstOrNull { it.id == domaine } ?: throw ErreurAnnuaire.Introuvable
+        if (annuaire != null && mesInscriptions.none { it.annuaire == annuaire && it.estTitulaire && it.etat == EtatDInscription.Acceptee }) {
+            // Vers un annuaire de son propre compte, accepté : sinon `404` (décision 48).
+            throw ErreurAnnuaire.Introuvable
+        }
+        d.hebergePar = annuaire
+    }
+
+    override suspend fun inscriptionsEnAttente(): List<Inscription>? = verrou.withLock {
+        if (administrateur) enAttente.filter { it.etat == EtatDInscription.EnAttente } else null
+    }
+
+    override suspend fun decider(membre: Identifiant, accepte: Boolean) = verrou.withLock {
+        if (!administrateur) throw ErreurAnnuaire.Introuvable
+        val i = enAttente.indexOfFirst { it.membre == membre }
+        if (i < 0) throw ErreurAnnuaire.Introuvable
+        val actuelle = enAttente[i]
+        // Le refus l'emporte ; accepter une inscription refusée ou retirée, `409` (décision 51).
+        if (accepte && actuelle.etat in setOf(EtatDInscription.Refusee, EtatDInscription.Retiree)) throw ErreurAnnuaire.InscriptionTranchee
+        val etat = if (accepte) EtatDInscription.Acceptee else EtatDInscription.Refusee
+        enAttente[i] = actuelle.copy(etat = etat, motDeLEtat = etat.mot)
+        val j = mesInscriptions.indexOfFirst { it.membre == membre }
+        if (j >= 0) mesInscriptions[j] = mesInscriptions[j].copy(etat = etat, motDeLEtat = etat.mot)
+    }
+
+    /**
+     * Ce que fait `asl-server --register <code>` sur la machine : le code se présente sous la clé [membre]. Pour un
+     * banc — la ligne `attendue` devient `en attente`, et l'inscription attend un administrateur.
+     */
+    suspend fun presenter(code: String, membre: Identifiant) = verrou.withLock {
+        val (annuaire, attendue) = codesDInscription.remove(code) ?: throw ErreurAnnuaire.Introuvable
+        val presentee = attendue.copy(
+            etat = EtatDInscription.EnAttente, motDeLEtat = "en attente", membre = membre,
+            annuaire = annuaire ?: membre, expireA = null,
+        )
+        mesInscriptions[mesInscriptions.indexOf(attendue)] = presentee
+        enAttente += presentee.copy(proprietaire = compteLocal?.identifiant)
+    }
+
+    /** Fait de ce banc un administrateur des racines — pour un essai de l'écran d'administration. */
+    suspend fun administrerLesRacines(oui: Boolean = true) = verrou.withLock { administrateur = oui }
 
     /** Fait exister un autre compte, avec ou sans alias. */
     suspend fun inscrireAutreCompte(id: Identifiant, alias: String?) = verrou.withLock { autresComptes[id] = alias }

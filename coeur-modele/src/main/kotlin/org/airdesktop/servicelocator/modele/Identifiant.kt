@@ -6,7 +6,7 @@ package org.airdesktop.servicelocator.modele
  * service est une erreur, pas une valeur à interpréter.
  */
 enum class Genre(val prefixe: Char) {
-    UTILISATEUR('u'), APPAREIL('a'), MACHINE('m'), SERVICE('s'), AUTORISATION('g'), ANNUAIRE('n');
+    UTILISATEUR('u'), APPAREIL('a'), MACHINE('m'), SERVICE('s'), AUTORISATION('g'), ANNUAIRE('n'), DOMAINE('d');
 
     companion object {
         fun depuisPrefixe(c: Char): Genre? = entries.firstOrNull { it.prefixe == c.lowercaseChar() }
