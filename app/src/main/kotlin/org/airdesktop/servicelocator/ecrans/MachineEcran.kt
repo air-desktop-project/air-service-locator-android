@@ -22,12 +22,14 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -58,7 +60,9 @@ import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
 import org.airdesktop.servicelocator.modele.Alias
 import org.airdesktop.servicelocator.modele.Capacite
+import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.Identifiant
+import org.airdesktop.servicelocator.modele.Versions
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
@@ -80,6 +84,19 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
         aliasAdmis = Alias.aliasDeMachineAdmis(runCatching { session.annuaire.annonce()?.version }.getOrNull())
     }
     var confirmerRevocation by remember { mutableStateOf(false) }
+    // **LE DOMAINE D'UNE MACHINE NE VOYAGE PAS AVEC ELLE** : `GET /v1/machines` ne le rend pas. On le retrouve en lisant
+    // les domaines où l'on voit des machines — peu nombreux —, et seulement sur un annuaire qui les sert (≥ 0.23.0).
+    var domaines by remember { mutableStateOf<List<Domaine>?>(null) }
+    var rangeeDans by remember { mutableStateOf<Identifiant?>(null) }
+    var tourDomaine by remember { mutableIntStateOf(0) }
+    var choisirDomaine by remember { mutableStateOf(false) }
+    LaunchedEffect(session.annuaire, tourDomaine) {
+        val version = runCatching { session.annuaire.annonce()?.version }.getOrNull()
+        if (!Versions.auMoins(version, Versions.DOMAINES)) { domaines = null; return@LaunchedEffect }
+        val lus = runCatching { session.annuaire.domaines() }.getOrNull() ?: return@LaunchedEffect
+        domaines = lus
+        rangeeDans = lus.firstOrNull { d -> runCatching { session.annuaire.domaine(d.id).machines.any { it.machine == id } }.getOrDefault(false) }?.id
+    }
 
     Scaffold(
         topBar = {
@@ -114,6 +131,16 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
                     trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable { nommerAlias = true },
                 )
+            }
+            domaines?.let { lus ->
+                item {
+                    ListItem(
+                        headlineContent = { Text(TextesDomaines.domaineDeLaMachine) },
+                        supportingContent = { Text(lus.firstOrNull { it.id == rangeeDans }?.affiche ?: TextesDomaines.aucun) },
+                        trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        modifier = Modifier.clickable { choisirDomaine = true },
+                    )
+                }
             }
             item {
                 ListItem(
@@ -214,6 +241,37 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
                 TextButton(enabled = range != null && range != machine.alias, onClick = { poser(range) }) { Text("Enregistrer") }
             },
             dismissButton = { TextButton(onClick = { nommerAlias = false }) { Text("Annuler") } },
+        )
+    }
+
+    if (choisirDomaine) {
+        // Les domaines où l'on peut ranger (`rattacher`, reçu ou emporté par `administrer`), et « aucun ».
+        val options: List<Domaine?> = listOf<Domaine?>(null) + domaines.orEmpty().filter { it.admetUneMachine }
+        var choisi by remember { mutableStateOf(rangeeDans) }
+        AlertDialog(
+            onDismissRequest = { choisirDomaine = false },
+            title = { Text(TextesDomaines.ranger) },
+            text = {
+                Column {
+                    options.forEach { option ->
+                        ListItem(
+                            leadingContent = { RadioButton(selected = choisi == option?.id, onClick = { choisi = option?.id }) },
+                            headlineContent = { Text(option?.affiche ?: TextesDomaines.retirerDuDomaine) },
+                            modifier = Modifier.clickable { choisi = option?.id },
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = choisi != rangeeDans, onClick = {
+                    choisirDomaine = false
+                    portee.launch {
+                        runCatching { session.annuaire.rattacher(id, choisi) }
+                            .onSuccess { tourDomaine++ }.onFailure { erreur = it.messageAnnuaire }
+                    }
+                }) { Text("Enregistrer") }
+            },
+            dismissButton = { TextButton(onClick = { choisirDomaine = false }) { Text("Annuler") } },
         )
     }
 

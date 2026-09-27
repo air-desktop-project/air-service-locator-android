@@ -52,6 +52,35 @@ object Alias {
         return forme.takeIf { octets in 1..MACHINE_OCTETS_MAX && admis(it) }
     }
 
+    /** Un alias de domaine, au plus (`ALIAS_DE_DOMAINE_OCTETS_MAX`), et ce qu'on peut en saisir avant NFC. */
+    const val DOMAINE_OCTETS_MAX = 64
+    const val DOMAINE_SAISIE_OCTETS_MAX = 255
+
+    /** L'alias de domaine prêt à envoyer, ou `null` : un à soixante-quatre octets après NFC, aucun caractère refusé. Non unique. */
+    fun pourDomaine(texte: String): String? {
+        if (texte.toByteArray(Charsets.UTF_8).size > DOMAINE_SAISIE_OCTETS_MAX) return null
+        val forme = nfc(texte)
+        val octets = forme.toByteArray(Charsets.UTF_8).size
+        return forme.takeIf { octets in 1..DOMAINE_OCTETS_MAX && admis(it) }
+    }
+
+    /**
+     * L'adresse d'un annuaire local, telle que l'annuaire l'admet (`asl-registre` : `Adresse::nouvelle`), ou `null` :
+     * `hôte:port`, un à 255 octets d'ASCII imprimable sans espace, ni `"` ni `\` ; un hôte IPv6 entre crochets ; un
+     * port de 1 à 65 535 sans zéro de tête.
+     */
+    fun adresseDAnnuaire(texte: String): String? {
+        val t = texte.trim()
+        if (t.isEmpty() || t.length > 255 || t.any { it.code !in 0x21..0x7E || it == '"' || it == '\\' }) return null
+        val deux = t.lastIndexOf(':').takeIf { it > 0 } ?: return null
+        val hote = t.substring(0, deux)
+        val port = t.substring(deux + 1)
+        val crochets = hote.startsWith('[') || hote.endsWith(']')
+        val hoteValide = if (crochets) hote.length > 2 && hote.startsWith('[') && hote.endsWith(']') else ':' !in hote
+        val portValide = port.isNotEmpty() && !port.startsWith('0') && port.all { it.isDigit() } && (port.toIntOrNull() ?: 0) in 1..65535
+        return t.takeIf { hoteValide && portValide }
+    }
+
     /**
      * L'alias de compte prêt à envoyer, ou `null` : trois à trente-deux octets après NFC,
      * aucun caractère refusé, et **un deuxième caractère qui n'est pas un tiret** — dans le
@@ -71,11 +100,7 @@ object Alias {
      * Cet annuaire range-t-il l'alias d'une machine ? Vrai pour une version semver ≥ 0.26.0 ; **faux pour une version
      * illisible** (« banc en mémoire », absente) : dans le doute, on ne propose pas un champ que l'annuaire refuserait.
      */
-    fun aliasDeMachineAdmis(version: String?): Boolean {
-        val parties = version?.split('.')?.takeIf { it.size == 3 }?.map { it.toIntOrNull() ?: return false } ?: return false
-        val (majeur, mineur, _) = parties
-        return majeur > 0 || mineur >= 26
-    }
+    fun aliasDeMachineAdmis(version: String?): Boolean = Versions.auMoins(version, 26)
 
     /** Aucun caractère que l'annuaire refuse. */
     private fun admis(texte: String): Boolean = texte.codePoints().noneMatch { point ->

@@ -54,6 +54,7 @@ import org.airdesktop.servicelocator.composants.SousTitre
 import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
 import org.airdesktop.servicelocator.modele.Alias
+import org.airdesktop.servicelocator.modele.Versions
 import org.airdesktop.servicelocator.modele.Appareil
 import org.airdesktop.servicelocator.reseau.RacineDAnnuaire
 import java.util.Optional
@@ -96,6 +97,19 @@ fun CompteEcran(nav: NavController) {
     // La racine effectivement jointe : un état que l'annuaire tient. En arrivant sur l'écran, on éprouve la tenue
     // SANS la rouvrir — sans empreinte — pour ne pas montrer une connexion tombée en silence.
     val racineJointe by annuaire.racineJointe.collectAsState()
+    // **LES DOMAINES N'APPARAISSENT QUE SUR UN ANNUAIRE QUI LES SERT** : ≥ 0.23.0 pour les domaines, ≥ 0.27.0 pour
+    // l'annuaire local et l'administration — une version illisible n'ouvre rien (`Versions`). L'administration, en
+    // plus, n'existe que pour qui l'annuaire reconnaît administrateur des racines : `GET /v1/inscriptions` rend `404`
+    // aux autres, lu ici comme « pas d'écran ».
+    var domainesServis by remember { mutableStateOf(false) }
+    var annuairesLocauxServis by remember { mutableStateOf(false) }
+    var administreLesRacines by remember { mutableStateOf(false) }
+    LaunchedEffect(compte, annuaire) {
+        val version = if (compte != null) runCatching { annuaire.annonce()?.version }.getOrNull() else null
+        domainesServis = Versions.auMoins(version, Versions.DOMAINES)
+        annuairesLocauxServis = Versions.auMoins(version, Versions.ANNUAIRES_LOCAUX)
+        administreLesRacines = annuairesLocauxServis && runCatching { annuaire.inscriptionsEnAttente() != null }.getOrDefault(false)
+    }
     LaunchedEffect(annuaire) { runCatching { annuaire.verifierLaConnexion() } }
 
     Scaffold(topBar = { Barre("Compte") }) { marges ->
@@ -197,6 +211,30 @@ fun CompteEcran(nav: NavController) {
                 }
             }
             item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; « Révoquer » (ou un appui long) en révoque un autre ; révoqué, il reste dans l'annuaire, marqué, et « Voir les appareils révoqués » le montre. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme — et efface, à trente jours : avec un seul appareil, perdre ce téléphone efface ce compte.") }
+            if (compte != null && domainesServis) {
+                item { SousTitre(TextesDomaines.domaines) }
+                item {
+                    ListItem(
+                        headlineContent = { Text(TextesDomaines.domaines) },
+                        trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        modifier = Modifier.clickable { nav.navigate(Routes.DOMAINES) },
+                    )
+                }
+                if (annuairesLocauxServis) item {
+                    ListItem(
+                        headlineContent = { Text(TextesDomaines.annuaireLocal) },
+                        trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        modifier = Modifier.clickable { nav.navigate(Routes.ANNUAIRE_LOCAL) },
+                    )
+                }
+                if (administreLesRacines) item {
+                    ListItem(
+                        headlineContent = { Text(TextesDomaines.administration) },
+                        trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        modifier = Modifier.clickable { nav.navigate(Routes.INSCRIPTIONS) },
+                    )
+                }
+            }
             if (compte != null) {
                 item { SousTitre("Notifications") }
                 item { SectionNotifications() }
