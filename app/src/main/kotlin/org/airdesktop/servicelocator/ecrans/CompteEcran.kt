@@ -35,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import org.airdesktop.servicelocator.composants.Badge
+import org.airdesktop.servicelocator.composants.Couleurs
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -104,11 +106,15 @@ fun CompteEcran(nav: NavController) {
     var domainesServis by remember { mutableStateOf(false) }
     var annuairesLocauxServis by remember { mutableStateOf(false) }
     var administreLesRacines by remember { mutableStateOf(false) }
+    // Combien de demandes attendent — le nombre que le Mac montre à côté de l'administration.
+    var demandesEnAttente by remember { mutableStateOf(0) }
     LaunchedEffect(compte, annuaire) {
         val version = if (compte != null) runCatching { annuaire.annonce()?.version }.getOrNull() else null
         domainesServis = Versions.auMoins(version, Versions.DOMAINES)
         annuairesLocauxServis = Versions.auMoins(version, Versions.ANNUAIRES_LOCAUX)
-        administreLesRacines = annuairesLocauxServis && runCatching { annuaire.inscriptionsEnAttente() != null }.getOrDefault(false)
+        val demandes = if (annuairesLocauxServis) runCatching { annuaire.inscriptionsEnAttente() }.getOrNull() else null
+        administreLesRacines = demandes != null
+        demandesEnAttente = demandes?.size ?: 0
     }
     LaunchedEffect(annuaire) { runCatching { annuaire.verifierLaConnexion() } }
 
@@ -212,7 +218,8 @@ fun CompteEcran(nav: NavController) {
             }
             item { Aide("L'annuaire ne connaît de chaque appareil que son identifiant : c'est lui qui dit si un appareil est bien l'un des vôtres — comparez-le à celui que l'autre appareil affiche pour lui-même. Un appareil que vous ne reconnaissez pas se révoque. Un appareil ne peut pas se révoquer lui-même ; « Révoquer » (ou un appui long) en révoque un autre ; révoqué, il reste dans l'annuaire, marqué, et « Voir les appareils révoqués » le montre. Un compte sur un seul appareil est un compte qu'un téléphone perdu ferme — et efface, à trente jours : avec un seul appareil, perdre ce téléphone efface ce compte.") }
             if (compte != null && domainesServis) {
-                item { SousTitre(TextesDomaines.domaines) }
+                // « Fédération », comme la barre latérale du Mac : les domaines, l'annuaire local, l'administration.
+                item { SousTitre(TextesFederation.federation) }
                 item {
                     ListItem(
                         headlineContent = { Text(TextesDomaines.domaines) },
@@ -230,7 +237,12 @@ fun CompteEcran(nav: NavController) {
                 if (administreLesRacines) item {
                     ListItem(
                         headlineContent = { Text(TextesDomaines.administration) },
-                        trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        trailingContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (demandesEnAttente > 0) Badge("$demandesEnAttente", Couleurs.attention)
+                                Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
                         modifier = Modifier.clickable { nav.navigate(Routes.INSCRIPTIONS) },
                     )
                 }

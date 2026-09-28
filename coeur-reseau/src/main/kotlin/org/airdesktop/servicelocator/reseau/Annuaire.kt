@@ -314,7 +314,11 @@ interface Annuaire {
     suspend fun declarerSecondMembre(annuaire: Identifiant, adresse: String): CodeDInscription
     /** `DELETE /v1/annuaires/{n}` — l'annuaire entier ; ses domaines reviennent aux racines. */
     suspend fun retirerAnnuaire(annuaire: Identifiant)
-    /** `DELETE /v1/annuaires/{n}/membres/{n2}` — le second seulement. */
+    /**
+     * `DELETE /v1/annuaires/{n}/membres/{n2}` — le second membre seul ; la paire reste, servie par son titulaire,
+     * sans secours. (Nommer le titulaire, c'est retirer tout, comme [retirerAnnuaire].) Le propriétaire le peut, un
+     * administrateur des racines aussi ; [ErreurAnnuaire.Introuvable] pour tout le reste.
+     */
     suspend fun retirerMembre(annuaire: Identifiant, membre: Identifiant)
     /** `PUT /v1/domaines/{d}/hebergeur`, `DELETE` avec `null` — confie mon domaine à mon annuaire accepté, ou le rend aux racines. */
     suspend fun confier(domaine: Identifiant, annuaire: Identifiant?)

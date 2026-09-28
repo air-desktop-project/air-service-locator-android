@@ -28,6 +28,21 @@ object Formats {
         }
     }
 
+    /**
+     * « dans 23 h », « dans 12 min » — une échéance, ce qu'il reste à un code d'inscription. Passée, elle se dit
+     * « échue » plutôt qu'« à l'instant » : [relatif] ne compte que vers le passé.
+     */
+    fun echeance(instant: Instant, maintenant: Instant = Instant.now()): String {
+        val s = Duration.between(maintenant, instant).seconds
+        return when {
+            s <= 0 -> "échue"
+            s < 60 -> "dans moins d'une minute"
+            s < 3_600 -> "dans ${s / 60} min"
+            s < 2 * 86_400 -> "dans ${s / 3_600} h"
+            else -> "le ${jour(instant)}"
+        }
+    }
+
     /** « 11 sept. 2026 ». */
     fun jour(instant: Instant): String = jourFormat.format(instant.atZone(ZoneId.systemDefault()))
 

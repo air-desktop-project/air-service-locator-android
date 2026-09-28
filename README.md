@@ -111,8 +111,16 @@ versionné : il porte le chemin du SDK sur *votre* machine.
 
 Le transport est la bibliothèque native produite par le dépôt client, attendue
 à `../air-service-locator-client/target/mobile/jniLibs/arm64-v8a/libasl_client_android.so`
-(`scripts/construire-mobile.sh` là-bas). Sans elle, l'application s'installe
+(`scripts/construire-mobile.sh android` là-bas). Sans elle, l'application s'installe
 mais `System.loadLibrary` échoue au premier usage du transport réel.
+
+**L'objet se construit sur le client 0.20.0, commit
+`5ae7c10ce952b739d6c0817b432f8844fe5aa17c`** — celui que la CI de l'application
+Apple épingle aussi. Le client 0.20.0 a retiré l'annuaire désigné par un nom
+(`Natif_annuaire`) : seule l'identité reste (`Natif.annuaireIdentifie`), et
+`NatifEssais` vérifie que chaque `external fun` de `Natif` est bien exporté par
+cet objet-là. La CI d'ici ne construit pas le natif ; quand ce commit avance,
+reconstruire l'objet, puis avancer le SHA ici et la liste de `NatifEssais`.
 
 L'annuaire se donne dans `local.properties` (non versionné) et passe dans
 `BuildConfig`. Les racines, entre lesquelles l'utilisateur choisit dans
