@@ -115,43 +115,49 @@ Le transport est la bibliothèque native produite par le dépôt client, attendu
 mais `System.loadLibrary` échoue au premier usage du transport réel.
 
 L'annuaire se donne dans `local.properties` (non versionné) et passe dans
-`BuildConfig`. **Plusieurs racines**, entre lesquelles l'utilisateur choisit
-dans Compte › Annuaire, se donnent par un fichier `annuaire.json` — la même
-forme que celui de l'application iOS :
+`BuildConfig`. Les racines, entre lesquelles l'utilisateur choisit dans
+Compte › Annuaire, se donnent par un fichier `annuaire.json` — la même forme
+que celui de l'application iOS :
 
 ```
 asl.annuaire.liste=/chemin/vers/annuaire.json
-asl.annuaire.racines=/chemin/vers/racine.pem
 ```
 
 ```json
 {"annuaires": [
-  {"adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org", "libelle": "Automatique"},
-  {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org"},
-  {"adresse": "argon.air-desktop.org:6630", "nom": "argon.air-desktop.org"}
+  {"libelle": "Automatique", "adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org",
+   "racines": [
+     {"annuaire": "n-0PWT8HZD80QMSPPDZ5CQXXYHQC", "locateurs": ["[2001:41d0:20a:900::1dd4]:6630", "178.32.16.250:6630"]},
+     {"annuaire": "n-3K3P6H252W8K9370QG1YYTWBWB", "locateurs": ["[2001:41d0:20a:900::1d32]:6630", "178.32.16.249:6630"]}]},
+  {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org",
+   "annuaire": "n-0PWT8HZD80QMSPPDZ5CQXXYHQC", "locateurs": ["[2001:41d0:20a:900::1dd4]:6630", "178.32.16.250:6630"]}
 ]}
 ```
 
-`adresse` est `hôte:port` (un nom se résout sur le téléphone, et toutes ses
-adresses sont essayées — ce qui fait marcher l'alias `asl-root`, qui désigne
-les deux racines) ; `nom` est le nom que porte le certificat du serveur ;
-`libelle`, facultatif, ce que l'écran montre à sa place. La première est
-choisie par défaut — c'est le défaut d'un téléphone qui n'a encore rien
-choisi ; un téléphone qui a choisi garde son choix, retenu par l'adresse. `racines` est le
-chemin local de l'autorité qui a signé leurs certificats (son contenu est
-embarqué à la construction — une racine publique, rien de secret), la même
-pour toutes. Un `annuaire.json` illisible fait échouer la construction.
+**Chaque racine se désigne par son identité** : `annuaire` est son `n-…`,
+`locateurs` ses adresses **littérales** (`[IPv6]:port` ou `IPv4:port` — aucun
+nom n'est résolu, C20), et `racines` regroupe plusieurs racines sous une même
+entrée. Le téléphone ne croit une racine que par sa clé : il n'y a plus
+d'autorité PEM (décision 58). `adresse` et `nom` ne servent plus qu'à retenir
+le choix de l'utilisateur et à l'afficher ; sans `nom`, la liste embarquée
+(`RacinesConnues`) nomme les racines connues. `libelle`, facultatif, est ce
+que l'écran montre à la place. La première entrée est choisie par défaut ; un
+téléphone qui a choisi garde son choix.
 
-**Une seule racine**, l'ancienne forme, reste lue (et `liste` l'emporte si
-les deux sont là) :
+Une entrée **sans identité** (la forme d'avant, `adresse` et `nom` seuls)
+n'est plus utilisable : l'application la laisse de côté et le dit au journal
+(`adb logcat -s annuaire`). Une liste qui n'en contient **aucune** d'identifiée
+fait échouer la construction, comme un `annuaire.json` illisible : il n'y
+aurait rien à joindre, et il n'y a pas de repli par le nom.
 
-```
-asl.annuaire.adresse=192.168.1.102:6630
-asl.annuaire.nom=speedy
-asl.annuaire.racines=/chemin/vers/racine.pem
-```
+`asl.annuaire.racines` (le chemin du PEM de l'autorité), s'il reste dans
+`local.properties`, est **ignoré** avec un avertissement à la construction.
+L'ancienne forme d'une seule racine par son nom (`asl.annuaire.adresse`,
+`asl.annuaire.nom`) ne porte aucune identité : seule, elle fait échouer la
+construction ; à côté de `asl.annuaire.liste`, elle est ignorée avec un
+avertissement.
 
-Sans l'une ni l'autre, l'application tourne sur le banc en mémoire, peuplé
+Sans `asl.annuaire.liste`, l'application tourne sur le banc en mémoire, peuplé
 de démonstration — c'est ce que fait la CI, qui ne fabrique pas ce fichier.
 
 ## Capturer une attestation de clé

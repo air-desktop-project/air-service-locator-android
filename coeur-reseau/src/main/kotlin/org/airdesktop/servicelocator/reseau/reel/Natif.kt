@@ -25,8 +25,6 @@ object Natif {
 
     external fun neuf(): Long
     external fun libere(h: Long)
-    external fun annuaire(h: Long, adresse: String, nom: String): Int
-    external fun racines(h: Long, pem: ByteArray): Int
     /**
      * `asl_appareil_annuaire_identifie` : un locateur LITTÉRAL (`[IPv6]:port` ou `IPv4:port`, jamais un nom) et le
      * `n-…` qu'on doit y trouver — la clé du certificat auto-signé de l'annuaire s'y déduit. `ARGUMENT` si l'un des

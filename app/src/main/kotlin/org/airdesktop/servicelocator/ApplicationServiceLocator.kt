@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import org.airdesktop.servicelocator.identite.CleAppareil
 import org.airdesktop.servicelocator.identite.IdentiteLocale
@@ -50,13 +51,17 @@ class ApplicationServiceLocator : Application() {
 
     val session: Session by lazy {
         val identite = IdentiteLocale(this)
-        // Le PEM n'est plus exigé (décision 58) : sans lui, seules les entrées identifiées restent.
-        val racines = ListeDAnnuaires.lire(BuildConfig.ANNUAIRES, avecAutorite = BuildConfig.ANNUAIRE_RACINES.isNotEmpty())
+        // Les racines ne se croient plus que par leur clé (décision 58, C20) : une entrée
+        // sans identité est laissée de côté, et le journal le dit.
+        val racines = ListeDAnnuaires.lire(BuildConfig.ANNUAIRES) { Log.w("annuaire", it) }
+        if (racines.isEmpty() && BuildConfig.ANNUAIRES.isNotEmpty()) {
+            Log.e("annuaire", "aucune entrée identifiée dans la liste des annuaires : rien à joindre, l'application tourne sur le banc en mémoire")
+        }
         if (racines.isNotEmpty()) {
             val choix = ChoixDAnnuaire(racines, MemoireDuChoixPartagee(this)) { racine ->
                 AnnuaireReel(
                     this,
-                    AnnuaireReel.Reglages(racine.adresse, racine.nom, BuildConfig.ANNUAIRE_RACINES.toByteArray(), racine.identites),
+                    AnnuaireReel.Reglages(racine.adresse, racine.nom, racine.identites),
                     signataire = { defi -> CleAppareil.ouOuvrir(defi).avec { activiteAuPremierPlan } },
                     cleExiste = { CleAppareil.existe() },
                     effacerCle = { CleAppareil.effacer() },

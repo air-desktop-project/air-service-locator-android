@@ -40,8 +40,8 @@ android {
         // lit à l'écran (Compte › Annuaire), et c'est ce qu'un utilisateur
         // cite quand il rapporte quelque chose. `versionCode` est l'entier
         // croissant que le Play Store exige distinct à chaque envoi.
-        versionCode = 27
-        versionName = "0.15.0"
+        versionCode = 28
+        versionName = "0.16.0"
     }
 
     buildTypes {
@@ -98,64 +98,74 @@ android {
 
 // ── L'ANNUAIRE DE TEST VIENT DE `local.properties` ───────────────────────────
 //
-// Des adresses sur un réseau, les noms de leurs certificats, et la racine qui
-// les a signés : propres à une machine, jamais versionnés. Absents,
-// l'application tourne sur le banc en mémoire.
+// Des racines sur un réseau, désignées par leur IDENTITÉ : propres à une
+// machine, jamais versionnées. Absentes, l'application tourne sur le banc en
+// mémoire.
 //
-// **Plusieurs racines** — celles entre lesquelles l'utilisateur choisit dans
+// Les racines — celles entre lesquelles l'utilisateur choisit dans
 // Compte › Annuaire — se donnent par un fichier `annuaire.json`, LA MÊME FORME
 // que celui de l'application iOS (voir `ListeDAnnuaires`) :
 //
 //     asl.annuaire.liste=/chemin/vers/annuaire.json
-//     asl.annuaire.racines=/chemin/vers/racine.pem
 //
-// **Une seule**, l'ancienne forme, reste lue, et donne une liste d'un élément :
-//
-//     asl.annuaire.adresse=192.0.2.1:6630
-//     asl.annuaire.nom=annuaire
-//     asl.annuaire.racines=/chemin/vers/racine.pem
-//
-// **Chaque entrée peut désigner sa racine par son IDENTITÉ** (`"annuaire":"n-…"` et
+// **Chaque entrée désigne sa racine par son identité** (`"annuaire":"n-…"` et
 // des `"locateurs"` littéraux, ou `"racines":[…]` pour une entrée qui en couvre
-// plusieurs — voir `ListeDAnnuaires`) : aucun nom n'est alors résolu, et
-// `asl.annuaire.racines` devient facultatif — sans lui, seules les entrées
-// identifiées restent (décision 58, C20).
+// plusieurs) : aucun nom n'est résolu (C20), et une racine ne se croit que par
+// sa clé (décision 58, transition achevée). Il n'y a plus d'autorité PEM :
+// `asl.annuaire.racines`, s'il reste, est ignoré avec un avertissement.
+// L'ancienne forme d'une seule racine par son nom (`asl.annuaire.adresse`,
+// `asl.annuaire.nom`) ne porte aucune identité : seule, elle est refusée ;
+// à côté de `liste`, ignorée avec un avertissement.
 //
-// `liste` l'emporte si les deux sont là. Le fichier est vérifié ICI : un JSON
-// illisible fait échouer la construction, plutôt que de livrer une application
-// qui tournerait sans rien dire sur le banc en mémoire. Ce qui passe dans
-// `BuildConfig`, c'est le JSON réécrit sur une ligne ; l'application le relit.
-val annuaireDeTest: Pair<String, String> = run {
+// Le fichier est vérifié ICI : un JSON illisible, ou une liste dont AUCUNE
+// entrée n'est identifiée, fait échouer la construction, plutôt que de livrer
+// une application qui n'aurait rien à joindre. Une entrée sans identité parmi
+// d'autres est laissée de côté par l'application, qui le journalise. Ce qui
+// passe dans `BuildConfig`, c'est le JSON réécrit sur une ligne ; l'application
+// le relit.
+val annuaireDeTest: String = run {
     val fichier = rootProject.file("local.properties")
-    if (!fichier.exists()) return@run "" to ""
+    if (!fichier.exists()) return@run ""
     val proprietes = Properties().apply { fichier.inputStream().use { load(it) } }
-    val racines = proprietes.getProperty("asl.annuaire.racines", "").let { chemin ->
-        if (chemin.isEmpty()) "" else file(chemin).takeIf { it.exists() }?.readText().orEmpty()
+    if (proprietes.getProperty("asl.annuaire.racines", "").isNotEmpty()) {
+        logger.warn("asl.annuaire.racines est ignoré : les racines ne se croient plus que par leur identité (décision 58)")
     }
     val liste = proprietes.getProperty("asl.annuaire.liste", "")
-    val json: Any? = when {
-        liste.isNotEmpty() -> {
-            val source = file(liste)
-            require(source.exists()) { "asl.annuaire.liste : « $liste » n'existe pas" }
-            try {
-                groovy.json.JsonSlurper().parseText(source.readText())
-            } catch (e: Exception) {
-                throw GradleException("asl.annuaire.liste : « $liste » n'est pas du JSON lisible (${e.message})")
-            }
+    if (proprietes.getProperty("asl.annuaire.adresse", "").isNotEmpty()) {
+        if (liste.isEmpty()) {
+            throw GradleException(
+                "asl.annuaire.adresse : l'ancienne forme par le nom ne porte aucune identité — " +
+                    "donner asl.annuaire.liste, un annuaire.json dont les entrées ont `annuaire` n-… et des `locateurs` littéraux",
+            )
         }
-        proprietes.getProperty("asl.annuaire.adresse", "").isNotEmpty() -> mapOf(
-            "adresse" to proprietes.getProperty("asl.annuaire.adresse"),
-            "nom" to proprietes.getProperty("asl.annuaire.nom", ""),
-        )
-        else -> null
+        logger.warn("asl.annuaire.adresse et asl.annuaire.nom sont ignorés : asl.annuaire.liste les remplace")
     }
-    (json?.let { groovy.json.JsonOutput.toJson(it) } ?: "") to racines
+    if (liste.isEmpty()) return@run ""
+    val source = file(liste)
+    require(source.exists()) { "asl.annuaire.liste : « $liste » n'existe pas" }
+    val json: Any? = try {
+        groovy.json.JsonSlurper().parseText(source.readText())
+    } catch (e: Exception) {
+        throw GradleException("asl.annuaire.liste : « $liste » n'est pas du JSON lisible (${e.message})")
+    }
+    // Une entrée est identifiée si elle porte `annuaire` n-… et des `locateurs`,
+    // ou des `racines` qui les portent. Le détail (locateurs littéraux) est
+    // vérifié par `ListeDAnnuaires` ; ici, on refuse une liste vide d'identités.
+    fun identifiee(e: Any?): Boolean {
+        val m = e as? Map<*, *> ?: return false
+        val propre = (m["annuaire"] as? String)?.startsWith("n-") == true && (m["locateurs"] as? List<*>)?.isNotEmpty() == true
+        return propre || (m["racines"] as? List<*>)?.any { identifiee(it) } == true
+    }
+    val entrees = (json as? Map<*, *>)?.let { m -> (m["annuaires"] as? List<*>) ?: listOf(m) }.orEmpty()
+    if (entrees.none { identifiee(it) }) {
+        throw GradleException("asl.annuaire.liste : « $liste » ne contient aucune entrée identifiée (`annuaire` n-… et `locateurs` littéraux) — il n'y aurait rien à joindre")
+    }
+    groovy.json.JsonOutput.toJson(json)
 }
 /** Une chaîne Java littérale : les guillemets et les barres obliques inverses échappés, les fins de ligne écrites `\n`. */
 fun litteral(texte: String): String =
     "\"" + texte.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""
-android.defaultConfig.buildConfigField("String", "ANNUAIRES", litteral(annuaireDeTest.first))
-android.defaultConfig.buildConfigField("String", "ANNUAIRE_RACINES", litteral(annuaireDeTest.second))
+android.defaultConfig.buildConfigField("String", "ANNUAIRES", litteral(annuaireDeTest))
 
 dependencies {
     implementation(project(":coeur-identite"))
