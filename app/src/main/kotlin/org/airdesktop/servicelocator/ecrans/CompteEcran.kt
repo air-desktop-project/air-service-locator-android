@@ -1,7 +1,8 @@
 package org.airdesktop.servicelocator.ecrans
 
-import androidx.compose.ui.platform.LocalContext
 import android.content.Context
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import android.os.Build
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +53,16 @@ import org.airdesktop.servicelocator.composants.Aide
 import org.airdesktop.servicelocator.composants.Erreur
 import org.airdesktop.servicelocator.composants.Formats
 import org.airdesktop.servicelocator.composants.Icones
-import org.airdesktop.servicelocator.composants.LigneIdentifiant
+import org.airdesktop.servicelocator.composants.BoutonCopier
+import org.airdesktop.servicelocator.composants.BoutonDeGeste
+import org.airdesktop.servicelocator.composants.BoutonDestructif
+import org.airdesktop.servicelocator.composants.FeuilleDeSaisie
+import org.airdesktop.servicelocator.composants.LigneAGeste
+import org.airdesktop.servicelocator.composants.PiedDestructif
+import org.airdesktop.servicelocator.composants.TexteAbsent
+import org.airdesktop.servicelocator.composants.TexteFixe
+import org.airdesktop.servicelocator.composants.Tuile
+import org.airdesktop.servicelocator.composants.rememberGesteEnFeuille
 import org.airdesktop.servicelocator.composants.SousTitre
 import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
@@ -84,6 +95,7 @@ fun CompteEcran(nav: NavController) {
     // Effacer le compte : la demande (le dialogue), puis l'attente de l'annuaire, puis son refus s'il refuse — dit
     // à côté du bouton, en bas, là où l'on regarde à ce moment-là.
     var effacementDemande by remember { mutableStateOf(false) }
+    var aliasDemande by remember { mutableStateOf(false) }
     var effacementEnCours by remember { mutableStateOf(false) }
     var erreurEffacement by remember { mutableStateOf<String?>(null) }
     // Le choix de la racine : le dialogue ouvert ou non. La racine en service se lit dans `session.choix`.
@@ -123,16 +135,25 @@ fun CompteEcran(nav: NavController) {
             item { Erreur(chargement.erreur ?: erreur) }
             if (compte != null) {
                 item { SousTitre("Identité") }
-                item { LigneIdentifiant("Identifiant public", compte.identifiant, partageable = true) }
                 item {
-                    ListItem(
-                        headlineContent = { Text("Alias public") },
-                        supportingContent = { Text(compte.alias ?: "aucun") },
-                        trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        modifier = Modifier.clickable { nav.navigate(Routes.ALIAS) },
-                    )
+                    Tuile {
+                        LigneAGeste("Identifiant public", geste = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                BoutonCopier(compte.identifiant.texte)
+                                IconButton(onClick = {
+                                    val envoi = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, compte.identifiant.texte)
+                                    contexte.startActivity(Intent.createChooser(envoi, null))
+                                }) { Icon(Icones.partager, "Partager l'identifiant", tint = MaterialTheme.colorScheme.primary) }
+                            }
+                        }) { TexteFixe(compte.identifiant.texte) }
+                        val alias = compte.alias
+                        LigneAGeste(
+                            TextesCompte.aliasPublic,
+                            geste = { BoutonDeGeste(if (alias == null) TextesCompte.choisir else TextesCompte.modifier) { aliasDemande = true } },
+                        ) { if (alias != null) Text(alias, style = MaterialTheme.typography.bodyMedium) else TexteAbsent(TextesCompte.sansAlias) }
+                    }
                 }
-                item { Aide("À donner à qui doit vous accorder un accès. Un alias est public et devinable ; sans alias, seul l'identifiant vous rend trouvable.") }
+                item { Aide("À donner à qui doit vous accorder un accès. Un alias est public et devinable.") }
             }
             item { SousTitre("Appareils") }
             items(appareilsMontres, key = { it.id.texte }) { appareil ->
@@ -304,23 +325,15 @@ fun CompteEcran(nav: NavController) {
                     modifier = Modifier.clickable { nav.navigate(Routes.EXPOSITIONS) },
                 )
             }
-            // Tout en bas, et visible : le geste qui ferme le compte depuis cet appareil — le dernier acte de sa clé
-            // (`docs/modele.md` §2.1). Le dialogue dit ce qui part ; ici, seulement que ça ne revient pas.
+            // Tout en bas, à part, en rouge : le geste qui ferme le compte depuis cet appareil — le dernier acte de sa clé
+            // (`docs/modele.md` §2.1). La phrase dit ce qui part ; la confirmation le redit.
             if (compte != null) {
-                item { SousTitre("Effacer") }
                 item {
-                    TextButton(
-                        onClick = { effacementDemande = true },
-                        enabled = !effacementEnCours,
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    ) {
-                        Text(
-                            if (effacementEnCours) "Effacement en cours…" else "Effacer mon compte",
-                            color = if (effacementEnCours) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-                        )
-                    }
+                    PiedDestructif(
+                        TextesCompte.effacement, if (effacementEnCours) TextesCompte.effacementEnCours else TextesCompte.effacer,
+                        Modifier.padding(horizontal = 16.dp, vertical = 16.dp), actif = !effacementEnCours,
+                    ) { effacementDemande = true }
                 }
-                item { Aide("Le compte, ses appareils, ses machines, ses accès et son alias quittent l'annuaire, et cet appareil revient à l'écran d'accueil. Rien ne revient.") }
                 item { Erreur(erreurEffacement) }
             }
         }
@@ -343,25 +356,22 @@ fun CompteEcran(nav: NavController) {
         )
     }
     if (effacementDemande) {
-        AlertDialog(
-            onDismissRequest = { effacementDemande = false },
-            title = { Text("Effacer mon compte ?") },
-            text = { Text("Tous vos appareils, vos machines et leurs services, vos accès donnés et reçus, votre alias. Rien ne revient.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    effacementDemande = false
-                    effacementEnCours = true
-                    erreurEffacement = null
-                    portee.launch {
-                        // Réussi, le compte est `null` et l'accueil a déjà remplacé cet écran ; refusé, on le dit ici.
-                        runCatching { session.effacerCompte() }.onFailure { erreurEffacement = it.messageAnnuaire }
-                        effacementEnCours = false
-                    }
-                }) { Text("Effacer", color = MaterialTheme.colorScheme.error) }
+        Confirmation(
+            titre = TextesCompte.confirmerEffacement, texte = TextesCompte.effacementConfirme, action = TextesCompte.effacerMonCompte,
+            onAnnuler = { effacementDemande = false },
+            onConfirmer = {
+                effacementDemande = false
+                effacementEnCours = true
+                erreurEffacement = null
+                portee.launch {
+                    // Réussi, le compte est `null` et l'accueil a déjà remplacé cet écran ; refusé, on le dit ici.
+                    runCatching { session.effacerCompte() }.onFailure { erreurEffacement = it.messageAnnuaire }
+                    effacementEnCours = false
+                }
             },
-            dismissButton = { TextButton(onClick = { effacementDemande = false }) { Text("Annuler") } },
         )
     }
+    if (aliasDemande) FeuilleDeLAliasPublic(onFermer = { aliasDemande = false })
 
     aRevoquer?.let { appareil ->
         AlertDialog(
@@ -382,43 +392,60 @@ fun CompteEcran(nav: NavController) {
     }
 }
 
-/** L'alias public — la seule donnée que l'utilisateur nous confie. */
+/** Les mots du compte — **recopiés de l'application Mac** (`CompteFenetreVue.swift`, PR iOS #36). */
+internal object TextesCompte {
+    const val aliasPublic = "Alias public"
+    const val sansAlias = "aucun — sans alias, seul l'identifiant vous rend trouvable"
+    const val choisir = "Choisir…"
+    const val modifier = "Modifier…"
+    const val aliasTitre = "Alias public du compte"
+    const val regleAlias = "3 à 32 octets, majuscules et accents permis ; pas de tiret en deuxième caractère."
+    /** Ce que la page de l'alias disait déjà, et que le Mac ne dit pas : pourquoi un alias ne vaut pas l'identifiant. */
+    const val aliasPublicParConstruction =
+        "Il est unique, et public par construction : quiconque peut essayer un alias et découvrir qu'il existe. Il ne rend rien d'autre que votre identifiant — c'est lui, affiché à côté, qui fait foi."
+    const val alias = "Alias"
+    const val enregistrer = "Enregistrer"
+    const val retirerLAlias = "Retirer l'alias"
+
+    /** Le Mac ajoute « et l'identité de machine de ce Mac » : un téléphone n'en a pas. */
+    const val effacement =
+        "Tout part : vos appareils, vos machines et leurs services, vos accès donnés et reçus, votre alias. Rien ne revient. Un compte dont le dernier appareil est révoqué s'efface de lui-même à trente jours."
+    const val effacer = "Effacer mon compte…"
+    const val effacementEnCours = "Effacement en cours…"
+    const val confirmerEffacement = "Effacer ce compte ?"
+    const val effacementConfirme = "Vos appareils, vos machines et leurs services, vos accès donnés et reçus, votre alias — tout part, et rien ne revient."
+    const val effacerMonCompte = "Effacer mon compte"
+}
+
+/**
+ * L'alias public — la seule donnée que l'utilisateur nous confie —, dans une feuille. Comme sur le Mac, vider le
+ * champ et enregistrer le retire ; « Retirer l'alias », sous les boutons, le fait sans vider.
+ */
 @Composable
-fun AliasEcran(nav: NavController) {
+private fun FeuilleDeLAliasPublic(onFermer: () -> Unit) {
     val session = LocalSession.current
-    val portee = rememberCoroutineScope()
-    var alias by remember { mutableStateOf(session.compte?.alias ?: "") }
-    var erreur by remember { mutableStateOf<String?>(null) }
-
-    fun definir(valeur: String?) = portee.launch {
-        runCatching { session.definirAlias(valeur) }.onSuccess { nav.popBackStack() }.onFailure { erreur = it.messageAnnuaire }
-    }
-
-    Scaffold(
-        topBar = {
-            Barre("Alias public", nav) {
-                TextButton(
-                    enabled = Alias.pourCompte(alias).let { it != null && it != session.compte?.alias },
-                    onClick = { definir(alias) },
-                ) { Text("Enregistrer") }
+    val actuel = session.compte?.alias
+    // `definirAlias` relit le compte : la ligne de la tuile change d'elle-même.
+    val geste = rememberGesteEnFeuille(onFermer)
+    var alias by remember { mutableStateOf(actuel ?: "") }
+    val aEnvoyer = Saisies.aliasDeCompte(alias, actuel)
+    FeuilleDeSaisie(
+        titre = TextesCompte.aliasTitre, explication = TextesCompte.regleAlias, action = TextesCompte.enregistrer,
+        actionPermise = aEnvoyer != null, enCours = geste.enCours, erreur = geste.erreur, onFermer = onFermer,
+        valider = {
+            when (aEnvoyer) {
+                is Saisies.AliasDeCompte.Poser -> geste.faire { session.definirAlias(aEnvoyer.alias) }
+                Saisies.AliasDeCompte.Retirer -> geste.faire { session.definirAlias(null) }
+                null -> Unit
             }
         },
-    ) { marges ->
-        Column(Modifier.padding(marges)) {
-            OutlinedTextField(
-                alias, { alias = it }, label = { Text("alias") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                isError = alias.isNotEmpty() && Alias.pourCompte(alias) == null,
-            )
-            Aide("3 à 32 octets, majuscules et accents permis ; pas de tiret en deuxième caractère.")
-            Aide("Il est unique, et public par construction : quiconque peut essayer un alias et découvrir qu'il existe. Il ne rend rien d'autre que votre identifiant — c'est lui, affiché à côté, qui fait foi.")
-            Erreur(erreur)
-            if (session.compte?.alias != null) {
-                TextButton(onClick = { definir(null) }, modifier = Modifier.padding(16.dp)) {
-                    Text("Retirer", color = MaterialTheme.colorScheme.error)
-                }
-            }
-        }
+        gauche = if (actuel != null) ({ BoutonDestructif(TextesCompte.retirerLAlias, actif = !geste.enCours) { geste.faire { session.definirAlias(null) } } }) else null,
+    ) {
+        OutlinedTextField(
+            alias, { alias = it }, label = { Text(TextesCompte.alias) }, placeholder = { Text("alias") }, singleLine = true,
+            isError = alias.isNotEmpty() && Alias.pourCompte(alias) == null, modifier = Modifier.fillMaxWidth(),
+        )
+        Text(TextesCompte.aliasPublicParConstruction, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

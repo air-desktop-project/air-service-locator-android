@@ -30,6 +30,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +46,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 // ── La règle d'écran du Mac, portée au téléphone ─────────────────────────────
 //
@@ -126,28 +136,38 @@ fun BoutonCopier(texte: String) {
     TextButton(onClick = { presse.setText(AnnotatedString(texte)) }) { Text("Copier") }
 }
 
-/** Un geste qu'on ne défait pas : un vrai bouton, bordé et écrit en rouge. */
+/** Un geste qu'on ne défait pas : un vrai bouton, bordé et écrit en rouge. Éteint, il se grise comme les autres. */
 @Composable
-fun BoutonDestructif(titre: String, action: () -> Unit) {
-    val rouge = MaterialTheme.colorScheme.error
+fun BoutonDestructif(titre: String, actif: Boolean = true, action: () -> Unit) {
+    val rouge = if (actif) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
     OutlinedButton(
         onClick = action,
+        enabled = actif,
         border = BorderStroke(1.dp, rouge),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = rouge),
     ) { Text(titre) }
 }
 
-/** Le geste qu'on ne défait pas, à part en bas de la tuile : ce qu'il fait, dit en une phrase, et le bouton rouge. */
+/**
+ * Le geste qu'on ne défait pas, à part en bas de la tuile ou de la page : ce qu'il fait, dit en une phrase, et le
+ * bouton rouge. [actif] l'éteint le temps que l'annuaire réponde — un second appui n'enverrait rien de plus sûr.
+ */
 @Composable
-fun PiedDestructif(explication: String, titre: String, action: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+fun PiedDestructif(explication: String, titre: String, modifier: Modifier = Modifier, actif: Boolean = true, action: () -> Unit) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         HorizontalDivider(Modifier.padding(bottom = 4.dp))
         Text(explication, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.weight(1f))
-            BoutonDestructif(titre, action)
+            BoutonDestructif(titre, actif, action)
         }
     }
+}
+
+/** Le bouton en regard d'une donnée : « Modifier… », « Changer… », « Choisir… ». Un bouton de texte, discret. */
+@Composable
+fun BoutonDeGeste(titre: String, action: () -> Unit) {
+    TextButton(onClick = action) { Text(titre) }
 }
 
 /**
@@ -170,6 +190,10 @@ fun Feuille(onFermer: () -> Unit, contenu: @Composable ColumnScope.() -> Unit) {
 /**
  * Une feuille de saisie : un titre, une explication, le formulaire, l'erreur s'il y en a une — dite DANS la feuille,
  * là où l'on regarde —, et les boutons en bas : Annuler, et l'action.
+ *
+ * [gauche], s'il y en a un, est le geste qui retire ce que la feuille édite (« Retirer l'alias ») — à gauche des
+ * boutons sur le Mac. Le téléphone n'a pas la largeur de trois boutons sur une ligne : il passe SOUS eux, à gauche,
+ * à part de l'action, là où un doigt qui vise « Enregistrer » ne le touche pas.
  */
 @Composable
 fun FeuilleDeSaisie(
@@ -181,6 +205,7 @@ fun FeuilleDeSaisie(
     erreur: String?,
     onFermer: () -> Unit,
     valider: () -> Unit,
+    gauche: (@Composable () -> Unit)? = null,
     formulaire: @Composable ColumnScope.() -> Unit,
 ) {
     Feuille(onFermer) {
@@ -194,5 +219,37 @@ fun FeuilleDeSaisie(
             TextButton(onClick = onFermer) { Text("Annuler") }
             Button(onClick = valider, enabled = actionPermise && !enCours) { Text(action) }
         }
+        if (gauche != null) Row(Modifier.fillMaxWidth()) { gauche() }
     }
+}
+
+/**
+ * Ce qu'une feuille fait de son action, comme le `faire` des feuilles du Mac : l'attente, puis la feuille se ferme si
+ * l'annuaire a rangé le geste ([apres]), ou dit son refus DANS la feuille, qui reste ouverte avec la saisie.
+ */
+@Stable
+class GesteEnFeuille internal constructor(private val portee: CoroutineScope, private val apres: State<() -> Unit>) {
+    var enCours by mutableStateOf(false)
+        private set
+    var erreur by mutableStateOf<String?>(null)
+        private set
+
+    fun faire(geste: suspend () -> Unit) {
+        if (enCours) return
+        enCours = true
+        portee.launch {
+            runCatching { geste() }
+                .onSuccess { erreur = null; apres.value() }
+                .onFailure { erreur = it.messageAnnuaire }
+            enCours = false
+        }
+    }
+}
+
+/** Le [GesteEnFeuille] d'une feuille ; [apres] est appelé quand l'annuaire a rangé le geste. */
+@Composable
+fun rememberGesteEnFeuille(apres: () -> Unit): GesteEnFeuille {
+    val portee = rememberCoroutineScope()
+    val suite = rememberUpdatedState(apres)
+    return remember { GesteEnFeuille(portee, suite) }
 }
