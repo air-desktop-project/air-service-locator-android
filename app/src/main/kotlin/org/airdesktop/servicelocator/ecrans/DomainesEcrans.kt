@@ -79,8 +79,11 @@ internal object TextesDomaines {
     const val adresseAide = "L'adresse où la machine qui l'héberge écoute."
     const val codeTitre = "Code d'inscription"
     const val codeAide = "À présenter sur la machine dans les 24 heures :"
-    /** `racine` : l'adresse de la racine à laquelle l'application parle ; `<racine.pem>` et `<clé>` restent littéraux. */
-    fun commande(code: String, racine: String) = "asl-server --register $code --directory $racine --ca <racine.pem> --identity-key <clé>"
+    /**
+     * `racine` : la racine à laquelle l'application parle, sous la forme `locateur=n-…` que le serveur
+     * croit par sa clé (décision 58) — plus d'autorité `--ca`. `<clé>` reste littéral.
+     */
+    fun commande(code: String, racine: String) = "asl-server --register $code --directory $racine --identity-key <clé>"
     const val secondMembre = "Déclarer le second membre de la paire"
     const val retirer = "Retirer l'annuaire"
     const val confirmerRetrait = "La paire entière est retirée ; les domaines qu'elle héberge reviennent aux racines."

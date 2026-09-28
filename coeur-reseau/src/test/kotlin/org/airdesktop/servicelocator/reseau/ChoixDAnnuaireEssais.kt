@@ -15,11 +15,18 @@ class ChoixDAnnuaireEssais {
     private val argon = RacineDAnnuaire("argon.air-desktop.org:6630", "argon.air-desktop.org")
     private val automatique = RacineDAnnuaire("asl-root.air-desktop.org:6630", "asl-root.air-desktop.org", "Automatique")
 
+    private val nitrogenN = RacineIdentifiee("n-0PWT8HZD80QMSPPDZ5CQXXYHQC", listOf("178.32.16.250:6630"))
+    private val argonN = RacineIdentifiee("n-3K3P6H252W8K9370QG1YYTWBWB", listOf("178.32.16.249:6630"))
+
     private val liste = """
         {"annuaires": [
-          {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org"},
-          {"adresse": "argon.air-desktop.org:6630", "nom": "argon.air-desktop.org"},
-          {"adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org", "libelle": "Automatique"}
+          {"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org",
+           "annuaire": "${nitrogenN.annuaire}", "locateurs": ["178.32.16.250:6630"]},
+          {"adresse": "argon.air-desktop.org:6630", "nom": "argon.air-desktop.org",
+           "annuaire": "${argonN.annuaire}", "locateurs": ["178.32.16.249:6630"]},
+          {"adresse": "asl-root.air-desktop.org:6630", "nom": "asl-root.air-desktop.org", "libelle": "Automatique",
+           "racines": [{"annuaire": "${nitrogenN.annuaire}", "locateurs": ["178.32.16.250:6630"]},
+                       {"annuaire": "${argonN.annuaire}", "locateurs": ["178.32.16.249:6630"]}]}
         ]}
     """.trimIndent()
 
@@ -30,31 +37,42 @@ class ChoixDAnnuaireEssais {
     @Test
     fun laListeSeLitDansSonOrdreAvecSesLibelles() {
         val lue = ListeDAnnuaires.lire(liste)
-        assertEquals(listOf(nitrogen, argon, automatique), lue)
+        assertEquals(
+            listOf(
+                nitrogen.copy(identites = listOf(nitrogenN)),
+                argon.copy(identites = listOf(argonN)),
+                automatique.copy(identites = listOf(nitrogenN, argonN)),
+            ),
+            lue,
+        )
         assertEquals("argon.air-desktop.org", lue[1].affichee)
         assertEquals("Automatique", lue[2].affichee)
     }
 
     @Test
-    fun lAncienneFormeEstUneListeDUnElement() {
-        val lue = ListeDAnnuaires.lire("""{"adresse": "192.0.2.1:6630", "nom": "annuaire"}""")
-        assertEquals(listOf(RacineDAnnuaire("192.0.2.1:6630", "annuaire")), lue)
+    fun uneEntreeSeuleEstUneListeDUnElement() {
+        val lue = ListeDAnnuaires.lire("""{"adresse": "192.0.2.1:6630", "nom": "annuaire", "annuaire": "${argonN.annuaire}", "locateurs": ["192.0.2.1:6630"]}""")
+        assertEquals(listOf(RacineDAnnuaire("192.0.2.1:6630", "annuaire", identites = listOf(RacineIdentifiee(argonN.annuaire, listOf("192.0.2.1:6630"))))), lue)
     }
 
     @Test
-    fun unTexteIllisibleRendUneListeVideEtUneEntreeIncompleteEstSautee() {
+    fun unTexteIllisibleRendUneListeVideEtUneEntreeSansIdentiteEstSautee() {
         assertEquals(emptyList<RacineDAnnuaire>(), ListeDAnnuaires.lire("pas du json"))
         assertEquals(emptyList<RacineDAnnuaire>(), ListeDAnnuaires.lire("""{"annuaires": "nitrogen"}"""))
-        val lue = ListeDAnnuaires.lire("""{"annuaires": [{"adresse": "a:1"}, {"adresse": "b:1", "nom": "b"}]}""")
-        assertEquals(listOf(RacineDAnnuaire("b:1", "b")), lue)
+        val lue = ListeDAnnuaires.lire(
+            """{"annuaires": [{"adresse": "a:1", "nom": "a"}, {"adresse": "b:1", "nom": "b", "annuaire": "${argonN.annuaire}", "locateurs": ["178.32.16.249:6630"]}]}""",
+        )
+        assertEquals(listOf(RacineDAnnuaire("b:1", "b", identites = listOf(argonN))), lue)
     }
 
     @Test
     fun deuxEntreesALaMemeAdresseNEnFontQuUne() {
         val lue = ListeDAnnuaires.lire(
-            """{"annuaires": [{"adresse": "a:1", "nom": "premier"}, {"adresse": "a:1", "nom": "second"}]}""",
+            """{"annuaires": [
+                {"adresse": "a:1", "nom": "premier", "annuaire": "${nitrogenN.annuaire}", "locateurs": ["178.32.16.250:6630"]},
+                {"adresse": "a:1", "nom": "second", "annuaire": "${argonN.annuaire}", "locateurs": ["178.32.16.249:6630"]}]}""",
         )
-        assertEquals(listOf(RacineDAnnuaire("a:1", "premier")), lue)
+        assertEquals(listOf(RacineDAnnuaire("a:1", "premier", identites = listOf(nitrogenN))), lue)
     }
 
     // ── Le choix retenu ───────────────────────────────────────────────────────

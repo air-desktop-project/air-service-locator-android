@@ -10,7 +10,7 @@ import org.junit.Test
 /**
  * Les racines désignées par leur identité (décisions 53–58, C20) : les deux
  * écritures d'`annuaire.json`, les locateurs qu'on écarte sans les résoudre,
- * la liste sans PEM, la préférence, et le nom dit d'après l'identité.
+ * l'entrée sans identité qu'on saute, la préférence, et le nom dit d'après l'identité.
  */
 class AnnuaireIdentifieEssais {
     private val nitrogenN = "n-0PWT8HZD80QMSPPDZ5CQXXYHQC"
@@ -73,11 +73,11 @@ class AnnuaireIdentifieEssais {
     fun unIdentifiantDeTraversOuSansLocateurLitteralEcarteLaRacine() {
         assertEquals(
             emptyList<RacineDAnnuaire>(),
-            ListeDAnnuaires.lire("""{"annuaire": "u-0PWT8HZD80QMSPPDZ5CQXXYHQC", "locateurs": ["178.32.16.250:6630"]}""", avecAutorite = false),
+            ListeDAnnuaires.lire("""{"annuaire": "u-0PWT8HZD80QMSPPDZ5CQXXYHQC", "locateurs": ["178.32.16.250:6630"]}"""),
         )
         assertEquals(
             emptyList<RacineDAnnuaire>(),
-            ListeDAnnuaires.lire("""{"annuaire": "$nitrogenN", "locateurs": ["nitrogen.air-desktop.org:6630"]}""", avecAutorite = false),
+            ListeDAnnuaires.lire("""{"annuaire": "$nitrogenN", "locateurs": ["nitrogen.air-desktop.org:6630"]}"""),
         )
     }
 
@@ -94,22 +94,31 @@ class AnnuaireIdentifieEssais {
         assertFalse(ListeDAnnuaires.estLitteral("[]:6630"))
     }
 
-    // ── Sans PEM ──────────────────────────────────────────────────────────────
+    // ── Sans identité, rien à joindre ─────────────────────────────────────────
 
     @Test
-    fun sansAutoriteSeulesLesEntreesIdentifieesRestent() {
+    fun uneEntreeSansIdentiteEstLaisseeDeCoteEtLeJournalLeDit() {
         val melange = """
             {"annuaires": [
               {"adresse": "vieille.example:6630", "nom": "vieille.example"},
               {"annuaire": "$argonN", "locateurs": ["178.32.16.249:6630"]}
             ]}
         """.trimIndent()
-        assertEquals(2, ListeDAnnuaires.lire(melange).size)
-        val sansPem = ListeDAnnuaires.lire(melange, avecAutorite = false)
-        assertEquals(listOf(argonN), sansPem.single().identites.map { it.annuaire })
+        val journal = mutableListOf<String>()
+        val lue = ListeDAnnuaires.lire(melange) { journal += it }
+        assertEquals(listOf(argonN), lue.single().identites.map { it.annuaire })
+        assertTrue(journal.single(), journal.single().contains("vieille.example:6630"))
         // Une entrée sans adresse prend pour nom celui que l'identité donne.
-        assertEquals("argon.air-desktop.org", sansPem.single().nom)
-        assertEquals("", sansPem.single().adresse)
+        assertEquals("argon.air-desktop.org", lue.single().nom)
+        assertEquals("", lue.single().adresse)
+    }
+
+    @Test
+    fun uneListeSansAucuneIdentiteNeDonneRien() {
+        val journal = mutableListOf<String>()
+        val lue = ListeDAnnuaires.lire("""{"adresse": "nitrogen.air-desktop.org:6630", "nom": "nitrogen.air-desktop.org"}""") { journal += it }
+        assertEquals(emptyList<RacineDAnnuaire>(), lue)
+        assertEquals(1, journal.size)
     }
 
     // ── La préférence ─────────────────────────────────────────────────────────
@@ -120,7 +129,6 @@ class AnnuaireIdentifieEssais {
         assertEquals("nitrogen.air-desktop.org:6630", lue[1].cle)
         val sansAdresse = ListeDAnnuaires.lire(
             """{"racines": [{"annuaire": "$nitrogenN", "locateurs": ["178.32.16.250:6630"]}, {"annuaire": "$argonN", "locateurs": ["178.32.16.249:6630"]}]}""",
-            avecAutorite = false,
         ).single()
         assertEquals("$nitrogenN,$argonN", sansAdresse.cle)
 
@@ -151,7 +159,7 @@ class AnnuaireIdentifieEssais {
     @Test
     fun uneIdentiteInconnueSeDitAbregee() {
         val inconnue = "n-7MSV5RPCXBZH25PQM4ZPE5X87P"
-        val lue = ListeDAnnuaires.lire("""{"annuaire": "$inconnue", "locateurs": ["[2001:db8::7]:6630"]}""", avecAutorite = false)
+        val lue = ListeDAnnuaires.lire("""{"annuaire": "$inconnue", "locateurs": ["[2001:db8::7]:6630"]}""")
         assertEquals("n-7MSV…X87P", RacineJointe.nommerParIdentite("[2001:db8::7]:6630", lue))
         assertEquals("n-7MSV…X87P", lue.single().nom)
     }
@@ -160,6 +168,7 @@ class AnnuaireIdentifieEssais {
     fun leJournalDitLeLocateurEtLIdentiteAttendue() {
         val sansAdresse = RacineDAnnuaire("", "argon.air-desktop.org", identites = listOf(RacineIdentifiee(argonN, argonLoc)))
         assertEquals("[2001:41d0:20a:900::1d32]:6630=$argonN", sansAdresse.affichePourLeJournal)
-        assertEquals("argon.air-desktop.org:6630", sansAdresse.copy(adresse = "argon.air-desktop.org:6630").affichePourLeJournal)
+        // L'adresse n'est qu'une clé de préférence : le journal dit toujours ce qui est joint.
+        assertEquals("[2001:41d0:20a:900::1d32]:6630=$argonN", sansAdresse.copy(adresse = "argon.air-desktop.org:6630").affichePourLeJournal)
     }
 }

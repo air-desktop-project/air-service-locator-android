@@ -86,53 +86,22 @@ class AnnuaireReel(
      */
     private val racinesConnues: List<RacineDAnnuaire> = emptyList(),
 ) : Annuaire {
-    /** Où est l'annuaire, sous quel nom, et qui a signé son certificat. */
     /**
-     * Où est l'annuaire, sous quel nom, et qui a signé son certificat.
+     * À qui l'on parle : les racines de l'entrée choisie, par leur IDENTITÉ.
      *
-     * `adresse` est `hôte:port` — l'hôte est une adresse littérale ou un nom.
-     * Un nom se résout ICI, par le résolveur du téléphone : la bibliothèque
-     * n'embarque pas de client DNS (`annuaires.md`), et ne prend que des
-     * adresses littérales. `nom` est celui qu'on EXIGE du certificat, jamais
-     * déduit de l'adresse.
+     * **Plus d'autorité ni de nom** (fin de la transition, décision 58) : les
+     * racines ne présentent que leur certificat d'identité, crues par la clé ;
+     * chaque locateur est une adresse littérale, rien ne se résout (C20).
+     * `adresse` et `nom` ne restent que pour le journal et le nommage.
      */
     data class Reglages(
         val adresse: String,
         val nom: String,
-        val racinesPEM: ByteArray,
-        /** Les racines jointes par leur identité — vide pour une entrée d'hier. */
-        val identites: List<RacineIdentifiee> = emptyList(),
+        /** Les racines jointes par leur identité ; vide, il n'y a rien à joindre. */
+        val identites: List<RacineIdentifiee>,
     ) {
         /** Ce que le journal dit de la cible. */
         val affiche: String get() = RacineDAnnuaire(adresse, nom, identites = identites).affichePourLeJournal
-    }
-
-    companion object {
-        /**
-         * Les adresses littérales de l'annuaire, IPv6 d'abord : celle donnée si
-         * c'en est une, sinon ce que le résolveur rend pour le nom. Aucune
-         * adresse est une faute de réglage, dite comme telle.
-         */
-        fun adressesLitterales(hotePort: String): List<String> {
-            val deuxPoints = hotePort.lastIndexOf(':').takeIf { it > 0 }
-                ?: throw ErreurAnnuaire.RequeteInvalide("adresse d'annuaire « $hotePort » : hôte:port attendu")
-            val port = hotePort.substring(deuxPoints + 1).toIntOrNull()
-                ?: throw ErreurAnnuaire.RequeteInvalide("adresse d'annuaire « $hotePort » : port invalide")
-            val hote = hotePort.substring(0, deuxPoints).removePrefix("[").removeSuffix("]")
-            if (hote.contains(':') || hote.all { it.isDigit() || it == '.' }) {
-                return listOf(if (hote.contains(':')) "[$hote]:$port" else "$hote:$port")
-            }
-            val adresses = try {
-                java.net.InetAddress.getAllByName(hote).toList()
-            } catch (e: java.net.UnknownHostException) {
-                throw ErreurAnnuaire.Reseau("« $hote » ne se résout pas")
-            }
-            // IPv6 d'abord ; et le résolveur peut rendre deux fois la même.
-            return (adresses.filterIsInstance<java.net.Inet6Address>() + adresses.filterIsInstance<java.net.Inet4Address>())
-                .mapNotNull { a -> a.hostAddress?.let { if (a is java.net.Inet6Address) "[${it.substringBefore('%')}]:$port" else "$it:$port" } }
-                .distinct()
-                .ifEmpty { throw ErreurAnnuaire.Reseau("« $hote » ne rend aucune adresse") }
-        }
     }
 
     class ErreurNative(val code: Int) : Exception("natif : ${Natif.fauteTexte(code)} ($code)")
@@ -167,26 +136,18 @@ class AnnuaireReel(
             Log.e("annuaire", Natif.diagnostic())
             throw ErreurNative(Natif.INTERNE)
         }
-        if (reglages.identites.isNotEmpty()) {
-            // Chaque locateur de chaque racine, avec l'identité qu'on doit y trouver : aucun nom à résoudre, aucun
-            // nom envoyé (C20).
-            for (racine in reglages.identites) {
-                for (locateur in racine.locateurs) {
-                    Log.d("annuaire", "annuaire $locateur (identité ${racine.annuaire})")
-                    exiger(Natif.annuaireIdentifie(neuf, locateur, racine.annuaire), "annuaire_identifie")
-                }
-            }
-        } else {
-            for (adresse in adressesLitterales(reglages.adresse)) {
-                Log.d("annuaire", "annuaire $adresse (nom exigé ${reglages.nom})")
-                exiger(Natif.annuaire(neuf, adresse, reglages.nom), "annuaire")
+        if (reglages.identites.isEmpty()) {
+            Natif.libere(neuf)
+            throw ErreurAnnuaire.RequeteInvalide("aucune racine identifiée à joindre : la configuration ne donne ni `annuaire` n-… ni locateur littéral")
+        }
+        // Chaque locateur de chaque racine, avec l'identité qu'on doit y trouver : aucun nom à résoudre, aucun nom
+        // envoyé, aucune autorité (C20, décision 58).
+        for (racine in reglages.identites) {
+            for (locateur in racine.locateurs) {
+                Log.d("annuaire", "annuaire $locateur (identité ${racine.annuaire})")
+                exiger(Natif.annuaireIdentifie(neuf, locateur, racine.annuaire), "annuaire_identifie")
             }
         }
-        // **LA BASCULE** : l'autorité d'hier reste posée tant que la configuration en porte une. Une racine
-        // d'aujourd'hui (≤ 0.28) ne présente que sa chaîne, dont les certificats portent ses adresses ; une racine
-        // qui présente son identité est crue par la clé. La même connexion sert donc les deux, sans sonder la
-        // version d'abord — la poignée de main précède tout `GET /v1/version`. La règle de l'application iOS.
-        if (reglages.racinesPEM.isNotEmpty()) exiger(Natif.racines(neuf, reglages.racinesPEM), "racines")
         // **LA CLÉ N'EST POSÉE QUE SI ELLE EXISTE.** Sur un appareil neuf, elle
         // se crée dans `ouvrirCompte` ou `clePourRejoindre`, AVEC le défi
         // d'attestation de la connexion. Une connexion nue n'en a pas besoin.
@@ -241,14 +202,7 @@ class AnnuaireReel(
         val liste = racinesConnues.ifEmpty { listOf(RacineDAnnuaire(reglages.adresse, reglages.nom, identites = reglages.identites)) }
         // D'abord par l'identité : le locateur joint dit le `n-…`, la table le nomme — rien n'est résolu.
         val parIdentite = RacineJointe.nommerParIdentite(adresse, liste)
-        if (parIdentite != null) {
-            suivi.jointe(adresse, parIdentite)
-        } else {
-            // La forme d'hier seulement : on résout les entrées qui n'ont pas d'identité — jamais les autres.
-            val connues = liste.filter { !it.parIdentite }
-                .map { racine -> racine.nom to (runCatching { adressesLitterales(racine.adresse) }.getOrNull() ?: emptyList()) }
-            suivi.jointe(adresse, connues)
-        }
+        if (parIdentite != null) suivi.jointe(adresse, parIdentite) else suivi.jointe(adresse, emptyList())
         val nom = suivi.racine.value?.nom
         Log.d("annuaire", "racine jointe : $adresse${nom?.let { " ($it)" } ?: ""}")
     }

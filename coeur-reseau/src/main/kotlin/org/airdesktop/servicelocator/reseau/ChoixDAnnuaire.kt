@@ -18,12 +18,12 @@ data class RacineIdentifiee(val annuaire: String, val locateurs: List<String>)
 /**
  * Une racine de l'annuaire, telle que la configuration la décrit.
  *
- * **Deux façons d'y parler, qui peuvent coexister.** Celle d'hier : `adresse`
- * est `hôte:port` (un nom se résout au moment de se connecter, et TOUTES ses
- * adresses sont posées) et `nom` est celui qu'on EXIGE du certificat. Celle
- * d'aujourd'hui : [identites], une ou plusieurs racines jointes par leurs
- * locateurs et crues par leur clé — plus aucun nom à résoudre. `libelle`,
- * facultatif, est ce que l'écran montre à la place du nom.
+ * **On n'y parle que par l'identité** : [identites], une ou plusieurs racines
+ * jointes par leurs locateurs littéraux et crues par leur clé — aucun nom à
+ * résoudre, aucune autorité (fin de la transition, décision 58 ; C20).
+ * `adresse` et `nom` ne servent plus à se connecter : `adresse` reste la clé de
+ * la préférence retenue (un choix d'hier le reste), `nom` ce que l'écran montre
+ * à défaut de `libelle`.
  */
 data class RacineDAnnuaire(
     val adresse: String,
@@ -31,7 +31,7 @@ data class RacineDAnnuaire(
     val libelle: String? = null,
     val identites: List<RacineIdentifiee> = emptyList(),
 ) {
-    /** Ce que l'écran montre : le libellé s'il y en a un, sinon le nom du certificat. */
+    /** Ce que l'écran montre : le libellé s'il y en a un, sinon le nom de la racine. */
     val affichee: String get() = libelle ?: nom
 
     /** Jointe par l'identité : aucun nom n'est résolu pour elle. */
@@ -44,9 +44,12 @@ data class RacineDAnnuaire(
      */
     val cle: String get() = adresse.ifEmpty { identites.joinToString(",") { it.annuaire } }
 
-    /** Ce que le journal dit de la cible : l'adresse, ou le premier locateur et l'identité attendue. */
+    /**
+     * Ce que le journal et la commande d'inscription disent de la cible : le premier locateur et l'identité
+     * attendue (`locateur=n-…`, la forme que `asl-server --directory` accepte) — jamais un nom.
+     */
     val affichePourLeJournal: String
-        get() = adresse.ifEmpty { identites.firstOrNull()?.let { r -> r.locateurs.firstOrNull()?.let { "$it=${r.annuaire}" } } ?: nom }
+        get() = identites.firstOrNull()?.let { r -> r.locateurs.firstOrNull()?.let { "$it=${r.annuaire}" } } ?: nom
 }
 
 /**
@@ -66,8 +69,8 @@ object RacinesConnues {
 
 /**
  * La liste des racines, lue dans la forme que l'application iOS lit aussi
- * (`annuaire.json`, dépôt `-ios`, PR #29) — une entrée peut porter la forme
- * d'hier, la forme identifiée, ou les deux :
+ * (`annuaire.json`, dépôt `-ios`, PR #29) — chaque entrée porte l'identité de
+ * sa ou ses racines :
  *
  * ```json
  * {"annuaires": [
@@ -82,9 +85,10 @@ object RacinesConnues {
  *
  * L'écriture courte (`annuaire` + `locateurs`) et la longue (`racines`, pour
  * une entrée qui en couvre plusieurs) se cumulent, la courte en tête.
- * `adresse`/`nom` sont gardés : les versions d'avant ne lisent qu'eux.
- * **L'ancienne forme reste lue** — un objet seul, `{"adresse", "nom"}` —
- * comme une liste d'un élément.
+ * `adresse`/`nom` sont gardés dans le fichier (les versions d'avant ne lisent
+ * qu'eux), mais **une entrée sans identité n'est plus utilisable** : depuis
+ * que les racines ne présentent que leur certificat d'identité, rien ne
+ * permettrait de la croire. Elle est laissée de côté, et dite au journal.
  */
 object ListeDAnnuaires {
     /**
@@ -92,12 +96,11 @@ object ListeDAnnuaires {
      * [RacineDAnnuaire.cle] n'en font qu'une** (la première).
      *
      * Un `n-…` de travers ou un locateur qui n'est pas une adresse littérale
-     * est laissé de côté — jamais résolu. Une entrée d'hier (adresse et nom)
-     * n'est gardée que si [avecAutorite] : sans PEM, elle n'aurait rien à
-     * croire. Une entrée sans rien de lisible est sautée ; un texte illisible
-     * rend une liste VIDE — l'application tourne alors sur le banc en mémoire.
+     * est laissé de côté — jamais résolu. Une entrée sans identité (la forme
+     * d'hier, adresse et nom seuls) est sautée et [journal] le dit. Un texte
+     * illisible rend une liste VIDE.
      */
-    fun lire(json: String, avecAutorite: Boolean = true): List<RacineDAnnuaire> {
+    fun lire(json: String, journal: (String) -> Unit = {}): List<RacineDAnnuaire> {
         val racine = try {
             JSONObject(json)
         } catch (e: JSONException) {
@@ -113,10 +116,12 @@ object ListeDAnnuaires {
                 val identites = identites(entree)
                 val adresse = entree.optString("adresse")
                 val nom = entree.optString("nom")
-                val hier = adresse.isNotEmpty() && nom.isNotEmpty()
-                if (identites.isEmpty() && !(hier && avecAutorite)) return@mapNotNull null
+                if (identites.isEmpty()) {
+                    journal("entrée « ${adresse.ifEmpty { nom.ifEmpty { "sans nom" } }} » laissée de côté : aucune identité (`annuaire` n-… et locateurs littéraux) — les racines ne se croient plus que par leur clé")
+                    return@mapNotNull null
+                }
                 RacineDAnnuaire(
-                    adresse = if (hier) adresse else "",
+                    adresse = adresse,
                     nom = nom.ifEmpty { RacinesConnues.nom(identites.first().annuaire) },
                     libelle = entree.optString("libelle").takeIf { it.isNotEmpty() },
                     identites = identites,

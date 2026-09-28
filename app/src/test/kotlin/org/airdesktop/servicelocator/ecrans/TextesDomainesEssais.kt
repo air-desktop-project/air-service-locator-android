@@ -15,8 +15,8 @@ class TextesDomainesEssais {
     @Test
     fun laCommandeDInscriptionNommeLaRacineEtLaisseLeResteLitteral() {
         assertEquals(
-            "asl-server --register 4K9M2-P7R1T --directory nitrogen.air-desktop.org:6630 --ca <racine.pem> --identity-key <clé>",
-            TextesDomaines.commande("4K9M2-P7R1T", "nitrogen.air-desktop.org:6630"),
+            "asl-server --register 4K9M2-P7R1T --directory [2001:41d0:20a:900::1dd4]:6630=n-0PWT8HZD80QMSPPDZ5CQXXYHQC --identity-key <clé>",
+            TextesDomaines.commande("4K9M2-P7R1T", "[2001:41d0:20a:900::1dd4]:6630=n-0PWT8HZD80QMSPPDZ5CQXXYHQC"),
         )
     }
 
