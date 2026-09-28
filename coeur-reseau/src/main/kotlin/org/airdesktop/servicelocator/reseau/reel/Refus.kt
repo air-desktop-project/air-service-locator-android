@@ -1,5 +1,7 @@
 package org.airdesktop.servicelocator.reseau
 
+import org.airdesktop.servicelocator.modele.Identifiant
+
 // Ce que deviennent les codes de refus de l'objet natif, en fonctions pures :
 // l'annuaire réel ne se construit pas sur la JVM (il charge l'objet JNI), mais
 // ces correspondances, si — et ce sont elles qui décident de la phrase que
@@ -36,4 +38,40 @@ internal fun refusDeRejoindre(code: Int): ErreurAnnuaire? = when (code) {
     Natif.REFUSE -> ErreurAnnuaire.ARecommencer("L'annuaire a refusé la preuve de cette clé")
     Natif.INJOIGNABLE, Natif.NON_CONNECTE -> ErreurAnnuaire.ARecommencer("La connexion est tombée entre le code et la preuve")
     else -> null
+}
+
+/**
+ * Le refus commun d'un statut HTTP, pour les verbes qui n'ont pas de phrase à eux — la table d'iOS/macOS
+ * (`AnnuaireReel.refus`), à l'identique : un même `404` dit la même chose sur les deux plates-formes.
+ */
+internal fun refusDeStatut(statut: Int): ErreurAnnuaire = when (statut) {
+    404 -> ErreurAnnuaire.Introuvable
+    403 -> ErreurAnnuaire.Interdit
+    409 -> ErreurAnnuaire.AliasPris
+    // Un `401` arrive sur une connexion PROUVÉE : la demande est partie, et c'est l'annuaire qui ne tient plus
+    // cet appareil pour vivant. « Rien n'a été envoyé » serait faux ici.
+    401 -> ErreurAnnuaire.NonReconnu
+    501 -> ErreurAnnuaire.NonImplemente
+    else -> ErreurAnnuaire.RequeteInvalide("l'annuaire a répondu $statut")
+}
+
+/**
+ * `DELETE /v1/annuaires/{n}/membres/{n2}` — retirer le second membre d'une paire (`protocole.md` §2.2), comme le
+ * Mac le fait depuis la 0.22.0 (`retirerMembre`).
+ *
+ * **Ce que l'annuaire répond, il n'y a que deux mots** : `204`, c'est fait ; `404` pour tout le reste — un membre
+ * d'un autre annuaire, un annuaire qui n'est pas à moi (le propriétaire le peut, un administrateur des racines aussi),
+ * un membre déjà retiré. C'est le `404` qui ne dit pas si l'objet existe, et l'écran le dit « Introuvable. », comme
+ * le Mac. Nommer le titulaire à la place du second, c'est retirer la paire entière : l'écran ne le fait jamais par
+ * ce chemin — il a son geste à lui, en rouge, en bas.
+ *
+ * Tenu à part de [AnnuaireReel], qui charge l'objet JNI : la requête et son verdict s'éprouvent sur la JVM.
+ */
+internal object RetraitDUnMembre {
+    /** La méthode et le chemin. Les identifiants voyagent sous leur forme canonique. */
+    fun requete(annuaire: Identifiant, membre: Identifiant): Pair<String, String> =
+        "DELETE" to "/v1/annuaires/${annuaire.texte}/membres/${membre.texte}"
+
+    /** `null` si c'est fait, le refus sinon. */
+    fun verdict(statut: Int): ErreurAnnuaire? = if (statut == 204) null else refusDeStatut(statut)
 }

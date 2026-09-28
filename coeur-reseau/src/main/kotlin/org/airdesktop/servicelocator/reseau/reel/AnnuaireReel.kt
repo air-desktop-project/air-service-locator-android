@@ -246,16 +246,8 @@ class AnnuaireReel(
         return statut to String(rendu, 2, rendu.size - 2, Charsets.UTF_8)
     }
 
-    private fun refus(statut: Int): ErreurAnnuaire = when (statut) {
-        404 -> ErreurAnnuaire.Introuvable
-        403 -> ErreurAnnuaire.Interdit
-        409 -> ErreurAnnuaire.AliasPris
-        // Un `401` arrive sur une connexion PROUVÉE : la demande est partie, et c'est l'annuaire qui ne tient plus
-        // cet appareil pour vivant. « Rien n'a été envoyé » serait faux ici.
-        401 -> ErreurAnnuaire.NonReconnu
-        501 -> ErreurAnnuaire.NonImplemente
-        else -> ErreurAnnuaire.RequeteInvalide("l'annuaire a répondu $statut")
-    }
+    /** Le refus commun d'un statut — sa table vit dans `Refus.kt`, où la JVM peut l'éprouver. */
+    private fun refus(statut: Int): ErreurAnnuaire = refusDeStatut(statut)
 
     private fun millis(objet: JSONObject, cle: String): Instant? =
         if (objet.has(cle) && !objet.isNull(cle)) Instant.ofEpochMilli(objet.getLong(cle)) else null
@@ -921,8 +913,9 @@ class AnnuaireReel(
     }
 
     override suspend fun retirerMembre(annuaire: Identifiant, membre: Identifiant) {
-        val (statut, _) = surLeFil { requete("DELETE", "/v1/annuaires/${annuaire.texte}/membres/${membre.texte}") }
-        if (statut != 204) throw refus(statut)
+        val (methode, chemin) = RetraitDUnMembre.requete(annuaire, membre)
+        val (statut, _) = surLeFil { requete(methode, chemin) }
+        RetraitDUnMembre.verdict(statut)?.let { throw it }
     }
 
     override suspend fun confier(domaine: Identifiant, annuaire: Identifiant?) {
