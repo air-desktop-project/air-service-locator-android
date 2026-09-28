@@ -330,7 +330,7 @@ private fun TuileDeLAnnuaire(
             tuile.servis.forEach { Text(it.affiche, style = MaterialTheme.typography.bodyMedium) }
         }
         NoteDeTuile(TextesFederation.fixe)
-        PiedDestructif(TextesDomaines.confirmerRetrait, "${TextesDomaines.retirer}…", onRetirer)
+        PiedDestructif(TextesDomaines.confirmerRetrait, "${TextesDomaines.retirer}…", action = onRetirer)
     }
 }
 
@@ -521,7 +521,7 @@ private fun TuileDeDemande(inscription: Inscription, onDecider: (Boolean) -> Uni
 
 /** Un état vide soigné : un titre, et ce qui fera apparaître quelque chose ici. */
 @Composable
-private fun EtatVide(titre: String, aide: String) {
+internal fun EtatVide(titre: String, aide: String) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -535,7 +535,7 @@ private fun EtatVide(titre: String, aide: String) {
 
 /** Confirmer un geste : sa phrase, Annuler, et l'action — en rouge si on ne la défait pas. */
 @Composable
-private fun Confirmation(
+internal fun Confirmation(
     titre: String,
     texte: String,
     action: String,

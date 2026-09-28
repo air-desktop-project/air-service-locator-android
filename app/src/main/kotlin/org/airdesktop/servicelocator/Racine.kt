@@ -30,8 +30,6 @@ import org.airdesktop.servicelocator.ecrans.DomaineEcran
 import org.airdesktop.servicelocator.ecrans.DomainesEcran
 import org.airdesktop.servicelocator.ecrans.AccorderEcran
 import org.airdesktop.servicelocator.ecrans.AccueilEcran
-import org.airdesktop.servicelocator.ecrans.AliasEcran
-import org.airdesktop.servicelocator.ecrans.CapacitesEcran
 import org.airdesktop.servicelocator.ecrans.CodeEnrolementEcran
 import org.airdesktop.servicelocator.ecrans.CompteEcran
 import org.airdesktop.servicelocator.ecrans.DeclarerMachineEcran
@@ -50,7 +48,6 @@ object Routes {
     const val COMPTE = "compte"
     const val DECLARER = "machines/declarer"
     const val ACCORDER = "acces/accorder"
-    const val ALIAS = "compte/alias"
     const val ENROLER_APPAREIL = "compte/enroler-appareil"
     const val EXPOSITIONS = "compte/expositions"
     const val DOMAINES = "compte/domaines"
@@ -59,7 +56,6 @@ object Routes {
     fun machine(id: Identifiant) = "machines/${id.texte}"
     fun domaine(id: Identifiant) = "compte/domaines/${id.texte}"
     fun code(id: Identifiant) = "machines/${id.texte}/code"
-    fun capacites(id: Identifiant) = "machines/${id.texte}/capacites"
     fun service(machine: Identifiant, service: Identifiant) = "machines/${machine.texte}/services/${service.texte}"
 }
 
@@ -127,14 +123,12 @@ private fun Onglets() {
             composable(Routes.DECLARER) { DeclarerMachineEcran(nav) }
             composable("machines/{id}") { MachineEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!)) }
             composable("machines/{id}/code") { CodeEnrolementEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!)) }
-            composable("machines/{id}/capacites") { CapacitesEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!)) }
             composable("machines/{id}/services/{s}") {
                 ServiceEcran(nav, Identifiant.analyser(it.arguments!!.getString("id")!!), Identifiant.analyser(it.arguments!!.getString("s")!!))
             }
             composable(Routes.ACCES) { AccesEcran(nav) }
             composable(Routes.ACCORDER) { AccorderEcran(nav) }
             composable(Routes.COMPTE) { CompteEcran(nav) }
-            composable(Routes.ALIAS) { AliasEcran(nav) }
             composable(Routes.ENROLER_APPAREIL) { EnrolerAppareilEcran(nav) }
             composable(Routes.EXPOSITIONS) { ExpositionsEcran(nav) }
             composable(Routes.DOMAINES) { DomainesEcran(nav) }

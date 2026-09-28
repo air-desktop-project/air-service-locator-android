@@ -1,46 +1,67 @@
 package org.airdesktop.servicelocator.ecrans
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import org.airdesktop.servicelocator.LocalSession
 import org.airdesktop.servicelocator.Routes
 import org.airdesktop.servicelocator.composants.Aide
+import org.airdesktop.servicelocator.composants.Badge
+import org.airdesktop.servicelocator.composants.BoutonCopier
+import org.airdesktop.servicelocator.composants.BoutonDeGeste
+import org.airdesktop.servicelocator.composants.BoutonDestructif
+import org.airdesktop.servicelocator.composants.Couleurs
 import org.airdesktop.servicelocator.composants.Erreur
+import org.airdesktop.servicelocator.composants.FeuilleDeSaisie
 import org.airdesktop.servicelocator.composants.Icones
-import org.airdesktop.servicelocator.composants.LigneIdentifiant
-import org.airdesktop.servicelocator.composants.SousTitre
+import org.airdesktop.servicelocator.composants.LigneAGeste
+import org.airdesktop.servicelocator.composants.NoteDeTuile
+import org.airdesktop.servicelocator.composants.PiedDestructif
+import org.airdesktop.servicelocator.composants.TexteAbsent
+import org.airdesktop.servicelocator.composants.TexteFixe
+import org.airdesktop.servicelocator.composants.TeteDeTuile
+import org.airdesktop.servicelocator.composants.Tuile
 import org.airdesktop.servicelocator.composants.messageAnnuaire
 import org.airdesktop.servicelocator.composants.rememberChargement
+import org.airdesktop.servicelocator.composants.rememberGesteEnFeuille
 import org.airdesktop.servicelocator.modele.Alias
+import org.airdesktop.servicelocator.modele.DetailDuDomaine
 import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.EtatDInscription
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Inscription
+import org.airdesktop.servicelocator.modele.Machine
+import org.airdesktop.servicelocator.modele.MachineDuDomaine
 import org.airdesktop.servicelocator.reseau.RacinesConnues
 import org.airdesktop.servicelocator.reseau.RacineDAnnuaire
 
@@ -135,72 +156,295 @@ internal data class Hebergement(val titre: String, val serveurs: List<Serveur>) 
     }
 }
 
-/** Les serveurs d'un domaine, un par ligne : le nom, puis ses adresses. */
-@Composable
-private fun Locateurs(hebergement: Hebergement) {
-    hebergement.serveurs.forEach { serveur ->
-        Text("${serveur.nom} — ${serveur.adresses.joinToString(" · ")}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+// ── La page des domaines, à la lettre le Mac ─────────────────────────────────
+
+/**
+ * Les mots des pages « Domaines » et d'un domaine — **recopiés de l'application Mac** (`DomainesFenetreVue.swift`,
+ * PR iOS #36). Les mots communs à toutes les plates-formes restent dans [TextesDomaines].
+ */
+internal object TextesPageDomaines {
+    const val introduction = "Les domaines que vous possédez, et ceux où l'un de vos groupes tient un droit."
+    const val aucunDomaine = "Aucun domaine"
+    const val aucunDomaineAide = "Un domaine range vos machines ; créez-en un avec « Créer un domaine… »."
+    const val creerUnDomaine = "Créer un domaine…"
+    const val renommer = "Renommer…"
+    const val ouvrir = "Ouvrir"
+    const val modifier = "Modifier…"
+    const val changer = "Changer…"
+
+    const val nom = "Nom"
+    const val identifiant = "Identifiant"
+    const val hebergePar = "Hébergé par"
+    const val lesRacines = "Les racines"
+    const val monAnnuaireLocal = "Mon annuaire local"
+    const val lAnnuaireLocal = "L'annuaire local"
+    const val mesDroits = "Mes droits"
+    const val tenusParVosGroupes = "tenus par vos groupes"
+    const val proprietaire = "Propriétaire"
+    const val administrer = "Administrer"
+
+    const val rangerIci = "Ranger une machine ici…"
+    const val retirerDuDomaine = "Retirer du domaine…"
+    const val aVous = "à vous"
+    const val confirmerRetraitDeLaMachine = "Retirer cette machine du domaine ?"
+    fun retirerLaMachine(titre: String) = "Retirer « $titre »"
+    const val retraitDeLaMachine = "La machine reste à vous, hors de tout domaine ; ses services ne se résolvent plus sous celui-ci."
+    const val suppression = "Supprimer détache ses machines ; son alias et ses groupes disparaissent. Votre dernier domaine ne se supprime pas."
+
+    const val creerTitre = "Créer un domaine"
+    const val creerExplication = "Un domaine range vos machines. Son alias est public et n'est pas unique ; il est facultatif."
+    const val creer = "Créer"
+    const val nomTitre = "Modifier le nom du domaine"
+    const val nomExplication = "L'alias est public et n'est pas unique : deux domaines peuvent le porter. Espaces et lettres accentuées sont admis."
+    const val alias = "Alias"
+    const val domaine = "Domaine"
+    const val enregistrer = "Enregistrer"
+    const val retirerLAlias = "Retirer l'alias"
+    fun hebergementTitre(titre: String) = "Qui sert « $titre » ?"
+    const val hebergementExplication =
+        "Les racines, ou l'un de vos annuaires locaux acceptés. Le changement vaut tout de suite pour les machines du domaine."
+    fun optionDAnnuaire(n: Identifiant, adresse: String) = "Mon annuaire local — ${n.texte} · $adresse"
+    fun rangerTitre(titre: String) = "Ranger une machine dans « $titre »"
+    const val rangerExplication = "Une machine n'est rangée que dans un domaine à la fois : la ranger ici la retire de l'autre."
+    const val ranger = "Ranger"
+    const val toutEstRange = "Toutes vos machines sont déjà rangées ici."
+}
+
+// ── Ce que la page montre et permet, en fonctions pures ──────────────────────
+
+/** Le badge d'un domaine : « Propriétaire », « Administrer », ou les droits tenus — comme le Mac (`BadgeDeRole`). */
+internal enum class Role { Proprietaire, Administrateur, Droits }
+
+internal data class RoleDuDomaine(val role: Role, val texte: String) {
+    companion object {
+        fun de(domaine: Domaine, moi: Identifiant?): RoleDuDomaine = when {
+            domaine.proprietaire == moi -> RoleDuDomaine(Role.Proprietaire, TextesPageDomaines.proprietaire)
+            domaine.peut(Domaine.ADMINISTRER) -> RoleDuDomaine(Role.Administrateur, TextesPageDomaines.administrer)
+            else -> RoleDuDomaine(Role.Droits, domaine.droits.joinToString(" · "))
+        }
     }
+}
+
+/**
+ * Les gestes qu'un domaine offre à ce compte — décidés comme le Mac, sur les droits que l'annuaire rend.
+ *
+ * Renommer : `administrer`. Changer l'hébergeur : le posséder ET pouvoir y ranger — le domaine racine, même à son
+ * propriétaire, ne se confie pas. Ranger une machine : le posséder, ou `rattacher`. Supprimer : le posséder ; que ce
+ * soit le dernier, c'est l'annuaire qui le dit (`DernierDomaine`).
+ */
+internal data class GestesDuDomaine(val renommer: Boolean, val changerHebergeur: Boolean, val ranger: Boolean, val supprimer: Boolean) {
+    companion object {
+        fun de(domaine: Domaine, moi: Identifiant?): GestesDuDomaine {
+            val aMoi = moi != null && domaine.proprietaire == moi
+            return GestesDuDomaine(
+                renommer = domaine.peut(Domaine.ADMINISTRER),
+                changerHebergeur = aMoi && domaine.peut(Domaine.RATTACHER),
+                ranger = aMoi || domaine.peut(Domaine.RATTACHER),
+                supprimer = aMoi,
+            )
+        }
+    }
+}
+
+/** On ne retire d'un domaine que ses propres machines : celles des autres y sont rangées par leur propriétaire. */
+internal fun retirableDuDomaine(machine: MachineDuDomaine, moi: Identifiant?): Boolean = moi != null && machine.proprietaire == moi
+
+/** La ligne d'une machine rangée : son identifiant, et à qui elle est. */
+internal fun sousTitreDeMachineRangee(machine: MachineDuDomaine, moi: Identifiant?): String =
+    "${machine.machine.texte} · ${if (machine.proprietaire == moi) TextesPageDomaines.aVous else machine.proprietaire.texte}"
+
+/** Les machines qu'on peut ranger ici : les miennes, qui n'y sont pas déjà. */
+internal fun machinesARanger(miennes: List<Machine>, detail: DetailDuDomaine): List<Machine> =
+    miennes.filter { m -> detail.machines.none { it.machine == m.id } }
+
+/** À qui confier un domaine : les annuaires locaux acceptés dont je suis titulaire. */
+internal fun titulairesAcceptes(locaux: List<Inscription>): List<Inscription> =
+    locaux.filter { it.estTitulaire && it.etat == EtatDInscription.Acceptee && it.annuaire != null }
+
+/**
+ * Ce que la ligne « Hébergé par » dit, ligne à ligne : qui sert, puis ses adresses — la règle de `ValeurHebergement`
+ * du Mac. Un annuaire local se dit « Mon annuaire local » quand il est à moi, suivi de son `n-…` ; ses adresses sont
+ * celles que ses membres ont déclarées. Les racines se disent chacune avec ses locateurs.
+ */
+internal fun lignesDHebergement(domaine: Domaine, hebergement: Hebergement, locaux: List<Inscription>): Pair<String, List<String>> {
+    val n = domaine.hebergePar ?: return TextesPageDomaines.lesRacines to
+        hebergement.serveurs.map { "${it.nom} — ${it.adresses.joinToString(" · ")}" }
+    val qui = if (locaux.any { it.annuaire == n }) TextesPageDomaines.monAnnuaireLocal else TextesPageDomaines.lAnnuaireLocal
+    return qui to listOf(n.texte) + hebergement.serveurs.flatMap { it.adresses }
+}
+
+// ── Les feuilles ─────────────────────────────────────────────────────────────
+
+/** Les feuilles des domaines : créer, renommer, changer l'hébergeur, ranger une machine. */
+private sealed interface FeuilleDomaine {
+    data object Creer : FeuilleDomaine
+    data class Nom(val domaine: Domaine) : FeuilleDomaine
+    data class Hebergeur(val domaine: Domaine) : FeuilleDomaine
+    data class Ranger(val detail: DetailDuDomaine) : FeuilleDomaine
+}
+
+/** La feuille ouverte ; [apres] relit la page quand l'annuaire a rangé le geste. */
+@Composable
+private fun FeuilleDuDomaine(feuille: FeuilleDomaine, onFermer: () -> Unit, apres: () -> Unit) {
+    val session = LocalSession.current
+    val geste = rememberGesteEnFeuille { apres(); onFermer() }
+    when (feuille) {
+        FeuilleDomaine.Creer -> {
+            var alias by remember { mutableStateOf("") }
+            FeuilleDeSaisie(
+                titre = TextesPageDomaines.creerTitre, explication = TextesPageDomaines.creerExplication, action = TextesPageDomaines.creer,
+                actionPermise = Saisies.creationDeDomaine(alias), enCours = geste.enCours, erreur = geste.erreur, onFermer = onFermer,
+                valider = { geste.faire { session.annuaire.creerDomaine(alias.ifEmpty { null }) } },
+            ) { ChampDAlias(alias, TextesDomaines.aliasFacultatif) { alias = it } }
+        }
+        is FeuilleDomaine.Nom -> {
+            val domaine = feuille.domaine
+            var alias by remember { mutableStateOf(domaine.alias ?: "") }
+            val range = Saisies.aliasDeDomaine(alias, domaine.alias)
+            FeuilleDeSaisie(
+                titre = TextesPageDomaines.nomTitre, explication = TextesPageDomaines.nomExplication, action = TextesPageDomaines.enregistrer,
+                actionPermise = range != null, enCours = geste.enCours, erreur = geste.erreur, onFermer = onFermer,
+                valider = { range?.let { a -> geste.faire { session.annuaire.definirAliasDomaine(domaine.id, a) } } },
+                gauche = if (domaine.alias != null) ({
+                    BoutonDestructif(TextesPageDomaines.retirerLAlias, actif = !geste.enCours) {
+                        geste.faire { session.annuaire.definirAliasDomaine(domaine.id, null) }
+                    }
+                }) else null,
+            ) {
+                ChampDAlias(alias, TextesPageDomaines.alias) { alias = it }
+                LigneAGeste(TextesPageDomaines.domaine) { TexteFixe(domaine.id.texte, secondaire = true) }
+            }
+        }
+        is FeuilleDomaine.Hebergeur -> {
+            val domaine = feuille.domaine
+            // Les annuaires à qui confier ne se lisent qu'à l'ouverture : la liste n'a pas à les demander pour rien.
+            val locaux = rememberChargement { session.annuaire.annuairesLocaux() }
+            val titulaires = titulairesAcceptes(locaux.valeur.orEmpty())
+            var choisi by remember { mutableStateOf(domaine.hebergePar) }
+            FeuilleDeSaisie(
+                titre = TextesPageDomaines.hebergementTitre(domaine.affiche), explication = TextesPageDomaines.hebergementExplication,
+                action = TextesPageDomaines.enregistrer, actionPermise = choisi != domaine.hebergePar, enCours = geste.enCours,
+                erreur = geste.erreur ?: locaux.erreur, onFermer = onFermer,
+                valider = { geste.faire { session.annuaire.confier(domaine.id, choisi) } },
+            ) {
+                Choix(TextesPageDomaines.lesRacines, choisi == null) { choisi = null }
+                titulaires.forEach { local ->
+                    val n = local.annuaire!!
+                    Choix(TextesPageDomaines.optionDAnnuaire(n, local.adresse), choisi == n) { choisi = n }
+                }
+                // Ce qu'on ne peut pas faire se dit : sans annuaire local accepté, seules les racines servent.
+                if (locaux.valeur != null && titulaires.isEmpty()) TexteAbsent(TextesDomaines.aucunAnnuaire)
+            }
+        }
+        is FeuilleDomaine.Ranger -> {
+            val detail = feuille.detail
+            val machines = rememberChargement { session.annuaire.machines() }
+            val candidates = machines.valeur?.let { machinesARanger(it, detail) }
+            var choisie by remember { mutableStateOf<Identifiant?>(null) }
+            FeuilleDeSaisie(
+                titre = TextesPageDomaines.rangerTitre(detail.domaine.affiche), explication = TextesPageDomaines.rangerExplication,
+                action = TextesPageDomaines.ranger, actionPermise = choisie != null, enCours = geste.enCours,
+                erreur = geste.erreur ?: machines.erreur, onFermer = onFermer,
+                valider = { choisie?.let { m -> geste.faire { session.annuaire.rattacher(m, detail.domaine.id) } } },
+            ) {
+                if (candidates?.isEmpty() == true) TexteAbsent(TextesPageDomaines.toutEstRange)
+                candidates.orEmpty().forEach { m -> Choix(m.affichee, choisie == m.id) { choisie = m.id } }
+            }
+        }
+    }
+}
+
+/** Le champ d'un alias de domaine : rouge dès qu'il serait refusé. */
+@Composable
+private fun ChampDAlias(alias: String, libelle: String, surChangement: (String) -> Unit) {
+    OutlinedTextField(
+        alias, surChangement, label = { Text(libelle) }, singleLine = true,
+        isError = alias.isNotEmpty() && Alias.pourDomaine(alias) == null, modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Une option d'un choix unique, dans une feuille : toute la ligne se touche. */
+@Composable
+internal fun Choix(texte: String, choisi: Boolean, surChoix: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = surChoix), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = choisi, onClick = surChoix)
+        Text(texte, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+// ── Les morceaux des deux pages ──────────────────────────────────────────────
+
+@Composable
+private fun BadgeDeRole(domaine: Domaine, moi: Identifiant?) {
+    val role = RoleDuDomaine.de(domaine, moi)
+    Badge(role.texte, when (role.role) {
+        Role.Proprietaire -> Couleurs.accent
+        Role.Administrateur -> Couleurs.attention
+        Role.Droits -> Couleurs.parti
+    })
+}
+
+/** Qui sert le domaine, et chacune de ses adresses sur sa ligne. */
+@Composable
+private fun ValeurHebergement(domaine: Domaine, hebergement: Hebergement, locaux: List<Inscription>) {
+    val (qui, lignes) = lignesDHebergement(domaine, hebergement, locaux)
+    Text(qui, style = MaterialTheme.typography.bodyMedium)
+    lignes.forEach { TexteFixe(it, secondaire = true) }
 }
 
 // ── Domaines ─────────────────────────────────────────────────────────────────
 
-/** Mes domaines, et ceux où l'un de mes groupes tient un droit. */
+/** Mes domaines, et ceux où l'un de mes groupes tient un droit : une tuile chacun, entière. */
 @Composable
 fun DomainesEcran(nav: NavController) {
     val session = LocalSession.current
-    val portee = rememberCoroutineScope()
     val chargement = rememberChargement { session.annuaire.domaines() }
     // Qui sert un domaine confié à un annuaire local : les adresses déclarées de ses membres — demandées seulement s'il y en a un.
     val locaux = rememberChargement {
         if (session.annuaire.domaines().any { it.hebergePar != null }) runCatching { session.annuaire.annuairesLocaux() }.getOrDefault(emptyList()) else emptyList()
     }
     val racines = session.choix?.racines.orEmpty()
-    var creer by remember { mutableStateOf(false) }
-    var erreur by remember { mutableStateOf<String?>(null) }
+    val moi = session.compte?.identifiant
+    var feuille by remember { mutableStateOf<FeuilleDomaine?>(null) }
 
     Scaffold(
-        topBar = { Barre(TextesDomaines.domaines, nav) { TextButton(onClick = { creer = true }) { Text(TextesDomaines.creer) } } },
+        topBar = { Barre(TextesDomaines.domaines, nav) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { feuille = FeuilleDomaine.Creer },
+                icon = { Icon(Icones.plus, null) },
+                text = { Text(TextesPageDomaines.creerUnDomaine) },
+            )
+        },
     ) { marges ->
-        LazyColumn(Modifier.fillMaxSize().padding(marges)) {
-            item { Erreur(chargement.erreur ?: erreur) }
+        // Le bas de la liste laisse passer le bouton flottant.
+        LazyColumn(Modifier.fillMaxSize().padding(marges), contentPadding = PaddingValues(bottom = 96.dp)) {
+            item { Aide(TextesPageDomaines.introduction) }
+            item { Erreur(chargement.erreur) }
+            if (chargement.valeur?.isEmpty() == true) item { EtatVide(TextesPageDomaines.aucunDomaine, TextesPageDomaines.aucunDomaineAide) }
             items(chargement.valeur.orEmpty(), key = { it.id.texte }) { domaine ->
-                val hebergement = Hebergement.de(domaine, racines, locaux.valeur.orEmpty())
-                ListItem(
-                    headlineContent = { Text(titreComplet(domaine)) },
-                    supportingContent = {
-                        Column {
-                            Text(if (domaine.alias == null) hebergement.titre else "${domaine.id.texte} · ${hebergement.titre}")
-                            Locateurs(hebergement)
-                        }
-                    },
-                    trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    modifier = Modifier.clickable { nav.navigate(Routes.domaine(domaine.id)) },
-                )
+                val gestes = GestesDuDomaine.de(domaine, moi)
+                Tuile {
+                    TeteDeTuile(domaine.affiche) { BadgeDeRole(domaine, moi) }
+                    LigneAGeste(TextesPageDomaines.identifiant, geste = { BoutonCopier(domaine.id.texte) }) { TexteFixe(domaine.id.texte) }
+                    LigneAGeste(
+                        TextesPageDomaines.hebergePar,
+                        geste = if (gestes.changerHebergeur) ({ BoutonDeGeste(TextesPageDomaines.changer) { feuille = FeuilleDomaine.Hebergeur(domaine) } }) else null,
+                    ) { ValeurHebergement(domaine, Hebergement.de(domaine, racines, locaux.valeur.orEmpty()), locaux.valeur.orEmpty()) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                        if (gestes.renommer) BoutonDeGeste(TextesPageDomaines.renommer) { feuille = FeuilleDomaine.Nom(domaine) }
+                        Button(onClick = { nav.navigate(Routes.domaine(domaine.id)) }) { Text(TextesPageDomaines.ouvrir) }
+                    }
+                }
             }
-            if (chargement.valeur?.isEmpty() == true) item { Aide(TextesDomaines.aucunDomaine) }
         }
     }
 
-    if (creer) {
-        DialogueDAlias(
-            titre = TextesDomaines.creer,
-            initial = "",
-            facultatif = true,
-            onAnnuler = { creer = false },
-            onValider = { alias ->
-                creer = false
-                portee.launch {
-                    runCatching { session.annuaire.creerDomaine(alias) }
-                        .onSuccess { chargement.recharger(); erreur = null }
-                        .onFailure { erreur = it.messageAnnuaire }
-                }
-            },
-        )
-    }
+    feuille?.let { FeuilleDuDomaine(it, onFermer = { feuille = null }, apres = { chargement.recharger(); locaux.recharger() }) }
 }
 
-/** Un domaine : son alias, ce qui l'héberge, les machines qu'on y voit. */
+/** Un domaine : ce qu'on en lit, en une tuile, avec les gestes en regard ; ses machines ; sa suppression, en bas. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DomaineEcran(nav: NavController, id: Identifiant) {
     val session = LocalSession.current
@@ -208,161 +452,98 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
     val chargement = rememberChargement { session.annuaire.domaine(id) }
     val detail = chargement.valeur
     val moi = session.compte?.identifiant
-    // Les annuaires locaux : leurs adresses disent qui sert ce domaine ; les acceptés dont je suis titulaire sont ceux à
-    // qui je peux le confier.
+    // Les annuaires locaux : leurs adresses disent qui sert ce domaine, et s'il est « Mon annuaire local ».
     val locaux = rememberChargement { runCatching { session.annuaire.annuairesLocaux() }.getOrDefault(emptyList()) }
-    val mesAnnuaires = locaux.valeur.orEmpty().filter { it.estTitulaire && it.etat == EtatDInscription.Acceptee }
     var erreur by remember { mutableStateOf<String?>(null) }
-    var nommer by remember { mutableStateOf(false) }
-    var choisirHebergeur by remember { mutableStateOf(false) }
+    var enCours by remember { mutableStateOf(false) }
+    var feuille by remember { mutableStateOf<FeuilleDomaine?>(null) }
+    var aRetirer by remember { mutableStateOf<MachineDuDomaine?>(null) }
     var supprimer by remember { mutableStateOf(false) }
 
     fun agir(bloc: suspend () -> Unit, apres: () -> Unit = { chargement.recharger() }) = portee.launch {
+        enCours = true
         runCatching { bloc() }.onSuccess { erreur = null; apres() }.onFailure { erreur = it.messageAnnuaire }
+        enCours = false
     }
 
     Scaffold(topBar = { Barre(detail?.domaine?.affiche ?: "", nav) }) { marges ->
-        LazyColumn(Modifier.fillMaxSize().padding(marges)) {
+        LazyColumn(Modifier.fillMaxSize().padding(marges), contentPadding = PaddingValues(bottom = 24.dp)) {
             item { Erreur(chargement.erreur ?: erreur) }
             if (detail == null) return@LazyColumn
             val domaine = detail.domaine
-            val proprietaire = domaine.proprietaire == moi
-            item { SousTitre(TextesDomaines.domaineDeLaMachine) }
-            item { LigneIdentifiant("Identifiant", domaine.id) }
+            val gestes = GestesDuDomaine.de(domaine, moi)
             item {
-                ListItem(
-                    headlineContent = { Text(TextesDomaines.proprietaire) },
-                    supportingContent = {
-                        Text(if (proprietaire) "${domaine.proprietaire.texte} (${TextesDomaines.vous})" else domaine.proprietaire.texte, fontFamily = FontFamily.Monospace)
-                    },
-                )
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text("Alias") },
-                    supportingContent = { Text(domaine.alias ?: TextesDomaines.aucun) },
-                    trailingContent = if (domaine.peut(Domaine.ADMINISTRER)) ({ Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) else null,
-                    modifier = if (domaine.peut(Domaine.ADMINISTRER)) Modifier.clickable { nommer = true } else Modifier,
-                )
-            }
-            item {
-                val hebergement = Hebergement.de(domaine, session.choix?.racines.orEmpty(), locaux.valeur.orEmpty())
-                ListItem(
-                    headlineContent = { Text(hebergement.titre) },
-                    supportingContent = {
-                        Column {
-                            Locateurs(hebergement)
-                            if (proprietaire) Text(if (domaine.hebergePar == null) TextesDomaines.confier else TextesDomaines.rendreAuxRacines)
+                Tuile {
+                    LigneAGeste(
+                        TextesPageDomaines.nom,
+                        geste = if (gestes.renommer) ({ BoutonDeGeste(TextesPageDomaines.modifier) { feuille = FeuilleDomaine.Nom(domaine) } }) else null,
+                    ) {
+                        val alias = domaine.alias
+                        if (alias != null) Text(alias, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        else TexteAbsent(TextesDomaines.pasDAlias)
+                    }
+                    LigneAGeste(TextesPageDomaines.identifiant, geste = { BoutonCopier(domaine.id.texte) }) { TexteFixe(domaine.id.texte) }
+                    LigneAGeste(TextesDomaines.proprietaire, geste = { BoutonCopier(domaine.proprietaire.texte) }) {
+                        TexteFixe(domaine.proprietaire.texte)
+                        if (domaine.proprietaire == moi) TexteAbsent("(${TextesDomaines.vous})")
+                    }
+                    LigneAGeste(
+                        TextesPageDomaines.hebergePar,
+                        geste = if (gestes.changerHebergeur) ({ BoutonDeGeste(TextesPageDomaines.changer) { feuille = FeuilleDomaine.Hebergeur(domaine) } }) else null,
+                    ) { ValeurHebergement(domaine, Hebergement.de(domaine, session.choix?.racines.orEmpty(), locaux.valeur.orEmpty()), locaux.valeur.orEmpty()) }
+                    LigneAGeste(TextesPageDomaines.mesDroits) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            domaine.droits.forEach { Badge(it, Couleurs.accent) }
                         }
-                    },
-                    trailingContent = if (proprietaire) ({ Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) else null,
-                    modifier = if (proprietaire) Modifier.clickable { choisirHebergeur = true } else Modifier,
-                )
-            }
-            item { SousTitre(TextesDomaines.machinesRangees) }
-            if (detail.machines.isEmpty()) item { Aide(TextesDomaines.aucuneMachine) }
-            items(detail.machines, key = { it.machine.texte }) { machine ->
-                ListItem(
-                    headlineContent = { Text(machine.affichee) },
-                    supportingContent = { Text(machine.machine.texte, fontFamily = FontFamily.Monospace) },
-                )
-            }
-            if (proprietaire) {
-                item {
-                    TextButton(onClick = { supprimer = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
-                        Text(TextesDomaines.supprimer, color = MaterialTheme.colorScheme.error)
+                        // Les droits ne se changent pas ici : ce sont les groupes qui les donnent.
+                        NoteDeTuile(TextesPageDomaines.tenusParVosGroupes)
                     }
                 }
+            }
+            item {
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(TextesDomaines.machinesRangees, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                    if (gestes.ranger) BoutonDeGeste(TextesPageDomaines.rangerIci) { feuille = FeuilleDomaine.Ranger(detail) }
+                }
+            }
+            item {
+                Tuile {
+                    if (detail.machines.isEmpty()) TexteAbsent(TextesDomaines.aucuneMachine)
+                    detail.machines.forEachIndexed { indice, machine ->
+                        if (indice > 0) HorizontalDivider()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(machine.affichee, style = MaterialTheme.typography.bodyLarge)
+                                TexteFixe(sousTitreDeMachineRangee(machine, moi), secondaire = true)
+                            }
+                            if (retirableDuDomaine(machine, moi)) BoutonDeGeste(TextesPageDomaines.retirerDuDomaine) { aRetirer = machine }
+                        }
+                    }
+                }
+            }
+            if (gestes.supprimer) item {
+                PiedDestructif(
+                    TextesPageDomaines.suppression, "${TextesDomaines.supprimer}…",
+                    Modifier.padding(horizontal = 16.dp, vertical = 16.dp), actif = !enCours,
+                ) { supprimer = true }
             }
         }
     }
 
-    val domaine = detail?.domaine ?: return
-    if (nommer) {
-        DialogueDAlias(
-            titre = "Alias du domaine",
-            initial = domaine.alias ?: "",
-            facultatif = false,
-            retirable = domaine.alias != null,
-            onAnnuler = { nommer = false },
-            onValider = { alias -> nommer = false; agir({ session.annuaire.definirAliasDomaine(id, alias) }) },
-        )
-    }
-    if (choisirHebergeur) {
-        val options: List<Identifiant?> = listOf<Identifiant?>(null) + mesAnnuaires.mapNotNull { it.annuaire }
-        var choisi by remember { mutableStateOf(domaine.hebergePar) }
-        AlertDialog(
-            onDismissRequest = { choisirHebergeur = false },
-            title = { Text(TextesDomaines.confier) },
-            text = {
-                Column {
-                    options.forEach { option ->
-                        ListItem(
-                            leadingContent = { RadioButton(selected = choisi == option, onClick = { choisi = option }) },
-                            headlineContent = { Text(option?.let { TextesDomaines.confier + " — " + it.texte } ?: TextesDomaines.rendreAuxRacines) },
-                            modifier = Modifier.clickable { choisi = option },
-                        )
-                    }
-                    if (options.size == 1) Aide(TextesDomaines.aucunAnnuaire)
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = choisi != domaine.hebergePar, onClick = {
-                    choisirHebergeur = false
-                    agir({ session.annuaire.confier(id, choisi) })
-                }) { Text("Enregistrer") }
-            },
-            dismissButton = { TextButton(onClick = { choisirHebergeur = false }) { Text("Annuler") } },
+    feuille?.let { FeuilleDuDomaine(it, onFermer = { feuille = null }, apres = { chargement.recharger(); locaux.recharger() }) }
+    aRetirer?.let { machine ->
+        Confirmation(
+            titre = TextesPageDomaines.confirmerRetraitDeLaMachine, texte = TextesPageDomaines.retraitDeLaMachine,
+            action = TextesPageDomaines.retirerLaMachine(machine.affichee),
+            onAnnuler = { aRetirer = null },
+            onConfirmer = { aRetirer = null; agir({ session.annuaire.rattacher(machine.machine, null) }) },
         )
     }
     if (supprimer) {
-        AlertDialog(
-            onDismissRequest = { supprimer = false },
-            title = { Text(TextesDomaines.supprimer) },
-            text = { Text(TextesDomaines.confirmerSuppression) },
-            confirmButton = {
-                TextButton(onClick = {
-                    supprimer = false
-                    agir({ session.annuaire.supprimerDomaine(id) }, apres = { nav.popBackStack() })
-                }) { Text(TextesDomaines.supprimer, color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { supprimer = false }) { Text("Annuler") } },
+        Confirmation(
+            titre = TextesDomaines.supprimer, texte = TextesDomaines.confirmerSuppression, action = TextesDomaines.supprimer,
+            onAnnuler = { supprimer = false },
+            onConfirmer = { supprimer = false; agir({ session.annuaire.supprimerDomaine(id) }, apres = { nav.popBackStack() }) },
         )
     }
-}
-
-/** Saisir un alias de domaine : UTF-8, NFC, sensible à la casse, 64 octets au plus. */
-@Composable
-private fun DialogueDAlias(
-    titre: String,
-    initial: String,
-    facultatif: Boolean,
-    retirable: Boolean = false,
-    onAnnuler: () -> Unit,
-    onValider: (String?) -> Unit,
-) {
-    var texte by remember { mutableStateOf(initial) }
-    val range = Alias.pourDomaine(texte)
-    AlertDialog(
-        onDismissRequest = onAnnuler,
-        title = { Text(titre) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    texte, { texte = it }, label = { Text(if (facultatif) TextesDomaines.aliasFacultatif else "Alias") }, singleLine = true,
-                    isError = texte.isNotEmpty() && range == null, modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = (facultatif && texte.isEmpty()) || (range != null && range != initial),
-                onClick = { onValider(if (texte.isEmpty()) null else range) },
-            ) { Text(if (facultatif) TextesDomaines.creer else "Enregistrer") }
-        },
-        dismissButton = {
-            if (retirable) TextButton(onClick = { onValider(null) }) { Text("Retirer", color = MaterialTheme.colorScheme.error) }
-            else TextButton(onClick = onAnnuler) { Text("Annuler") }
-        },
-    )
 }
