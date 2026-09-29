@@ -76,7 +76,7 @@ object LectureDesDomaines {
     private fun machine(objet: JSONObject): MachineDuDomaine? {
         val machine = identifiant(objet, "machine", Genre.MACHINE) ?: return null
         val proprietaire = identifiant(objet, "proprietaire", Genre.UTILISATEUR) ?: return null
-        return MachineDuDomaine(machine, proprietaire, texte(objet, "nom"), texte(objet, "alias"))
+        return MachineDuDomaine(machine, proprietaire, texte(objet, "nom"), texte(objet, "alias"), LectureDeLEcho.echo(objet))
     }
 
     private fun inscription(objet: JSONObject): Inscription? {

@@ -41,6 +41,7 @@ import org.airdesktop.servicelocator.composants.BoutonCopier
 import org.airdesktop.servicelocator.composants.BoutonDeGeste
 import org.airdesktop.servicelocator.composants.BoutonDestructif
 import org.airdesktop.servicelocator.composants.Couleurs
+import org.airdesktop.servicelocator.composants.EchoCompact
 import org.airdesktop.servicelocator.composants.Erreur
 import org.airdesktop.servicelocator.composants.FeuilleDeSaisie
 import org.airdesktop.servicelocator.composants.Icones
@@ -555,6 +556,7 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(machine.affichee, style = MaterialTheme.typography.bodyLarge)
                                 TexteFixe(sousTitreDeMachineRangee(machine, moi), secondaire = true)
+                                EchoCompact(machine.echo)
                             }
                             if (retirableDuDomaine(machine, moi)) BoutonDeGeste(TextesPageDomaines.retirerDuDomaine) { aRetirer = machine }
                         }

@@ -50,6 +50,7 @@ import org.airdesktop.servicelocator.composants.FeuilleDeSaisie
 import org.airdesktop.servicelocator.composants.Formats
 import org.airdesktop.servicelocator.composants.Icones
 import org.airdesktop.servicelocator.composants.LigneAGeste
+import org.airdesktop.servicelocator.composants.LigneEcho
 import org.airdesktop.servicelocator.composants.Pastille
 import org.airdesktop.servicelocator.composants.PiedDestructif
 import org.airdesktop.servicelocator.composants.SousTitre
@@ -204,6 +205,7 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
                             Text(TextesMachine.cle(machine.cle), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
+                    LigneEcho(machine.echo)
                 }
             }
             if (Capacite.ANNONCE in machine.capacites) {

@@ -27,6 +27,8 @@ data class Machine(
     val services: List<Service> = emptyList(),
     /** Du texte choisi, indépendant du nom et du domaine — voir [Alias.pourMachine]. Absent tant qu'on n'en pose pas. */
     val alias: String? = null,
+    /** Son état d'écho (serveur 0.43.0) ; `null` : l'annuaire n'en dit rien — pas d'`asl echo`, ou un annuaire d'avant. */
+    val echo: Echo? = null,
 ) {
     /** Ce qu'on montre d'abord : l'alias quand il existe, le nom sinon. */
     val affichee: String get() = alias ?: nom

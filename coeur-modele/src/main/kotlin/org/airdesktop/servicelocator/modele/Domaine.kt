@@ -78,8 +78,17 @@ data class Domaine(
     }
 }
 
-/** Une machine rattachée à un domaine, telle que `GET /v1/domaines/{d}` la montre. Le nom n'est rendu qu'à qui le voit. */
-data class MachineDuDomaine(val machine: Identifiant, val proprietaire: Identifiant, val nom: String?, val alias: String?) {
+/**
+ * Une machine rattachée à un domaine, telle que `GET /v1/domaines/{d}` la montre. Le nom n'est rendu qu'à qui le voit ;
+ * l'état d'écho, au propriétaire et à qui tient `voir` sur le domaine (serveur 0.43.0, décision 91).
+ */
+data class MachineDuDomaine(
+    val machine: Identifiant,
+    val proprietaire: Identifiant,
+    val nom: String?,
+    val alias: String?,
+    val echo: Echo? = null,
+) {
     val affichee: String get() = alias ?: nom ?: machine.texte
 }
 

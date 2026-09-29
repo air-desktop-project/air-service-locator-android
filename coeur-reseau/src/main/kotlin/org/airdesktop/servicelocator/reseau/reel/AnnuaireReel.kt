@@ -28,6 +28,7 @@ import org.airdesktop.servicelocator.modele.CodeDInscription
 import org.airdesktop.servicelocator.modele.DetailDuDomaine
 import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.Inscription
+import org.airdesktop.servicelocator.reseau.LectureDeLEcho
 import org.airdesktop.servicelocator.reseau.LectureDesDomaines
 import org.airdesktop.servicelocator.reseau.LectureDesServices
 import org.json.JSONArray
@@ -561,7 +562,7 @@ class AnnuaireReel(
             "revoquee" -> Machine.Cle.Revoquee(millis(objet, "revoquee_a") ?: Instant.now(), code(objet))
             else -> Machine.Cle.Attendue(code(objet))
         }
-        return Machine(id, objet.getString("nom"), capacites, cle, alias = texte(objet, "alias"))
+        return Machine(id, objet.getString("nom"), capacites, cle, alias = texte(objet, "alias"), echo = LectureDeLEcho.echo(objet))
     }
 
     /** Un champ texte facultatif : absent ou `null` en JSON, c'est `null` — jamais la chaîne « null ». */
