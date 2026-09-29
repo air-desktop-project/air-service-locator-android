@@ -161,14 +161,26 @@ internal object TextesFederation {
     }
 
     /**
-     * Ce qu'il faut faire d'une paire mal réglée, sur la machine [hote] — `null` si rien ne cloche. Le serveur ne refuse
-     * pas de démarrer sans `--peer` (décision 70) : c'est ici qu'on le voit, et la phrase dit le geste.
+     * Le membre, nommé dans une phrase par son rôle et son `n-…` abrégé : « Le titulaire (n-7MSV5…) », « Le second
+     * membre (n-4EQRD…) ». Pas par l'hôte de son adresse : c'est souvent une IPv6, qu'on ne lit pas. Les cinq
+     * caractères après « n- » suffisent à distinguer les deux membres d'une paire, et se recoupent avec la ligne
+     * « Identifiant » de la tuile et le journal de la machine.
      */
-    fun avertissement(paire: EtatDeLaPaire?, hote: String): String? = when (paire) {
+    fun designation(membre: Inscription): String {
+        val role = if (membre.estTitulaire) "Le titulaire" else "Le second membre"
+        return membre.membre?.let { "$role (${it.texte.take(7)}…)" } ?: role
+    }
+
+    /**
+     * Ce qu'il faut faire d'une paire mal réglée, sur la machine de [membre] — `null` si rien ne cloche. Le serveur ne
+     * refuse pas de démarrer sans `--peer` (décision 70) : c'est ici qu'on le voit, et la phrase dit le geste. Les
+     * phrases sont, à la lettre, celles du Mac.
+     */
+    fun avertissement(membre: Inscription): String? = when (membre.paire) {
         EtatDeLaPaire.SansPeer ->
-            "$hote tourne sans --peer : la paire ne se réplique pas ; réglez --peer et --peer-key sur cette machine."
+            "${designation(membre)} tourne sans --peer : la paire ne se réplique pas ; réglez --peer et --peer-key sur cette machine."
         EtatDeLaPaire.PeerInconnu ->
-            "Le --peer de $hote ne désigne aucun membre accepté : la paire ne se réplique pas ; corrigez --peer et --peer-key sur cette machine."
+            "${designation(membre)} désigne par --peer un annuaire qui n'est pas l'autre membre de la paire ; corrigez --peer et --peer-key sur cette machine."
         else -> null
     }
 
@@ -189,17 +201,6 @@ internal fun couleurDeLEtat(etat: EtatDeLAnnuaire): Color = when (etat) {
     EtatDeLAnnuaire.Vivant -> Couleurs.joignable
     EtatDeLAnnuaire.Parti -> Couleurs.attention
     EtatDeLAnnuaire.PasDeNouvelles -> Couleurs.parti
-}
-
-/**
- * L'hôte d'une adresse `hôte:port` ou `[v6]:port`, pour nommer la machine dans une phrase ; l'adresse entière si elle
- * n'a pas cette forme — on ne tronque pas ce qu'on ne comprend pas.
- */
-internal fun hoteDe(adresse: String): String {
-    if (adresse.startsWith("[")) return adresse.substringAfter('[').substringBefore(']').ifEmpty { adresse }
-    val deuxPoints = adresse.lastIndexOf(':')
-    // Plus d'un deux-points sans crochets : une v6 nue, sans port à ôter.
-    return if (deuxPoints > 0 && adresse.indexOf(':') == deuxPoints) adresse.substring(0, deuxPoints) else adresse
 }
 
 // ── Ce que la page montre, en fonctions pures ────────────────────────────────
@@ -444,7 +445,7 @@ private fun AdresseEtVoie(membre: Inscription, avecVoie: Boolean, secondaire: Bo
 @Composable
 private fun EtatDeLaPaireDuMembre(membre: Inscription) {
     val paire = membre.paire
-    val avertissement = TextesFederation.avertissement(paire, hoteDe(membre.adresse))
+    val avertissement = TextesFederation.avertissement(membre)
     when {
         avertissement != null -> Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(Icones.alerte, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
