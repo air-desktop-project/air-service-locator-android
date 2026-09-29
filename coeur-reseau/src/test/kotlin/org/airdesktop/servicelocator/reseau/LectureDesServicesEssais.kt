@@ -39,6 +39,34 @@ class LectureDesServicesEssais {
         assertEquals(Joignabilite.EnCours, service.joignabilite.values.single())
     }
 
+    /**
+     * Une machine d'un AUTRE compte, lue sous le seul `voir` (0.40.0, décision 104) : l'objet d'annonce est vide. Le
+     * service est vivant, sans point, sans verdict, sans diagnostic — et il le dit ; un parti reste un parti.
+     */
+    @Test
+    fun uneAnnonceVideSeLitVivanteEtSansAdresse() {
+        val corps = """[{"service":"s-6AQ1BCA8SY1GVVMR0JMWXCA0AQ","nom":"depot","etat":"annonce","annonce":{},"sonde_par":"n-7MSV5RPCXBZH25PQM4ZPE5X87P","sonde_locale":false},
+            {"service":"s-17PNPAMTAGY9160FRMAJ6DR77K","nom":"nas","etat":"parti","volontaire":null}]"""
+        val (vivant, parti) = LectureDesServices.services(corps)
+        assertEquals("depot", vivant.nom)
+        assertTrue(vivant.etat is Service.Etat.Annonce)
+        assertTrue(vivant.sansAdresse)
+        assertTrue(vivant.points.isEmpty())
+        assertTrue(vivant.joignabilite.isEmpty())
+        assertTrue(vivant.candidats.isEmpty())
+        assertNull(vivant.diagnostic)
+        assertNull(vivant.resume)
+        assertEquals("n-7MSV5RPCXBZH25PQM4ZPE5X87P", vivant.sondePar?.texte)
+        assertTrue(parti.etat is Service.Etat.Parti)
+        assertFalse(parti.sansAdresse)
+    }
+
+    /** L'annonce entière — le propriétaire, ou qui tient `localiser` — n'est jamais lue « sans adresse ». */
+    @Test
+    fun uneAnnonceEntiereNEstPasSansAdresse() {
+        assertFalse(LectureDesServices.services(federe).first().sansAdresse)
+    }
+
     /** Une origine illisible n'invente rien, et une entrée illisible est sautée, pas fatale. */
     @Test
     fun uneOrigineIllisibleEstIgnoreeEtUneEntreeIllisibleSautee() {

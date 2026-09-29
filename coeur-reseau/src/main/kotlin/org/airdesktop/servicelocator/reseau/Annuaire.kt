@@ -14,6 +14,7 @@ import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Inscription
 import org.airdesktop.servicelocator.modele.Machine
 import org.airdesktop.servicelocator.modele.MachineVisible
+import org.airdesktop.servicelocator.modele.Service
 import org.airdesktop.servicelocator.modele.Signataire
 
 /** Ce que l'annuaire refuse, dans les termes de `docs/protocole.md` §2. */
@@ -311,6 +312,13 @@ interface Annuaire {
      * machine déjà rangée est déplacée), ou l'en sort. [ErreurAnnuaire.SansDroitDeRattacher] sans le droit.
      */
     suspend fun rattacher(machine: Identifiant, domaine: Identifiant?)
+    /**
+     * `GET /v1/machines/{m}/services` pour une machine rangée dans un domaine — la mienne comme celle d'un AUTRE
+     * compte (serveur 0.40.0, décision 104). L'annuaire décide seul de ce qu'il en rend : tout au propriétaire et à
+     * qui tient `localiser` sur le domaine ; les services **sans adresse** ([Service.sansAdresse]) à qui n'y tient que
+     * `voir` ; `[]` à qui n'y tient rien — vide, pas une erreur.
+     */
+    suspend fun servicesDe(machine: Identifiant): List<Service>
 
     /** `GET /v1/annuaires` — mes annuaires locaux, membre par membre, et mes déclarations qui attendent. */
     suspend fun annuairesLocaux(): List<Inscription>

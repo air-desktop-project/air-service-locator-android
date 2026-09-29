@@ -21,7 +21,9 @@ import java.time.Instant
  *
  * Pour un service vivant, la réponse d'annonce du serveur est réémise telle quelle sous `annonce` (c'est le même objet
  * que `GET /v1/ou`, et il n'est pas aplati pour ne pas exister deux fois). Depuis le serveur 0.32.0 (décision 60), un
- * service d'une machine confiée à un annuaire local porte en plus `sonde_par` et `sonde_locale`.
+ * service d'une machine confiée à un annuaire local porte en plus `sonde_par` et `sonde_locale`. Depuis le 0.40.0
+ * (décision 104), un service vivant d'une machine d'un AUTRE compte, lu sous le seul droit `voir`, porte un objet
+ * d'annonce **vide** : il se lit [Service.sansAdresse], sans diagnostic — un diagnostic vide dirait « rien observé ».
  */
 object LectureDesServices {
     /** `GET /v1/machines/{m}/services` — un tableau. */
@@ -42,6 +44,12 @@ object LectureDesServices {
             // Parti — et le serveur ne sait plus toujours si c'était voulu.
             val volontaire = if (enveloppe.isNull("volontaire")) null else enveloppe.optBoolean("volontaire")
             return Service(id, nom, emptyList(), Service.Etat.Parti(volontaire, millis(enveloppe, "parti_a")), sondePar = sondePar, sondeLocale = sondeLocale)
+        }
+        if (objet.length() == 0) {
+            return Service(
+                id, nom, emptyList(), Service.Etat.Annonce(millis(enveloppe, "annonce_a") ?: Instant.now()),
+                sondePar = sondePar, sondeLocale = sondeLocale, sansAdresse = true,
+            )
         }
         val points = mutableListOf<PointEcoute>()
         val joignabilite = mutableMapOf<PointEcoute, Joignabilite>()

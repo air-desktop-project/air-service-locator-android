@@ -31,6 +31,29 @@ class DomainesEnTuilesEssais {
     private fun domaine(proprietaire: Identifiant, vararg droits: String, hebergePar: Identifiant? = null) =
         Domaine(d, proprietaire, null, hebergePar, droits.toSet())
 
+    // ── Les services des machines d'autrui (0.40.0, décision 104) ──
+
+    @Test
+    fun lesServicesDAutruiSeLisentDesQueLeDomaineDonneVoir() {
+        val sienne = MachineDuDomaine(m(2), autre, "nas", null)
+        assertTrue(servicesLisibles(sienne, domaine(autre, Domaine.VOIR), moi))
+        assertTrue(servicesLisibles(sienne, domaine(autre, Domaine.LOCALISER), moi))
+        assertTrue(servicesLisibles(sienne, domaine(autre, Domaine.ADMINISTRER), moi))
+        assertFalse(servicesLisibles(sienne, domaine(autre, Domaine.RATTACHER), moi))
+        assertFalse(servicesLisibles(sienne, domaine(autre), moi))
+        // Les miennes, toujours — même rangées là où je ne tiens que `rattacher`.
+        assertTrue(servicesLisibles(MachineDuDomaine(m(1), moi, "speedy", null), domaine(autre, Domaine.RATTACHER), moi))
+    }
+
+    @Test
+    fun rangerChezAutruiLeDitAvantDeConfirmerEtChezSoiRien() {
+        val attendu = "Qui voit ce domaine verra les services de cette machine ; qui y localise les joindra."
+        assertEquals(attendu, TextesPageDomaines.rangerChezAutrui)
+        assertEquals(attendu, avertissementDeRangement(domaine(autre, Domaine.RATTACHER), moi))
+        assertEquals(null, avertissementDeRangement(domaine(moi, Domaine.RATTACHER), moi))
+        assertEquals(null, avertissementDeRangement(null, moi))
+    }
+
     // ── Le badge et les gestes d'un domaine ──
 
     @Test

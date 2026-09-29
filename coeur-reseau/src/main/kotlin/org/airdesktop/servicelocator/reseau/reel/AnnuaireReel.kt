@@ -672,6 +672,8 @@ class AnnuaireReel(
      * et il n'est pas aplati pour ne pas exister deux fois). Aucune date : le
      * serveur n'en range pas.
      */
+    override suspend fun servicesDe(machine: Identifiant): List<Service> = services(machine)
+
     private suspend fun services(machine: Identifiant): List<Service> {
         val (statut, corps) = surLeFil { requete("GET", "/v1/machines/${machine.texte}/services") }
         if (statut != 200) return emptyList()
