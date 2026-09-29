@@ -65,8 +65,11 @@ import org.airdesktop.servicelocator.modele.Alias
 import org.airdesktop.servicelocator.modele.CodeDInscription
 import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.EtatDInscription
+import org.airdesktop.servicelocator.modele.EtatDeLAnnuaire
+import org.airdesktop.servicelocator.modele.EtatDeLaPaire
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Inscription
+import org.airdesktop.servicelocator.modele.VoieDuMembre
 import java.time.Instant
 
 // Mon annuaire local et l'administration des racines — les pages que le Mac range sous « Fédération »
@@ -134,6 +137,41 @@ internal object TextesFederation {
     const val titulaireCourt = "Titulaire"
     const val demandePar = "Demandé par"
 
+    // L'état de l'annuaire et de sa paire (décisions 70 et 86) — les mêmes libellés que le Mac.
+    const val vivant = "Vivant"
+    const val parti = "Parti"
+    const val pasDeNouvelles = "Pas de nouvelles"
+    const val voieOuverte = "Voie ouverte"
+    const val voieTombee = "Voie tombée"
+    /** Une voie dont la racine n'a rien dit, ou dit un mot qu'on ne connaît pas. */
+    const val voieInconnue = "—"
+    const val paireReglee = "Paire réglée"
+    const val paireMalReglee = "Paire mal réglée"
+
+    fun etat(etat: EtatDeLAnnuaire): String = when (etat) {
+        EtatDeLAnnuaire.Vivant -> vivant
+        EtatDeLAnnuaire.Parti -> parti
+        EtatDeLAnnuaire.PasDeNouvelles -> pasDeNouvelles
+    }
+
+    fun voie(voie: VoieDuMembre?): String = when (voie) {
+        VoieDuMembre.Ouverte -> voieOuverte
+        VoieDuMembre.Tombee -> voieTombee
+        VoieDuMembre.Inconnue, null -> voieInconnue
+    }
+
+    /**
+     * Ce qu'il faut faire d'une paire mal réglée, sur la machine [hote] — `null` si rien ne cloche. Le serveur ne refuse
+     * pas de démarrer sans `--peer` (décision 70) : c'est ici qu'on le voit, et la phrase dit le geste.
+     */
+    fun avertissement(paire: EtatDeLaPaire?, hote: String): String? = when (paire) {
+        EtatDeLaPaire.SansPeer ->
+            "$hote tourne sans --peer : la paire ne se réplique pas ; réglez --peer et --peer-key sur cette machine."
+        EtatDeLaPaire.PeerInconnu ->
+            "Le --peer de $hote ne désigne aucun membre accepté : la paire ne se réplique pas ; corrigez --peer et --peer-key sur cette machine."
+        else -> null
+    }
+
     /** « Acceptée », « En attente de la décision des racines »… : l'état, capitalisé, pour un badge. */
     fun badge(inscription: Inscription): String = TextesDomaines.etat(inscription).replaceFirstChar { it.uppercase() }
 }
@@ -144,6 +182,24 @@ internal fun couleurDeLEtat(etat: EtatDInscription): Color = when (etat) {
     EtatDInscription.Attendue, EtatDInscription.EnAttente -> Couleurs.attention
     EtatDInscription.Refusee -> Couleurs.erreur
     EtatDInscription.Retiree, EtatDInscription.Inconnu -> Couleurs.parti
+}
+
+/** La couleur de l'état d'un annuaire : vert s'il tient, orange s'il s'est tu, gris si la racine n'en sait rien. */
+internal fun couleurDeLEtat(etat: EtatDeLAnnuaire): Color = when (etat) {
+    EtatDeLAnnuaire.Vivant -> Couleurs.joignable
+    EtatDeLAnnuaire.Parti -> Couleurs.attention
+    EtatDeLAnnuaire.PasDeNouvelles -> Couleurs.parti
+}
+
+/**
+ * L'hôte d'une adresse `hôte:port` ou `[v6]:port`, pour nommer la machine dans une phrase ; l'adresse entière si elle
+ * n'a pas cette forme — on ne tronque pas ce qu'on ne comprend pas.
+ */
+internal fun hoteDe(adresse: String): String {
+    if (adresse.startsWith("[")) return adresse.substringAfter('[').substringBefore(']').ifEmpty { adresse }
+    val deuxPoints = adresse.lastIndexOf(':')
+    // Plus d'un deux-points sans crochets : une v6 nue, sans port à ôter.
+    return if (deuxPoints > 0 && adresse.indexOf(':') == deuxPoints) adresse.substring(0, deuxPoints) else adresse
 }
 
 // ── Ce que la page montre, en fonctions pures ────────────────────────────────
@@ -168,6 +224,12 @@ internal data class TuileDAnnuaire(
     val gesteDuSecond: GesteDuSecond,
     /** Confier un domaine : seulement à un annuaire accepté (sinon `404`, décision 48). */
     val confierPossible: Boolean,
+    /**
+     * Vivant, parti, pas de nouvelles — selon la racine qui répond, d'après la voie de chaque membre ; `null` tant que
+     * le titulaire n'est pas accepté : la racine ne dit `voie` d'aucune autre inscription, et « pas de nouvelles »
+     * d'un annuaire qui n'existe pas encore ne dirait rien.
+     */
+    val etat: EtatDeLAnnuaire?,
 )
 
 /** La page « Mon annuaire local » : une tuile par titulaire, puis les déclarations qui attendent leur machine. */
@@ -190,7 +252,8 @@ internal data class PageDAnnuaireLocal(val tuiles: List<TuileDAnnuaire>, val dec
                     seconds.isEmpty() -> GesteDuSecond.Declarer
                     else -> GesteDuSecond.Aucun
                 }
-                TuileDAnnuaire(titulaire, n, seconds, domaines.filter { it.hebergePar == n }, geste, acceptee)
+                val etat = if (acceptee) EtatDeLAnnuaire.de(listOf(titulaire) + seconds) else null
+                TuileDAnnuaire(titulaire, n, seconds, domaines.filter { it.hebergePar == n }, geste, acceptee, etat)
             }
             // Un premier membre déclaré, dont la machine n'a pas encore présenté le code : ni membre, ni annuaire.
             val declarations = locaux.filter { it.membre == null && it.annuaire == null && it.etat == EtatDInscription.Attendue }
@@ -300,11 +363,19 @@ private fun TuileDeLAnnuaire(
 ) {
     val titulaire = tuile.titulaire
     Tuile {
-        TeteDeTuile(TextesFederation.titulaire) { BadgeDeLEtat(titulaire) }
+        TeteDeTuile(TextesFederation.titulaire) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                tuile.etat?.let { Badge(TextesFederation.etat(it), couleurDeLEtat(it)) }
+                BadgeDeLEtat(titulaire)
+            }
+        }
         titulaire.membre?.let { membre ->
             LigneAGeste(TextesFederation.identifiant, geste = { BoutonCopier(membre.texte) }) { TexteFixe(membre.texte) }
         }
-        LigneAGeste(TextesFederation.adresse, geste = { BoutonCopier(titulaire.adresse) }) { TexteFixe(titulaire.adresse) }
+        LigneAGeste(TextesFederation.adresse, geste = { BoutonCopier(titulaire.adresse) }) {
+            AdresseEtVoie(titulaire, tuile.etat != null)
+            EtatDeLaPaireDuMembre(titulaire)
+        }
         LigneAGeste(
             TextesFederation.secondMembre,
             geste = when (val geste = tuile.gesteDuSecond) {
@@ -319,7 +390,10 @@ private fun TuileDeLAnnuaire(
                     Column(Modifier.weight(1f, fill = false)) { TexteFixe(second.membre?.texte ?: second.adresse) }
                     BadgeDeLEtat(second)
                 }
-                if (second.membre != null) TexteFixe(second.adresse, secondaire = true)
+                if (second.membre != null) {
+                    AdresseEtVoie(second, second.etat == EtatDInscription.Acceptee, secondaire = true)
+                    EtatDeLaPaireDuMembre(second)
+                }
             }
         }
         LigneAGeste(
@@ -341,6 +415,49 @@ private fun TuileDeDeclaration(declaration: Inscription) {
         LigneAGeste(TextesFederation.adresse, geste = { BoutonCopier(declaration.adresse) }) { TexteFixe(declaration.adresse) }
         declaration.expireA?.let { LigneAGeste(TextesFederation.code) { Text(TextesFederation.expire(it), style = MaterialTheme.typography.bodyMedium) } }
         NoteDeTuile(TextesFederation.declarationAide)
+    }
+}
+
+/**
+ * L'adresse d'un membre, et à côté, sa voie vers la racine qui répond — « — » quand elle n'en dit rien. Un membre qui
+ * n'est pas accepté n'a pas de voie : on ne la montre pas.
+ */
+@Composable
+private fun AdresseEtVoie(membre: Inscription, avecVoie: Boolean, secondaire: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.weight(1f, fill = false)) { TexteFixe(membre.adresse, secondaire) }
+        if (avecVoie) {
+            val couleur = when (membre.voie) {
+                VoieDuMembre.Ouverte -> Couleurs.joignable
+                VoieDuMembre.Tombee -> Couleurs.attention
+                VoieDuMembre.Inconnue, null -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            Text(TextesFederation.voie(membre.voie), style = MaterialTheme.typography.labelMedium, color = couleur)
+        }
+    }
+}
+
+/**
+ * Ce que ce membre conclut de sa paire : une coche discrète si elle est réglée, un avertissement rouge qui dit le
+ * geste si elle ne se réplique pas ; rien s'il est seul, s'il ne l'a pas encore dit, ou dit un mot inconnu.
+ */
+@Composable
+private fun EtatDeLaPaireDuMembre(membre: Inscription) {
+    val paire = membre.paire
+    val avertissement = TextesFederation.avertissement(paire, hoteDe(membre.adresse))
+    when {
+        avertissement != null -> Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(Icones.alerte, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+            Column {
+                Text(TextesFederation.paireMalReglee, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+                Text(avertissement, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        paire == EtatDeLaPaire.Reglee -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icones.coche, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+            Text(TextesFederation.paireReglee, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        else -> Unit
     }
 }
 

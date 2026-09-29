@@ -4,10 +4,12 @@ import org.airdesktop.servicelocator.modele.CodeDInscription
 import org.airdesktop.servicelocator.modele.DetailDuDomaine
 import org.airdesktop.servicelocator.modele.Domaine
 import org.airdesktop.servicelocator.modele.EtatDInscription
+import org.airdesktop.servicelocator.modele.EtatDeLaPaire
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.Inscription
 import org.airdesktop.servicelocator.modele.MachineDuDomaine
+import org.airdesktop.servicelocator.modele.VoieDuMembre
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -86,6 +88,10 @@ object LectureDesDomaines {
             proprietaire = identifiant(objet, "proprietaire", Genre.UTILISATEUR),
             adresse = adresse,
             expireA = if (objet.has("expire_a") && !objet.isNull("expire_a")) Instant.ofEpochMilli(objet.getLong("expire_a")) else null,
+            // Deux chaînes (0.36.0 et 0.38.0) : absentes d'un annuaire plus ancien ou d'un membre qui n'a pas encore
+            // parlé à cette racine. Une valeur d'une autre forme se lit comme absente — jamais un plantage.
+            paire = EtatDeLaPaire.depuisMot(objet.opt("paire") as? String),
+            voie = VoieDuMembre.depuisMot(objet.opt("voie") as? String),
         )
     }
 
