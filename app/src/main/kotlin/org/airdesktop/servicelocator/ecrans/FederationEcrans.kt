@@ -261,9 +261,9 @@ internal data class PageDAnnuaireLocal(val tuiles: List<TuileDAnnuaire>, val dec
             return PageDAnnuaireLocal(tuiles, declarations)
         }
 
-        /** Les domaines qu'on peut confier à [annuaire] : les miens, qu'il ne sert pas déjà. */
+        /** Les domaines qu'on peut confier à [annuaire] : les miens, qu'il ne sert pas déjà — jamais le domaine racine. */
         fun aConfier(domaines: List<Domaine>, moi: Identifiant?, annuaire: Identifiant): List<Domaine> =
-            domaines.filter { it.proprietaire == moi && it.hebergePar != annuaire }
+            domaines.filter { it.proprietaire == moi && it.hebergePar != annuaire && it.seConfie }
     }
 }
 

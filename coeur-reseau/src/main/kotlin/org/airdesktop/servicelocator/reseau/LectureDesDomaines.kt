@@ -67,6 +67,9 @@ object LectureDesDomaines {
             // « racines », ou un `n-…` ; un mot qu'on ne connaît pas se lit comme les racines — on n'invente pas d'hébergeur.
             hebergePar = if (heberge == "racines") null else runCatching { Identifiant.analyser(heberge, Genre.ANNUAIRE) }.getOrNull(),
             droits = droits,
+            // Une chaîne, sur R seul (0.39.0). Absente, d'une autre forme, ou un mot qu'on ne connaît pas : un domaine
+            // ordinaire — on ne retire un geste que sur ce qu'on sait.
+            racine = objet.opt("sorte") as? String == "racine",
         )
     }
 

@@ -38,6 +38,11 @@ data class Domaine(
     val hebergePar: Identifiant?,
     /** L'union de ce que ce compte peut sur lui : `administrer`, `rattacher`, `voir`, `localiser`. */
     val droits: Set<String>,
+    /**
+     * Le domaine racine R (décision 43) — `"sorte":"racine"` sur son objet, lui seul (serveur 0.39.0). Faux pour un
+     * domaine ordinaire, et pour tout ce qu'un annuaire plus ancien rend : il n'écrit pas ce champ.
+     */
+    val racine: Boolean = false,
 ) {
     /** Ce qu'on montre d'abord : l'alias quand il existe, l'identifiant sinon. */
     val affiche: String get() = alias ?: id.texte
@@ -48,15 +53,22 @@ data class Domaine(
      * Y ranger une machine : `rattacher` **tenu en propre**, dans la liste que l'annuaire rend — pas emporté par
      * `administrer`, ni par la propriété.
      *
-     * **LE DOMAINE RACINE NE REÇOIT AUCUNE MACHINE** (`modele.md`, « Le domaine racine — niveau 0 » : « Il ne contient
-     * aucune machine en v1 »). Il est calculé (décision 43), son propriétaire est le premier administrateur des
-     * racines, et l'annuaire ne lui rend que `["administrer"]` ; un `PUT /v1/machines/{m}/domaine` qui le vise rend
-     * `404`. Or [peut] fait descendre `rattacher` de `administrer` : s'y fier ici proposerait R à ranger. Un domaine
-     * ordinaire, lui, porte toujours `rattacher` en toutes lettres — les quatre droits pour son propriétaire,
-     * `["administrer","rattacher","voir"]` pour son groupe d'administrateurs (`protocole.md`, `GET /v1/domaines`) —,
-     * si bien que la règle stricte n'écarte que R.
+     * **C'EST L'ANNUAIRE QUI DIT SI R REÇOIT DES MACHINES.** Jusqu'au serveur 0.38, le domaine racine n'en reçoit
+     * aucune : l'annuaire ne rend à son propriétaire que `["administrer"]`, et un `PUT /v1/machines/{m}/domaine` qui
+     * le vise rend `404`. Or [peut] fait descendre `rattacher` de `administrer` : s'y fier ici proposerait R à
+     * ranger. Un domaine ordinaire, lui, porte toujours `rattacher` en toutes lettres — les quatre droits pour son
+     * propriétaire, `["administrer","rattacher","voir"]` pour son groupe d'administrateurs (`protocole.md`,
+     * `GET /v1/domaines`). À partir de 0.39.0, R porte les quatre droits et reçoit des machines : la même règle l'y
+     * propose alors, sans qu'on ait à le distinguer — c'est voulu.
      */
     val admetUneMachine: Boolean get() = RATTACHER in droits
+
+    /**
+     * Le confier à un annuaire local, ou le rendre aux racines. **R ne se confie jamais** : c'est lui qui fonde les
+     * racines. Tant qu'il ne tenait que `administrer`, [admetUneMachine] suffisait à l'écarter ; depuis qu'il tient
+     * les quatre droits (0.39.0), il ne se reconnaît plus qu'à [racine].
+     */
+    val seConfie: Boolean get() = !racine
 
     companion object {
         const val ADMINISTRER = "administrer"

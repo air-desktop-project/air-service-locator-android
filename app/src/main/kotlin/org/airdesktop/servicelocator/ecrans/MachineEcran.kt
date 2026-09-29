@@ -335,8 +335,8 @@ private fun Interrupteur(texte: String, actif: Boolean, surChangement: (Boolean)
 private fun FeuilleDuDomaineDeLaMachine(machine: Machine, domaines: List<Domaine>, rangeeDans: Identifiant?, onFermer: () -> Unit, apres: () -> Unit) {
     val session = LocalSession.current
     val geste = rememberGesteEnFeuille { apres(); onFermer() }
-    // Les domaines où l'on tient `rattacher` en propre — jamais le domaine racine, qui n'en reçoit aucune ; la retirer,
-    // si elle est rangée.
+    // Les domaines où l'on tient `rattacher` en propre — le domaine racine seulement quand l'annuaire l'y rend
+    // (0.39.0) ; la retirer, si elle est rangée.
     val options = domaines.filter { it.admetUneMachine }
     var choisi by remember { mutableStateOf(rangeeDans) }
     FeuilleDeSaisie(
