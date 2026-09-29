@@ -347,6 +347,12 @@ private fun FeuilleDuDomaineDeLaMachine(machine: Machine, domaines: List<Domaine
         options.forEach { d -> Choix(d.affiche, choisi == d.id) { choisi = d.id } }
         if (rangeeDans != null) Choix(TextesDomaines.retirerDuDomaine, choisi == null) { choisi = null }
         if (options.isEmpty()) TexteAbsent(TextesDomaines.aucun)
+        // Le domaine choisi est à un autre compte : ce que le rangement ouvre se dit avant « Enregistrer ».
+        if (choisi != rangeeDans) {
+            avertissementDeRangement(options.firstOrNull { it.id == choisi }, session.compte?.identifiant)?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = Couleurs.attention)
+            }
+        }
     }
 }
 
@@ -360,7 +366,8 @@ fun LigneService(service: Service, modifier: Modifier = Modifier) {
         },
         supportingContent = {
             Column {
-                Text(service.pointsTexte)
+                // Sans adresse, il n'y a pas de point à dire : la ligne ne s'en invente pas une vide.
+                if (service.points.isNotEmpty()) Text(service.pointsTexte)
                 if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre.", style = MaterialTheme.typography.bodySmall, color = Couleurs.attention)
             }
         },

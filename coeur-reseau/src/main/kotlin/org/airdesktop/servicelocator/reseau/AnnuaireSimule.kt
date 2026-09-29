@@ -460,6 +460,12 @@ class AnnuaireSimule(
         rattachements[machine] = domaine
     }
 
+    /** Le banc ne tient qu'un compte : ses machines rendent tout, une machine inconnue `[]` — comme l'annuaire sans droit. */
+    override suspend fun servicesDe(machine: Identifiant): List<Service> = verrou.withLock {
+        moi()
+        parcMachines.firstOrNull { it.id == machine }?.services.orEmpty()
+    }
+
     /** Le domaine où une machine est rangée — pour l'écran d'une machine, et pour un banc. */
     suspend fun domaineDe(machine: Identifiant): Identifiant? = verrou.withLock { rattachements[machine] }
 

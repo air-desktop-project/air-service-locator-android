@@ -75,6 +75,13 @@ data class Service(
      * sont le même hôte, et la sonde s'est faite **de l'intérieur** — « joignable » n'y dit rien de l'extérieur.
      */
     val sondeLocale: Boolean = false,
+    /**
+     * Vivant, mais **sans adresse** : l'annuaire ne rend que le nom et l'état (`"annonce":{}`, serveur 0.40.0,
+     * décision 104) à qui ne tient que `voir` sur le domaine où la machine d'un autre compte est rangée. Ni points
+     * d'écoute, ni verdicts, ni ce qu'il a répondu au daemon : ce n'est pas qu'il n'y en a pas, c'est qu'ils ne sont
+     * pas dus. Qui y tient `localiser` reçoit le tout, comme le propriétaire.
+     */
+    val sansAdresse: Boolean = false,
 ) {
     /** La connexion EST le bail : elle est tenue, ou elle est fermée. */
     sealed interface Etat {

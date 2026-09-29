@@ -210,6 +210,12 @@ internal object TextesPageDomaines {
     const val rangerExplication = "Une machine n'est rangée que dans un domaine à la fois : la ranger ici la retire de l'autre."
     const val ranger = "Ranger"
     const val toutEstRange = "Toutes vos machines sont déjà rangées ici."
+    /**
+     * Ranger MA machine dans le domaine d'un AUTRE compte l'ouvre à ceux qui y tiennent un droit (serveur 0.40.0,
+     * décision 104) — dit avant de confirmer, à la lettre le Mac.
+     */
+    const val rangerChezAutrui = "Qui voit ce domaine verra les services de cette machine ; qui y localise les joindra."
+    const val aucunService = "Aucun service."
 }
 
 // ── Ce que la page montre et permet, en fonctions pures ──────────────────────
@@ -258,6 +264,21 @@ internal fun retirableDuDomaine(machine: MachineDuDomaine, moi: Identifiant?): B
 /** La ligne d'une machine rangée : son identifiant, et à qui elle est. */
 internal fun sousTitreDeMachineRangee(machine: MachineDuDomaine, moi: Identifiant?): String =
     "${machine.machine.texte} · ${if (machine.proprietaire == moi) TextesPageDomaines.aVous else machine.proprietaire.texte}"
+
+/**
+ * Lit-on les services de cette machine rangée ? Les miennes, toujours ; celles d'un AUTRE compte, dès que le domaine
+ * donne `voir` (ou `administrer`, qui l'emporte) ou `localiser` (serveur 0.40.0, décision 104). Ce qu'on en reçoit —
+ * tout, ou sans adresse —, c'est l'annuaire qui le décide ; sans droit il rendrait `[]`, qu'on ne demande pas.
+ */
+internal fun servicesLisibles(machine: MachineDuDomaine, domaine: Domaine, moi: Identifiant?): Boolean =
+    (moi != null && machine.proprietaire == moi) || domaine.peut(Domaine.VOIR) || domaine.peut(Domaine.LOCALISER)
+
+/**
+ * Ce qu'il faut dire avant de ranger MA machine dans [domaine] : rien s'il est à moi ; s'il est à un autre compte,
+ * que ceux qui y tiennent un droit verront ses services, ou les joindront. `null` sans domaine choisi.
+ */
+internal fun avertissementDeRangement(domaine: Domaine?, moi: Identifiant?): String? =
+    if (domaine != null && moi != null && domaine.proprietaire != moi) TextesPageDomaines.rangerChezAutrui else null
 
 /** Les machines qu'on peut ranger ici : les miennes, qui n'y sont pas déjà. */
 internal fun machinesARanger(miennes: List<Machine>, detail: DetailDuDomaine): List<Machine> =
@@ -355,6 +376,7 @@ private fun FeuilleDuDomaine(feuille: FeuilleDomaine, onFermer: () -> Unit, apre
             ) {
                 if (candidates?.isEmpty() == true) TexteAbsent(TextesPageDomaines.toutEstRange)
                 candidates.orEmpty().forEach { m -> Choix(m.affichee, choisie == m.id) { choisie = m.id } }
+                avertissementDeRangement(detail.domaine, session.compte?.identifiant)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Couleurs.attention) }
             }
         }
     }
@@ -465,6 +487,13 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
     val moi = session.compte?.identifiant
     // Les annuaires locaux : leurs adresses disent qui sert ce domaine, et s'il est « Mon annuaire local ».
     val locaux = rememberChargement { runCatching { session.annuaire.annuairesLocaux() }.getOrDefault(emptyList()) }
+    // Les services des machines rangées qu'on a le droit de lire — une requête par machine, relue avec le détail. Une
+    // machine dont la lecture échoue n'a pas de services dits : l'échec ne masque pas les autres.
+    val services = rememberChargement(detail) {
+        val d = detail ?: return@rememberChargement emptyMap()
+        d.machines.filter { servicesLisibles(it, d.domaine, moi) }
+            .associate { m -> m.machine to runCatching { session.annuaire.servicesDe(m.machine) }.getOrNull() }
+    }
     var erreur by remember { mutableStateOf<String?>(null) }
     var enCours by remember { mutableStateOf(false) }
     var feuille by remember { mutableStateOf<FeuilleDomaine?>(null) }
@@ -528,6 +557,13 @@ fun DomaineEcran(nav: NavController, id: Identifiant) {
                                 TexteFixe(sousTitreDeMachineRangee(machine, moi), secondaire = true)
                             }
                             if (retirableDuDomaine(machine, moi)) BoutonDeGeste(TextesPageDomaines.retirerDuDomaine) { aRetirer = machine }
+                        }
+                        // Absente de la carte : pas lisible, ou pas encore lue — rien n'est dit plutôt qu'un « aucun » faux.
+                        services.valeur?.get(machine.machine)?.let { liste ->
+                            if (liste.isEmpty()) TexteAbsent(TextesPageDomaines.aucunService)
+                            liste.forEach { service ->
+                                LigneService(service, Modifier.clickable { nav.navigate(Routes.service(machine.machine, service.id)) })
+                            }
                         }
                     }
                 }

@@ -194,6 +194,18 @@ internal object TextesSonde {
     const val miseEnGarde = "Sondé depuis la machine elle-même : pas vérifié de l'extérieur."
 }
 
+/**
+ * Un service vivant lu sans adresse ([Service.sansAdresse], serveur 0.40.0, décision 104) : la machine est à un autre
+ * compte, et le domaine où elle est rangée ne donne que `voir`.
+ */
+internal object TextesSansAdresse {
+    /** Le mot de l'état : annoncé — l'annuaire n'en dit pas plus, et l'écran non plus. */
+    const val annonce = "Annoncé"
+    const val detail = "sans adresse"
+    const val explication =
+        "Ce domaine vous donne de voir ce service, pas de le joindre : l'annuaire n'en rend les points d'écoute et les adresses qu'à qui y tient « localiser »."
+}
+
 /** Le mot du verdict : « Joignable depuis la machine » pour une sonde faite de l'intérieur, sinon comme avant. */
 internal fun libelleDuVerdict(verdict: Joignabilite, service: Service): String =
     if (verdict is Joignabilite.Joignable && service.sondeLocale) TextesSonde.joignableDepuisLaMachine else verdict.libelle
@@ -214,13 +226,13 @@ internal fun miseEnGardeDuVerdict(verdict: Joignabilite?, service: Service): Str
 
 val Service.libelleEtat: String
     get() = when (etat) {
-        is Service.Etat.Annonce -> resume?.let { libelleDuVerdict(it, this) } ?: "Annoncé"
+        is Service.Etat.Annonce -> if (sansAdresse) TextesSansAdresse.annonce else resume?.let { libelleDuVerdict(it, this) } ?: "Annoncé"
         is Service.Etat.Parti -> "Parti"
     }
 
 val Service.detailEtat: String
     get() = when (val e = etat) {
-        is Service.Etat.Annonce -> resume?.let { detailDuVerdict(it, this) } ?: ""
+        is Service.Etat.Annonce -> if (sansAdresse) TextesSansAdresse.detail else resume?.let { detailDuVerdict(it, this) } ?: ""
         // La date n'est connue que si l'on a vu le départ, et le motif pas toujours : l'annuaire n'en range ni l'un ni l'autre.
         is Service.Etat.Parti -> listOfNotNull(
             e.volontaire?.let { if (it) "arrêt volontaire" else "inactivité" } ?: "motif inconnu",

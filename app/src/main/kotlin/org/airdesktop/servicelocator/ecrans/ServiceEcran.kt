@@ -26,6 +26,7 @@ import org.airdesktop.servicelocator.composants.Icones
 import org.airdesktop.servicelocator.composants.LigneIdentifiant
 import org.airdesktop.servicelocator.composants.Pastille
 import org.airdesktop.servicelocator.composants.SousTitre
+import org.airdesktop.servicelocator.composants.TextesSansAdresse
 import org.airdesktop.servicelocator.composants.couleur
 import org.airdesktop.servicelocator.composants.detailDuVerdict
 import org.airdesktop.servicelocator.composants.detailEtat
@@ -48,13 +49,19 @@ import org.airdesktop.servicelocator.reseau.ErreurAnnuaire
  * L'écran ne résume pas : la liste l'a fait. Ici, chaque point porte son
  * verdict et sa date, chaque candidat son origine — parce que « joignable »
  * se lit avec « depuis où » et « quand », ou ne se lit pas.
+ *
+ * La machine peut être celle d'un AUTRE compte, rangée dans un domaine où l'on tient un droit (serveur 0.40.0,
+ * décision 104) : on la lit alors par `GET /v1/machines/{m}/services`, et l'on n'en connaît que l'identifiant. Sous le
+ * seul `voir`, le service vient **sans adresse** : ni points d'écoute, ni candidats, ni diagnostic — les sections se
+ * taisent au lieu de s'afficher vides, et l'écran dit pourquoi.
  */
 @Composable
 fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
     val session = LocalSession.current
     val chargement = rememberChargement {
-        val m = session.annuaire.machines().firstOrNull { it.id == machine } ?: throw ErreurAnnuaire.Introuvable
-        m to (m.services.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable)
+        val mienne = session.annuaire.machines().firstOrNull { it.id == machine }
+        if (mienne != null) mienne.affichee to (mienne.services.firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable)
+        else machine.texte to (session.annuaire.servicesDe(machine).firstOrNull { it.id == id } ?: throw ErreurAnnuaire.Introuvable)
     }
     val (fiche, service) = chargement.valeur ?: (null to null)
 
@@ -70,15 +77,19 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
                         Column {
                             Text(service.detailEtat)
                             miseEnGardeDuVerdict(service.resume, service)?.let { Text(it, color = Couleurs.attention) }
-                            (service.etat as? Service.Etat.Annonce)?.let { Text("annoncé ${Formats.relatif(it.depuis)}") }
+                            // Sans adresse, l'annuaire ne rend aucune date d'annonce : on n'en affiche pas une inventée.
+                            (service.etat as? Service.Etat.Annonce)?.takeUnless { service.sansAdresse }?.let { Text("annoncé ${Formats.relatif(it.depuis)}") }
                             if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre : chaque annonce remplace la précédente.", color = Couleurs.attention)
                         }
                     },
                 )
             }
-            item { SousTitre("Points d'écoute") }
-            items(service.points, key = { it.texte }) { point -> LignePoint(point.texte, service.joignabilite[point], service) }
-            item { Aide("Le verdict est celui de l'annuaire, qui a lui-même essayé d'ouvrir une connexion vers ce port. Un point UDP ne se sonde pas : aucune poignée de main, aucun écho générique.") }
+            if (service.sansAdresse) item { Aide(TextesSansAdresse.explication) }
+            if (!service.sansAdresse) {
+                item { SousTitre("Points d'écoute") }
+                items(service.points, key = { it.texte }) { point -> LignePoint(point.texte, service.joignabilite[point], service) }
+                item { Aide("Le verdict est celui de l'annuaire, qui a lui-même essayé d'ouvrir une connexion vers ce port. Un point UDP ne se sonde pas : aucune poignée de main, aucun écho générique.") }
+            }
             if (service.candidats.isNotEmpty()) {
                 item { SousTitre("Candidats") }
                 items(service.candidats) { candidat ->
@@ -109,7 +120,7 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
             }
             item { SousTitre("Service") }
             item { LigneIdentifiant("Identifiant public", service.id, partageable = true) }
-            item { ListItem(headlineContent = { Text("Machine") }, supportingContent = { Text(fiche.affichee) }) }
+            item { ListItem(headlineContent = { Text("Machine") }, supportingContent = { Text(fiche) }) }
         }
     }
 }
