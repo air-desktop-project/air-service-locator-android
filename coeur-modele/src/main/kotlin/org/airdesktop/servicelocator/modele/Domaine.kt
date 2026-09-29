@@ -100,6 +100,10 @@ data class Inscription(
     val adresse: String,
     /** Jusqu'à quand le code se présente, pour une déclaration attendue. */
     val expireA: Instant?,
+    /** Ce que ce membre conclut de sa paire (décision 70) ; `null` tant qu'il ne l'a pas dit à cette racine. */
+    val paire: EtatDeLaPaire? = null,
+    /** Sa voie de fédération vers la racine qui répond (décision 86) ; `null` si elle n'en a rien vu depuis son démarrage. */
+    val voie: VoieDuMembre? = null,
 ) {
     /** Le titulaire — celui que l'on nomme pour retirer l'annuaire, lui confier un domaine, lui ajouter un second. */
     val estTitulaire: Boolean get() = membre != null && membre == annuaire
@@ -107,3 +111,80 @@ data class Inscription(
 
 /** Le code d'inscription à taper sur la machine (`asl-server --register <code>`) : dix symboles, vingt-quatre heures. */
 data class CodeDInscription(val code: String, val expireA: Instant)
+
+/**
+ * Ce qu'un membre d'annuaire local conclut de sa paire — le champ `paire` de `GET /v1/annuaires` (0.36.0, décision
+ * 70 ; `protocole.md` §3 ter). Le mot du fil, en ASCII, à l'identique.
+ *
+ * [SansPeer] et [PeerInconnu] sont les deux façons dont une paire **ne se réplique pas** : l'une parce que ce membre
+ * tourne sans `--peer`, l'autre parce que son `--peer` ne désigne aucun autre membre accepté. Le serveur ne refuse pas
+ * de démarrer ; c'est l'application qui doit le montrer.
+ */
+enum class EtatDeLaPaire(val mot: String) {
+    /** Un seul membre accepté : il n'a personne à nommer. */
+    Seul("seul"),
+    Reglee("reglee"),
+    SansPeer("sans-peer"),
+    PeerInconnu("peer-inconnu"),
+
+    /** Un mot d'un annuaire plus récent : on n'en conclut rien — ni coche, ni alarme. */
+    Inconnu("");
+
+    /** Les deux états qui empêchent la paire de se répliquer. */
+    val malReglee: Boolean get() = this == SansPeer || this == PeerInconnu
+
+    companion object {
+        /** `null` pour un champ absent ; [Inconnu] pour un mot qu'on ne connaît pas. */
+        fun depuisMot(mot: String?): EtatDeLaPaire? =
+            if (mot.isNullOrEmpty()) null else entries.firstOrNull { it.mot == mot && it != Inconnu } ?: Inconnu
+    }
+}
+
+/**
+ * La voie de fédération d'un membre vers **la racine qui répond** — le champ `voie` de `GET /v1/annuaires` (0.38.0,
+ * décision 86 ; `annuaires.md` §2 quinquies). Une chaîne, pas un booléen, pour que les clients d'hier la sautent.
+ *
+ * L'état vivant ne s'écrit pas : une racine qui redémarre ne distingue pas « tombée » de « pas encore revenue », et
+ * n'envoie alors rien — ce que `null` porte ici. On ne le confond pas avec [Tombee].
+ */
+enum class VoieDuMembre(val mot: String) {
+    /** Elle tient : le membre a prouvé sa clé et parlé depuis moins de trente secondes. */
+    Ouverte("ouverte"),
+
+    /** Elle a tenu depuis que cette racine tourne, et s'est tue. */
+    Tombee("tombee"),
+
+    /** Un mot d'un annuaire plus récent : on n'en conclut rien. */
+    Inconnue("");
+
+    companion object {
+        /** `null` pour un champ absent ; [Inconnue] pour un mot qu'on ne connaît pas. */
+        fun depuisMot(mot: String?): VoieDuMembre? =
+            if (mot.isNullOrEmpty()) null else entries.firstOrNull { it.mot == mot && it != Inconnue } ?: Inconnue
+    }
+}
+
+/**
+ * L'état d'un annuaire local tel que la racine qui répond le voit — la règle de l'`asl-directory` (décision 86) :
+ * **vivant** si l'un de ses membres a sa voie ouverte, **parti** si aucun ne l'a et qu'au moins une est tombée, **pas
+ * de nouvelles** sinon — la racine vient de redémarrer, ou aucun membre ne lui a parlé depuis. Une voie au mot inconnu
+ * ne compte ni pour l'un ni pour l'autre.
+ *
+ * « Vivant » dit qu'une voie sortante tient, pas que la maison est joignable du dehors (décision 83).
+ */
+enum class EtatDeLAnnuaire {
+    Vivant,
+    Parti,
+    PasDeNouvelles;
+
+    companion object {
+        fun de(membres: List<Inscription>): EtatDeLAnnuaire {
+            val voies = membres.mapNotNull { it.voie }
+            return when {
+                VoieDuMembre.Ouverte in voies -> Vivant
+                VoieDuMembre.Tombee in voies -> Parti
+                else -> PasDeNouvelles
+            }
+        }
+    }
+}

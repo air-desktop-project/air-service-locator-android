@@ -1,8 +1,10 @@
 package org.airdesktop.servicelocator.reseau
 
 import org.airdesktop.servicelocator.modele.EtatDInscription
+import org.airdesktop.servicelocator.modele.EtatDeLaPaire
 import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
+import org.airdesktop.servicelocator.modele.VoieDuMembre
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -72,5 +74,42 @@ class LectureDesDomainesEssais {
         assertEquals(u, lues[2].proprietaire?.texte)
         assertEquals(EtatDInscription.Inconnu, lues[3].etat)
         assertEquals("suspendue", lues[3].motDeLEtat)
+    }
+
+    @Test
+    fun laPaireEtLaVoieDeChaqueMembre() {
+        // La forme d'`annuaires.md` §2 quinquies : le titulaire tient, son second s'est tu.
+        val corps = """[{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"speedy.example:6630","locateurs":["[2a01::1]:6630"],""" +
+            """"paire":"reglee","voie":"ouverte"},""" +
+            """{"membre":"$n2","annuaire":"$n","etat":"acceptée","adresse":"helium.example:6630","paire":"sans-peer","voie":"tombee"}]"""
+        val lues = LectureDesDomaines.inscriptions(corps)
+        assertEquals(EtatDeLaPaire.Reglee, lues[0].paire)
+        assertEquals(VoieDuMembre.Ouverte, lues[0].voie)
+        assertEquals(EtatDeLaPaire.SansPeer, lues[1].paire)
+        assertEquals(VoieDuMembre.Tombee, lues[1].voie)
+        assertEquals(EtatDeLaPaire.Seul, LectureDesDomaines.inscriptions("""[{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"a:1","paire":"seul"}]""").single().paire)
+        assertEquals(EtatDeLaPaire.PeerInconnu, LectureDesDomaines.inscriptions("""[{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"a:1","paire":"peer-inconnu"}]""").single().paire)
+    }
+
+    @Test
+    fun uneVoieOuUnePaireAbsenteInconnueOuMalFormeeNeCassePasLaLecture() {
+        val corps = """[{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"a:1"},""" +
+            """{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"a:1","paire":"jumelee","voie":"entrouverte"},""" +
+            """{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"a:1","paire":null,"voie":null},""" +
+            """{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"a:1","paire":true,"voie":1},""" +
+            """{"membre":"$n","annuaire":"$n","etat":"acceptée","adresse":"a:1","paire":"","voie":""}]"""
+        val lues = LectureDesDomaines.inscriptions(corps)
+        assertEquals(5, lues.size)
+        // Absent : on ne sait pas.
+        assertNull(lues[0].paire)
+        assertNull(lues[0].voie)
+        // Un mot d'un annuaire plus récent : lu, mais sans rien en conclure.
+        assertEquals(EtatDeLaPaire.Inconnu, lues[1].paire)
+        assertEquals(VoieDuMembre.Inconnue, lues[1].voie)
+        // null, une autre forme qu'une chaîne, une chaîne vide : comme absents.
+        for (i in 2..4) {
+            assertNull(lues[i].paire)
+            assertNull(lues[i].voie)
+        }
     }
 }
