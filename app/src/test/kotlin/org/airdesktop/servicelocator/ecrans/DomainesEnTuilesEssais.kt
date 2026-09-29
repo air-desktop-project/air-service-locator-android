@@ -40,14 +40,29 @@ class DomainesEnTuilesEssais {
         assertEquals(RoleDuDomaine(Role.Droits, "voir · localiser"), RoleDuDomaine.de(domaine(autre, Domaine.VOIR, Domaine.LOCALISER), moi))
     }
 
+    /** Ce que l'annuaire rend au propriétaire d'un domaine ordinaire, et à son groupe d'administrateurs (`protocole.md`). */
+    private val quatre = arrayOf(Domaine.ADMINISTRER, Domaine.RATTACHER, Domaine.VOIR, Domaine.LOCALISER)
+    private val administrateurs = arrayOf(Domaine.ADMINISTRER, Domaine.RATTACHER, Domaine.VOIR)
+
     @Test
     fun aMoiTousLesGestes() {
-        assertEquals(GestesDuDomaine(renommer = true, changerHebergeur = true, ranger = true, supprimer = true), GestesDuDomaine.de(domaine(moi, Domaine.ADMINISTRER), moi))
+        assertEquals(GestesDuDomaine(renommer = true, changerHebergeur = true, ranger = true, supprimer = true), GestesDuDomaine.de(domaine(moi, *quatre), moi))
     }
 
     @Test
     fun administrerDonneDeRenommerEtDeRangerPasDeSupprimerNiDeConfier() {
-        assertEquals(GestesDuDomaine(renommer = true, changerHebergeur = false, ranger = true, supprimer = false), GestesDuDomaine.de(domaine(autre, Domaine.ADMINISTRER), moi))
+        assertEquals(GestesDuDomaine(renommer = true, changerHebergeur = false, ranger = true, supprimer = false), GestesDuDomaine.de(domaine(autre, *administrateurs), moi))
+    }
+
+    @Test
+    fun leDomaineRacineNeSeProposePasAuRangementMemeASonProprietaire() {
+        // R (décision 43) : son propriétaire calculé n'y tient que `administrer`, et l'annuaire refuse d'y ranger (404).
+        val racine = GestesDuDomaine.de(domaine(moi, Domaine.ADMINISTRER), moi)
+        assertFalse(racine.ranger)
+        assertFalse(racine.changerHebergeur)
+        assertTrue(racine.renommer)
+        // Posséder un domaine sans y tenir `rattacher` ne suffit pas : seule la liste des droits décide.
+        assertFalse(GestesDuDomaine.de(domaine(moi, Domaine.VOIR), moi).ranger)
     }
 
     @Test

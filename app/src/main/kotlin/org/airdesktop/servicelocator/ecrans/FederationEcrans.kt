@@ -161,14 +161,14 @@ internal object TextesFederation {
     }
 
     /**
-     * Le membre, nommé dans une phrase par son rôle et son `n-…` abrégé : « Le titulaire (n-7MSV5…) », « Le second
-     * membre (n-4EQRD…) ». Pas par l'hôte de son adresse : c'est souvent une IPv6, qu'on ne lit pas. Les cinq
-     * caractères après « n- » suffisent à distinguer les deux membres d'une paire, et se recoupent avec la ligne
-     * « Identifiant » de la tuile et le journal de la machine.
+     * Le membre, nommé dans une phrase par son rôle et son `n-…` abrégé : « Le titulaire (n-7MSV…X87P) », « Le second
+     * membre (n-4EQR…08Z9) ». Pas par l'hôte de son adresse : c'est souvent une IPv6, qu'on ne lit pas. L'abrégé est
+     * [Identifiant.abrege], celui de toute l'application et, à l'identique, du Mac (`Identifiant.abrege` :
+     * six caractères, « n- » compris, « … », quatre derniers) — une même paire se dit pareil sur les deux.
      */
     fun designation(membre: Inscription): String {
         val role = if (membre.estTitulaire) "Le titulaire" else "Le second membre"
-        return membre.membre?.let { "$role (${it.texte.take(7)}…)" } ?: role
+        return membre.membre?.let { "$role (${it.abrege})" } ?: role
     }
 
     /**

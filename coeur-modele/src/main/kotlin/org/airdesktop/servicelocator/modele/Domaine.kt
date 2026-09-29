@@ -44,8 +44,19 @@ data class Domaine(
 
     fun peut(droit: String): Boolean = droit in droits || (droit != LOCALISER && ADMINISTRER in droits)
 
-    /** Y ranger une machine : `rattacher`, reçu ou emporté par `administrer`. */
-    val admetUneMachine: Boolean get() = peut(RATTACHER)
+    /**
+     * Y ranger une machine : `rattacher` **tenu en propre**, dans la liste que l'annuaire rend — pas emporté par
+     * `administrer`, ni par la propriété.
+     *
+     * **LE DOMAINE RACINE NE REÇOIT AUCUNE MACHINE** (`modele.md`, « Le domaine racine — niveau 0 » : « Il ne contient
+     * aucune machine en v1 »). Il est calculé (décision 43), son propriétaire est le premier administrateur des
+     * racines, et l'annuaire ne lui rend que `["administrer"]` ; un `PUT /v1/machines/{m}/domaine` qui le vise rend
+     * `404`. Or [peut] fait descendre `rattacher` de `administrer` : s'y fier ici proposerait R à ranger. Un domaine
+     * ordinaire, lui, porte toujours `rattacher` en toutes lettres — les quatre droits pour son propriétaire,
+     * `["administrer","rattacher","voir"]` pour son groupe d'administrateurs (`protocole.md`, `GET /v1/domaines`) —,
+     * si bien que la règle stricte n'écarte que R.
+     */
+    val admetUneMachine: Boolean get() = RATTACHER in droits
 
     companion object {
         const val ADMINISTRER = "administrer"

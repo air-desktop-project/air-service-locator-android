@@ -229,8 +229,10 @@ internal data class RoleDuDomaine(val role: Role, val texte: String) {
  * Les gestes qu'un domaine offre à ce compte — décidés comme le Mac, sur les droits que l'annuaire rend.
  *
  * Renommer : `administrer`. Changer l'hébergeur : le posséder ET pouvoir y ranger — le domaine racine, même à son
- * propriétaire, ne se confie pas. Ranger une machine : le posséder, ou `rattacher`. Supprimer : le posséder ; que ce
- * soit le dernier, c'est l'annuaire qui le dit (`DernierDomaine`).
+ * propriétaire, ne se confie pas. Ranger une machine : `rattacher`, tenu en propre ([Domaine.admetUneMachine]) — ni la
+ * propriété ni `administrer` n'y suffisent, sans quoi le propriétaire du domaine racine se verrait offrir « Ranger une
+ * machine ici… » sur un domaine qui n'en reçoit aucune. Supprimer : le posséder ; que ce soit le dernier, c'est
+ * l'annuaire qui le dit (`DernierDomaine`).
  */
 internal data class GestesDuDomaine(val renommer: Boolean, val changerHebergeur: Boolean, val ranger: Boolean, val supprimer: Boolean) {
     companion object {
@@ -238,8 +240,8 @@ internal data class GestesDuDomaine(val renommer: Boolean, val changerHebergeur:
             val aMoi = moi != null && domaine.proprietaire == moi
             return GestesDuDomaine(
                 renommer = domaine.peut(Domaine.ADMINISTRER),
-                changerHebergeur = aMoi && domaine.peut(Domaine.RATTACHER),
-                ranger = aMoi || domaine.peut(Domaine.RATTACHER),
+                changerHebergeur = aMoi && domaine.admetUneMachine,
+                ranger = domaine.admetUneMachine,
                 supprimer = aMoi,
             )
         }
