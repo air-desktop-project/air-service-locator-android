@@ -171,6 +171,8 @@ internal object TextesPageDomaines {
     const val ouvrir = "Ouvrir"
     const val modifier = "Modifier…"
     const val changer = "Changer…"
+    /** Le badge du domaine racine, en tête de sa tuile : il se range comme un autre, mais ne se confie pas. */
+    const val domaineRacine = "Domaine racine"
 
     const val nom = "Nom"
     const val identifiant = "Identifiant"
@@ -228,11 +230,13 @@ internal data class RoleDuDomaine(val role: Role, val texte: String) {
 /**
  * Les gestes qu'un domaine offre à ce compte — décidés comme le Mac, sur les droits que l'annuaire rend.
  *
- * Renommer : `administrer`. Changer l'hébergeur : le posséder ET pouvoir y ranger — le domaine racine, même à son
- * propriétaire, ne se confie pas. Ranger une machine : `rattacher`, tenu en propre ([Domaine.admetUneMachine]) — ni la
- * propriété ni `administrer` n'y suffisent, sans quoi le propriétaire du domaine racine se verrait offrir « Ranger une
- * machine ici… » sur un domaine qui n'en reçoit aucune. Supprimer : le posséder ; que ce soit le dernier, c'est
- * l'annuaire qui le dit (`DernierDomaine`).
+ * Renommer : `administrer`. Changer l'hébergeur : le posséder ET pouvoir y ranger, et que ce ne soit pas le domaine
+ * racine ([Domaine.estOrdinaire]) — R, même à son propriétaire, ne se confie pas ; depuis que l'annuaire lui rend les
+ * quatre droits (0.39.0), seul `"sorte":"racine"` le distingue. Ranger une machine : `rattacher`, tenu en propre
+ * ([Domaine.admetUneMachine]) — ni la propriété ni `administrer` n'y suffisent, sans quoi le propriétaire du domaine
+ * racine se verrait offrir « Ranger une machine ici… » sur un annuaire qui refuse encore d'y en ranger. Supprimer : le
+ * posséder, et que ce ne soit pas R, qui est calculé ; que ce soit le dernier, c'est l'annuaire qui le dit
+ * (`DernierDomaine`).
  */
 internal data class GestesDuDomaine(val renommer: Boolean, val changerHebergeur: Boolean, val ranger: Boolean, val supprimer: Boolean) {
     companion object {
@@ -240,9 +244,9 @@ internal data class GestesDuDomaine(val renommer: Boolean, val changerHebergeur:
             val aMoi = moi != null && domaine.proprietaire == moi
             return GestesDuDomaine(
                 renommer = domaine.peut(Domaine.ADMINISTRER),
-                changerHebergeur = aMoi && domaine.admetUneMachine,
+                changerHebergeur = aMoi && domaine.admetUneMachine && domaine.estOrdinaire,
                 ranger = domaine.admetUneMachine,
-                supprimer = aMoi,
+                supprimer = aMoi && domaine.estOrdinaire,
             )
         }
     }
@@ -427,7 +431,12 @@ fun DomainesEcran(nav: NavController) {
             items(chargement.valeur.orEmpty(), key = { it.id.texte }) { domaine ->
                 val gestes = GestesDuDomaine.de(domaine, moi)
                 Tuile {
-                    TeteDeTuile(domaine.affiche) { BadgeDeRole(domaine, moi) }
+                    TeteDeTuile(domaine.affiche) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (domaine.racine) Badge(TextesPageDomaines.domaineRacine, Couleurs.parti)
+                            BadgeDeRole(domaine, moi)
+                        }
+                    }
                     LigneAGeste(TextesPageDomaines.identifiant, geste = { BoutonCopier(domaine.id.texte) }) { TexteFixe(domaine.id.texte) }
                     LigneAGeste(
                         TextesPageDomaines.hebergePar,

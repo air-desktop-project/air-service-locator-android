@@ -94,6 +94,9 @@ class AnnuaireLocalEssais {
     fun onNeConfieQueSesDomainesQueLAnnuaireNeSertPasDeja() {
         val domaines = listOf(domaine(d(1), speedy), domaine(d(2), null), domaine(d(3), n(9)), domaine(d(4), null, proprietaire = autre))
         assertEquals(listOf(d(2), d(3)), PageDAnnuaireLocal.aConfier(domaines, moi, speedy).map { it.id })
+        // Le domaine racine, même à moi et servi par les racines, ne se propose pas.
+        val racine = Domaine(d(5), moi, null, null, setOf(Domaine.ADMINISTRER, Domaine.RATTACHER), racine = true)
+        assertEquals(listOf(d(2), d(3)), PageDAnnuaireLocal.aConfier(domaines + racine, moi, speedy).map { it.id })
     }
 
     @Test

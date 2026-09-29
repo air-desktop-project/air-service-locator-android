@@ -6,6 +6,7 @@ import org.airdesktop.servicelocator.modele.Genre
 import org.airdesktop.servicelocator.modele.Identifiant
 import org.airdesktop.servicelocator.modele.VoieDuMembre
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,6 +39,32 @@ class LectureDesDomainesEssais {
         val lus = LectureDesDomaines.domaines(corps)
         assertEquals(1, lus.size)
         assertNull(lus[0].hebergePar)
+    }
+
+    @Test
+    fun laSorteDitLeDomaineRacineEtRienDAutre() {
+        val quatre = """"droits":["administrer","rattacher","voir","localiser"]"""
+        val corps = """[{"domaine":"$d","proprietaire":"$u","heberge_par":"racines",$quatre,"sorte":"racine"},""" +
+            """{"domaine":"$d","proprietaire":"$u","heberge_par":"racines",$quatre},""" +
+            """{"domaine":"$d","proprietaire":"$u","heberge_par":"racines",$quatre,"sorte":"branche"},""" +
+            """{"domaine":"$d","proprietaire":"$u","heberge_par":"racines",$quatre,"sorte":true},""" +
+            """{"domaine":"$d","proprietaire":"$u","heberge_par":"racines",$quatre,"sorte":{"nom":"racine"}},""" +
+            """{"domaine":"$d","proprietaire":"$u","heberge_par":"racines",$quatre,"sorte":null}]"""
+        val lus = LectureDesDomaines.domaines(corps)
+        // Aucune forme ne fait sauter l'entrée.
+        assertEquals(6, lus.size)
+        // Présente : R.
+        assertTrue(lus[0].racine)
+        assertFalse(lus[0].estOrdinaire)
+        // Absente, un mot inconnu, une autre forme qu'une chaîne, null : un domaine ordinaire.
+        for (i in 1..5) {
+            assertFalse(lus[i].racine)
+            assertTrue(lus[i].estOrdinaire)
+        }
+        // Le détail la lit aussi.
+        val detail = LectureDesDomaines.detail("""{"domaine":"$d","proprietaire":"$u",$quatre,"sorte":"racine","machines":[]}""")!!
+        assertTrue(detail.domaine.racine)
+        assertFalse(LectureDesDomaines.detail("""{"domaine":"$d","proprietaire":"$u",$quatre,"machines":[]}""")!!.domaine.racine)
     }
 
     @Test

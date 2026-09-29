@@ -66,6 +66,28 @@ class DomainesEnTuilesEssais {
     }
 
     @Test
+    fun leDomaineRacineNeSeConfieJamaisMemeAvecRattacher() {
+        // R servi par un annuaire 0.39.0 : les quatre droits, comme un domaine ordinaire ; seule la sorte le distingue.
+        val racine = Domaine(d, moi, null, null, quatre.toSet(), racine = true)
+        val gestes = GestesDuDomaine.de(racine, moi)
+        assertFalse(gestes.changerHebergeur)
+        // Le rangement reste à `rattacher` : R reçoit des machines dès que l'annuaire le permet.
+        assertTrue(gestes.ranger)
+        assertTrue(gestes.renommer)
+        // Un domaine ordinaire, avec `rattacher`, se confie toujours.
+        assertTrue(GestesDuDomaine.de(domaine(moi, *quatre), moi).changerHebergeur)
+        assertEquals("Domaine racine", TextesPageDomaines.domaineRacine)
+    }
+
+    @Test
+    fun leDomaineRacineNeSeSupprimePasMemeASonProprietaire() {
+        // R est calculé : son propriétaire ne se voit pas offrir « Supprimer le domaine… », même avec les quatre droits.
+        assertFalse(GestesDuDomaine.de(Domaine(d, moi, null, null, quatre.toSet(), racine = true), moi).supprimer)
+        // Un domaine ordinaire à moi se supprime toujours (le dernier, c'est l'annuaire qui le refuse).
+        assertTrue(GestesDuDomaine.de(domaine(moi, *quatre), moi).supprimer)
+    }
+
+    @Test
     fun rattacherDonneDeRangerSeulementEtVoirRien() {
         assertEquals(GestesDuDomaine(renommer = false, changerHebergeur = false, ranger = true, supprimer = false), GestesDuDomaine.de(domaine(autre, Domaine.RATTACHER), moi))
         assertEquals(GestesDuDomaine(renommer = false, changerHebergeur = false, ranger = false, supprimer = false), GestesDuDomaine.de(domaine(autre, Domaine.VOIR), moi))
