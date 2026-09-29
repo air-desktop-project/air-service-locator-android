@@ -182,25 +182,32 @@ class AnnuaireLocalEssais {
     }
 
     @Test
-    fun uneRepliqueQuiNePassePasSeDitEtRienNeSeDitSinon() {
-        assertEquals(
-            "helium tourne sans --peer : la paire ne se réplique pas ; réglez --peer et --peer-key sur cette machine.",
-            TextesFederation.avertissement(EtatDeLaPaire.SansPeer, "helium"),
-        )
-        assertTrue(TextesFederation.avertissement(EtatDeLaPaire.PeerInconnu, "helium")!!.contains("--peer de helium"))
-        for (paire in listOf(EtatDeLaPaire.Seul, EtatDeLaPaire.Reglee, EtatDeLaPaire.Inconnu, null)) {
-            assertNull(TextesFederation.avertissement(paire, "helium"))
-        }
-        assertTrue(EtatDeLaPaire.SansPeer.malReglee && EtatDeLaPaire.PeerInconnu.malReglee)
-        assertFalse(EtatDeLaPaire.Seul.malReglee || EtatDeLaPaire.Reglee.malReglee || EtatDeLaPaire.Inconnu.malReglee)
+    fun unMembreSeNommeParSonRoleEtSonIdentifiantAbrege() {
+        val titulaireN = speedy.texte.take(7)
+        val secondN = helium.texte.take(7)
+        assertEquals(7, titulaireN.length)
+        assertTrue(titulaireN.startsWith("n-"))
+        assertEquals("Le titulaire ($titulaireN…)", TextesFederation.designation(titulaire))
+        assertEquals("Le second membre ($secondN…)", TextesFederation.designation(membre(helium, null)))
+        // Un second dont la machine n'a pas encore présenté son code : pas d'identifiant à montrer.
+        assertEquals("Le second membre", TextesFederation.designation(inscription(EtatDInscription.Attendue, null, speedy)))
     }
 
     @Test
-    fun lHoteDUneAdresseNommeLaMachine() {
-        assertEquals("helium.example", hoteDe("helium.example:6630"))
-        assertEquals("2001:db8::1", hoteDe("[2001:db8::1]:6630"))
-        assertEquals("192.0.2.1", hoteDe("192.0.2.1:6630"))
-        assertEquals("2001:db8::1", hoteDe("2001:db8::1"))
-        assertEquals("helium", hoteDe("helium"))
+    fun uneRepliqueQuiNePassePasSeDitEtRienNeSeDitSinon() {
+        val secondN = helium.texte.take(7)
+        assertEquals(
+            "Le second membre ($secondN…) tourne sans --peer : la paire ne se réplique pas ; réglez --peer et --peer-key sur cette machine.",
+            TextesFederation.avertissement(membre(helium, null, EtatDeLaPaire.SansPeer)),
+        )
+        assertEquals(
+            "Le titulaire (${speedy.texte.take(7)}…) désigne par --peer un annuaire qui n'est pas l'autre membre de la paire ; corrigez --peer et --peer-key sur cette machine.",
+            TextesFederation.avertissement(membre(speedy, null, EtatDeLaPaire.PeerInconnu)),
+        )
+        for (paire in listOf(EtatDeLaPaire.Seul, EtatDeLaPaire.Reglee, EtatDeLaPaire.Inconnu, null)) {
+            assertNull(TextesFederation.avertissement(membre(helium, null, paire)))
+        }
+        assertTrue(EtatDeLaPaire.SansPeer.malReglee && EtatDeLaPaire.PeerInconnu.malReglee)
+        assertFalse(EtatDeLaPaire.Seul.malReglee || EtatDeLaPaire.Reglee.malReglee || EtatDeLaPaire.Inconnu.malReglee)
     }
 }
