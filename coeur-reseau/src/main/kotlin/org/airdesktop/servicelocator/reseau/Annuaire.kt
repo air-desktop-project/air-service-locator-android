@@ -38,6 +38,12 @@ sealed class ErreurAnnuaire(message: String) : Exception(message) {
     object DernierDomaine : ErreurAnnuaire("C'est votre dernier domaine : un compte en garde toujours un.")
     /** `403` au rattachement : ni `rattacher` ni `administrer` sur ce domaine. */
     object SansDroitDeRattacher : ErreurAnnuaire("Vous n'avez pas le droit de ranger une machine dans ce domaine.")
+    /**
+     * `404` au rangement (`PUT /v1/machines/{m}/domaine`) : le domaine ne reçoit pas cette machine. C'est ce que rend
+     * le domaine racine, qui n'en reçoit aucune (`modele.md`, niveau 0), et un domaine qu'on ne voit plus. « Introuvable. »
+     * ferait croire la MACHINE disparue ; la phrase dit ce qui est refusé.
+     */
+    object DomaineNeRecoitPas : ErreurAnnuaire("Ce domaine ne peut pas recevoir cette machine.")
     /** `409` à la déclaration du second membre : l'annuaire en a déjà deux (décision 49). */
     object PaireComplete : ErreurAnnuaire("Un second membre est déjà déclaré, en attente ou accepté.")
     /** `409` à la décision : l'inscription a été refusée ou retirée ; redemander, c'est en déclarer une neuve (décision 51). */

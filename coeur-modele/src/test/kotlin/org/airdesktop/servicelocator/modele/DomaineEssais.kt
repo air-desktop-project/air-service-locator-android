@@ -64,11 +64,21 @@ class DomaineEssais {
     @Test
     fun administrerEmporteRattacherEtVoirMaisPasLocaliser() {
         val admin = Domaine(d, u, null, null, setOf(Domaine.ADMINISTRER))
-        assertTrue(admin.admetUneMachine)
+        assertTrue(admin.peut(Domaine.RATTACHER))
         assertTrue(admin.peut(Domaine.VOIR))
         assertFalse(admin.peut(Domaine.LOCALISER))
-        assertFalse(Domaine(d, u, null, null, setOf(Domaine.VOIR)).admetUneMachine)
+    }
+
+    @Test
+    fun seulRattacherTenuEnPropreAdmetUneMachine() {
+        // Le domaine racine : son propriétaire n'y tient que `administrer` (`GET /v1/domaines`), et l'annuaire refuse
+        // d'y ranger quoi que ce soit (404). On ne le propose pas.
+        assertFalse(Domaine(d, u, null, null, setOf(Domaine.ADMINISTRER)).admetUneMachine)
+        // Un domaine ordinaire, à son propriétaire, ou à son groupe d'administrateurs : `rattacher` en toutes lettres.
+        assertTrue(Domaine(d, u, null, null, setOf(Domaine.ADMINISTRER, Domaine.RATTACHER, Domaine.VOIR, Domaine.LOCALISER)).admetUneMachine)
+        assertTrue(Domaine(d, u, null, null, setOf(Domaine.ADMINISTRER, Domaine.RATTACHER, Domaine.VOIR)).admetUneMachine)
         assertTrue(Domaine(d, u, null, null, setOf(Domaine.RATTACHER)).admetUneMachine)
+        assertFalse(Domaine(d, u, null, null, setOf(Domaine.VOIR)).admetUneMachine)
     }
 
     @Test

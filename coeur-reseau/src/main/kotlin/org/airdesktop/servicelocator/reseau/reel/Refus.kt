@@ -56,6 +56,18 @@ internal fun refusDeStatut(statut: Int): ErreurAnnuaire = when (statut) {
 }
 
 /**
+ * Le refus d'un rattachement, ou `null` pour un `204`. Ranger ([domaine] non nul) : un `404` dit que CE DOMAINE ne
+ * reçoit pas la machine — le domaine racine, qui n'en reçoit aucune —, pas qu'elle a disparu. Retirer ([domaine]
+ * nul) : un `404` garde le sens commun, la machine n'est pas (ou plus) à nous.
+ */
+internal fun refusDeRattachement(statut: Int, domaine: Identifiant?): ErreurAnnuaire? = when {
+    statut == 204 -> null
+    statut == 403 -> ErreurAnnuaire.SansDroitDeRattacher
+    statut == 404 && domaine != null -> ErreurAnnuaire.DomaineNeRecoitPas
+    else -> refusDeStatut(statut)
+}
+
+/**
  * `DELETE /v1/annuaires/{n}/membres/{n2}` — retirer le second membre d'une paire (`protocole.md` §2.2), comme le
  * Mac le fait depuis la 0.22.0 (`retirerMembre`).
  *

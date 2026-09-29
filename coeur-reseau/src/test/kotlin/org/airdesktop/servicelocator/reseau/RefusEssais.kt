@@ -1,5 +1,8 @@
 package org.airdesktop.servicelocator.reseau
 
+import org.airdesktop.servicelocator.modele.Genre
+import org.airdesktop.servicelocator.modele.Identifiant
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -43,5 +46,17 @@ class RefusEssais {
         val refus = refusDeRejoindre(Natif.SIGNATURE_REFUSEE)
         assertTrue(refus is ErreurAnnuaire.NonConfirme)
         assertTrue(refus !is ErreurAnnuaire.ARecommencer)
+    }
+
+    @Test
+    fun unDomaineQuiNeRecoitPasLaMachineSeDitAuRangement() {
+        val d = Identifiant(Genre.DOMAINE, ByteArray(16) { 3 })
+        // Ranger dans le domaine racine : 404. On ne dit pas « Introuvable. », qui ferait croire la machine disparue.
+        assertSame(ErreurAnnuaire.DomaineNeRecoitPas, refusDeRattachement(404, d))
+        assertEquals("Ce domaine ne peut pas recevoir cette machine.", refusDeRattachement(404, d)!!.message)
+        assertSame(ErreurAnnuaire.SansDroitDeRattacher, refusDeRattachement(403, d))
+        assertNull(refusDeRattachement(204, d))
+        // Retirer d'un domaine : un 404 garde son sens commun.
+        assertSame(ErreurAnnuaire.Introuvable, refusDeRattachement(404, null))
     }
 }

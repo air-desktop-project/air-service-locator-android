@@ -19,6 +19,14 @@ class IdentifiantEssais {
     }
 
     @Test
+    fun lAbregeEstCeluiDuMac() {
+        // `Identifiant.abrege` du Mac : `prefix(6)` — « n- » compris —, « … », `suffix(4)`. Une même paire se dit pareil.
+        val n = Identifiant.analyser("n-7MSV5R0000000000000000X87P", Genre.ANNUAIRE)
+        assertEquals("n-7MSV…X87P", n.abrege)
+        assertEquals("u-0000…0000", Identifiant(Genre.UTILISATEUR, ByteArray(16)).abrege)
+    }
+
+    @Test
     fun lesConfusionsDeCrockfordSontRattrapees() {
         val identifiant = Identifiant(Genre.UTILISATEUR, ByteArray(16) { 1 })
         val texte = identifiant.texte.replace('1', 'l').replace('0', 'O').lowercase()

@@ -874,11 +874,7 @@ class AnnuaireReel(
         val (statut, _) = surLeFil {
             if (domaine != null) requete("PUT", chemin, JSONObject().put("domaine", domaine.texte).toString()) else requete("DELETE", chemin)
         }
-        when (statut) {
-            204 -> Unit
-            403 -> throw ErreurAnnuaire.SansDroitDeRattacher
-            else -> throw refus(statut)
-        }
+        refusDeRattachement(statut, domaine)?.let { throw it }
     }
 
     override suspend fun annuairesLocaux(): List<Inscription> {
