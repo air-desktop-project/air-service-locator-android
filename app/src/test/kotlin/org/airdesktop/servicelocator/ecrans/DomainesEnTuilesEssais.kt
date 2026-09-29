@@ -80,6 +80,14 @@ class DomainesEnTuilesEssais {
     }
 
     @Test
+    fun leDomaineRacineNeSeSupprimePasMemeASonProprietaire() {
+        // R est calculé : son propriétaire ne se voit pas offrir « Supprimer le domaine… », même avec les quatre droits.
+        assertFalse(GestesDuDomaine.de(Domaine(d, moi, null, null, quatre.toSet(), racine = true), moi).supprimer)
+        // Un domaine ordinaire à moi se supprime toujours (le dernier, c'est l'annuaire qui le refuse).
+        assertTrue(GestesDuDomaine.de(domaine(moi, *quatre), moi).supprimer)
+    }
+
+    @Test
     fun rattacherDonneDeRangerSeulementEtVoirRien() {
         assertEquals(GestesDuDomaine(renommer = false, changerHebergeur = false, ranger = true, supprimer = false), GestesDuDomaine.de(domaine(autre, Domaine.RATTACHER), moi))
         assertEquals(GestesDuDomaine(renommer = false, changerHebergeur = false, ranger = false, supprimer = false), GestesDuDomaine.de(domaine(autre, Domaine.VOIR), moi))

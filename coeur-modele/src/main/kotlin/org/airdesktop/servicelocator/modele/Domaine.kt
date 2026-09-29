@@ -64,11 +64,11 @@ data class Domaine(
     val admetUneMachine: Boolean get() = RATTACHER in droits
 
     /**
-     * Le confier à un annuaire local, ou le rendre aux racines. **R ne se confie jamais** : c'est lui qui fonde les
-     * racines. Tant qu'il ne tenait que `administrer`, [admetUneMachine] suffisait à l'écarter ; depuis qu'il tient
-     * les quatre droits (0.39.0), il ne se reconnaît plus qu'à [racine].
+     * Un domaine ordinaire : tout sauf R. **R ne se confie ni ne se supprime** — il est calculé (décision 43), c'est
+     * lui qui fonde les racines. Tant qu'il ne tenait que `administrer`, [admetUneMachine] suffisait à l'écarter du
+     * geste « Changer… » ; depuis qu'il tient les quatre droits (0.39.0), il ne se reconnaît plus qu'à [racine].
      */
-    val seConfie: Boolean get() = !racine
+    val estOrdinaire: Boolean get() = !racine
 
     companion object {
         const val ADMINISTRER = "administrer"

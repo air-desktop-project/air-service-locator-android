@@ -55,11 +55,11 @@ class LectureDesDomainesEssais {
         assertEquals(6, lus.size)
         // Présente : R.
         assertTrue(lus[0].racine)
-        assertFalse(lus[0].seConfie)
+        assertFalse(lus[0].estOrdinaire)
         // Absente, un mot inconnu, une autre forme qu'une chaîne, null : un domaine ordinaire.
         for (i in 1..5) {
             assertFalse(lus[i].racine)
-            assertTrue(lus[i].seConfie)
+            assertTrue(lus[i].estOrdinaire)
         }
         // Le détail la lit aussi.
         val detail = LectureDesDomaines.detail("""{"domaine":"$d","proprietaire":"$u",$quatre,"sorte":"racine","machines":[]}""")!!
