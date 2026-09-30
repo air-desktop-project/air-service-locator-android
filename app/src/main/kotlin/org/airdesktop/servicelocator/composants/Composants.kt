@@ -69,7 +69,7 @@ fun Aide(texte: String) {
 @Composable
 fun Erreur(texte: String?) {
     if (texte != null) {
-        Text(texte, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp))
+        Text(texte, color = Couleurs.Texte.alerte, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp))
     }
 }
 
@@ -170,7 +170,7 @@ val Joignabilite.couleur: Color
         Joignabilite.EnCours -> Couleurs.accent
         is Joignabilite.Joignable -> Couleurs.joignable
         is Joignabilite.Injoignable -> Couleurs.attention
-        Joignabilite.NonSonde -> Color(0xFFC3C6CF)
+        Joignabilite.NonSonde -> Couleurs.nonSonde
     }
 
 val Service.couleur: Color

@@ -258,7 +258,7 @@ fun MachineEcran(nav: NavController, id: Identifiant) {
     }
 }
 
-/** La couleur de la clé, celle du Mac : enrôlée, verte ; attendue, grise ; révoquée, orange. */
+/** La couleur de la pastille de la clé, celle du Mac : enrôlée, verte ; attendue, grise ; révoquée, orange. */
 private fun couleurDeLaCle(cle: Machine.Cle) = when (cle) {
     is Machine.Cle.Enrolee -> Couleurs.joignable
     is Machine.Cle.Attendue -> Couleurs.parti
@@ -352,7 +352,7 @@ private fun FeuilleDuDomaineDeLaMachine(machine: Machine, domaines: List<Domaine
         // Le domaine choisi est à un autre compte : ce que le rangement ouvre se dit avant « Enregistrer ».
         if (choisi != rangeeDans) {
             avertissementDeRangement(options.firstOrNull { it.id == choisi }, session.compte?.identifiant)?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = Couleurs.attention)
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = Couleurs.Texte.attention)
             }
         }
     }
@@ -370,7 +370,7 @@ fun LigneService(service: Service, modifier: Modifier = Modifier) {
             Column {
                 // Sans adresse, il n'y a pas de point à dire : la ligne ne s'en invente pas une vide.
                 if (service.points.isNotEmpty()) Text(service.pointsTexte)
-                if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre.", style = MaterialTheme.typography.bodySmall, color = Couleurs.attention)
+                if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre.", style = MaterialTheme.typography.bodySmall, color = Couleurs.Texte.attention)
             }
         },
         trailingContent = {

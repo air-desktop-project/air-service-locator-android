@@ -188,15 +188,15 @@ internal object TextesFederation {
     fun badge(inscription: Inscription): String = TextesDomaines.etat(inscription).replaceFirstChar { it.uppercase() }
 }
 
-/** La couleur d'un état d'inscription — celle du badge du Mac. */
+/** La couleur d'un état d'inscription — celle du badge du Mac. C'est le vif : [Badge] écrit le mot à l'encre qui va avec. */
 internal fun couleurDeLEtat(etat: EtatDInscription): Color = when (etat) {
     EtatDInscription.Acceptee -> Couleurs.joignable
     EtatDInscription.Attendue, EtatDInscription.EnAttente -> Couleurs.attention
-    EtatDInscription.Refusee -> Couleurs.erreur
+    EtatDInscription.Refusee -> Couleurs.alerte
     EtatDInscription.Retiree, EtatDInscription.Inconnu -> Couleurs.parti
 }
 
-/** La couleur de l'état d'un annuaire : vert s'il tient, orange s'il s'est tu, gris si la racine n'en sait rien. */
+/** La couleur de l'état d'un annuaire : vert s'il tient, orange s'il s'est tu, gris si la racine n'en sait rien — le vif du badge. */
 internal fun couleurDeLEtat(etat: EtatDeLAnnuaire): Color = when (etat) {
     EtatDeLAnnuaire.Vivant -> Couleurs.joignable
     EtatDeLAnnuaire.Parti -> Couleurs.attention
@@ -421,7 +421,8 @@ private fun TuileDeDeclaration(declaration: Inscription) {
 
 /**
  * L'adresse d'un membre, et à côté, sa voie vers la racine qui répond — « — » quand elle n'en dit rien. Un membre qui
- * n'est pas accepté n'a pas de voie : on ne la montre pas.
+ * n'est pas accepté n'a pas de voie : on ne la montre pas. La voie est un mot, pas une pastille : elle prend la teinte
+ * lisible.
  */
 @Composable
 private fun AdresseEtVoie(membre: Inscription, avecVoie: Boolean, secondaire: Boolean = false) {
@@ -429,8 +430,8 @@ private fun AdresseEtVoie(membre: Inscription, avecVoie: Boolean, secondaire: Bo
         Column(Modifier.weight(1f, fill = false)) { TexteFixe(membre.adresse, secondaire) }
         if (avecVoie) {
             val couleur = when (membre.voie) {
-                VoieDuMembre.Ouverte -> Couleurs.joignable
-                VoieDuMembre.Tombee -> Couleurs.attention
+                VoieDuMembre.Ouverte -> Couleurs.Texte.joignable
+                VoieDuMembre.Tombee -> Couleurs.Texte.attention
                 VoieDuMembre.Inconnue, null -> MaterialTheme.colorScheme.onSurfaceVariant
             }
             Text(TextesFederation.voie(membre.voie), style = MaterialTheme.typography.labelMedium, color = couleur)
@@ -448,10 +449,10 @@ private fun EtatDeLaPaireDuMembre(membre: Inscription) {
     val avertissement = TextesFederation.avertissement(membre)
     when {
         avertissement != null -> Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(Icones.alerte, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+            Icon(Icones.alerte, null, tint = Couleurs.Texte.alerte, modifier = Modifier.size(16.dp))
             Column {
-                Text(TextesFederation.paireMalReglee, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
-                Text(avertissement, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(TextesFederation.paireMalReglee, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = Couleurs.Texte.alerte)
+                Text(avertissement, style = MaterialTheme.typography.bodySmall, color = Couleurs.Texte.alerte)
             }
         }
         paire == EtatDeLaPaire.Reglee -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -667,7 +668,7 @@ internal fun Confirmation(
         text = { Text(texte) },
         confirmButton = {
             TextButton(onClick = onConfirmer) {
-                Text(action, color = if (destructif) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                Text(action, color = if (destructif) Couleurs.Texte.alerte else MaterialTheme.colorScheme.primary)
             }
         },
         dismissButton = { TextButton(onClick = onAnnuler) { Text("Annuler") } },

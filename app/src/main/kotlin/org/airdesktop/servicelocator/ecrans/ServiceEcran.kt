@@ -76,10 +76,10 @@ fun ServiceEcran(nav: NavController, machine: Identifiant, id: Identifiant) {
                     supportingContent = {
                         Column {
                             Text(service.detailEtat)
-                            miseEnGardeDuVerdict(service.resume, service)?.let { Text(it, color = Couleurs.attention) }
+                            miseEnGardeDuVerdict(service.resume, service)?.let { Text(it, color = Couleurs.Texte.attention) }
                             // Sans adresse, l'annuaire ne rend aucune date d'annonce : on n'en affiche pas une inventée.
                             (service.etat as? Service.Etat.Annonce)?.takeUnless { service.sansAdresse }?.let { Text("annoncé ${Formats.relatif(it.depuis)}") }
-                            if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre : chaque annonce remplace la précédente.", color = Couleurs.attention)
+                            if (service.oscille) Text("Deux daemons de ce nom se chassent l'un l'autre : chaque annonce remplace la précédente.", color = Couleurs.Texte.attention)
                         }
                     },
                 )
@@ -135,7 +135,7 @@ private fun LignePoint(point: String, verdict: Joignabilite?, service: Service) 
                 if (verdict != null) {
                     Text(libelleDuVerdict(verdict, service), style = MaterialTheme.typography.labelLarge)
                     Text(detailDuVerdict(verdict, service))
-                    miseEnGardeDuVerdict(verdict, service)?.let { Text(it, color = Couleurs.attention) }
+                    miseEnGardeDuVerdict(verdict, service)?.let { Text(it, color = Couleurs.Texte.attention) }
                     if (verdict is Joignabilite.Joignable && verdict.candidat.isNotEmpty()) {
                         Text("vers ${verdict.candidat}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                     }

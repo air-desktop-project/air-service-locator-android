@@ -143,7 +143,7 @@ fun AccorderEcran(nav: NavController) {
                     Modifier.padding(16.dp).background(Couleurs.attentionFond, RoundedCornerShape(12.dp)).padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top,
                 ) {
-                    Icon(Icones.alerte, null, tint = Couleurs.attention)
+                    Icon(Icones.alerte, null, tint = Couleurs.Texte.attention)
                     Text(
                         // Ce que la spécification impose de dire au moment d'accorder (`modele.md` §2.5) :
                         // « tout le compte » livre aussi la liste des machines.
@@ -190,9 +190,9 @@ private fun LigneVerdict(verdict: Verdict, parAlias: Identifiant? = null) {
     val (texte, couleur, icone) = when (verdict) {
         Verdict.VIDE -> return
         Verdict.RECHERCHE -> Triple("Vérification…", MaterialTheme.colorScheme.onSurfaceVariant, null)
-        Verdict.EXISTE -> Triple("Ce compte existe.", Couleurs.joignable, Icones.coche)
-        Verdict.INCONNU -> Triple("Aucun compte sous cet identifiant ou cet alias.", Couleurs.attention, null)
-        Verdict.MAL_FORME -> Triple("Ce n'est ni un identifiant u-… ni un alias.", Couleurs.erreur, Icones.croix)
+        Verdict.EXISTE -> Triple("Ce compte existe.", Couleurs.Texte.joignable, Icones.coche)
+        Verdict.INCONNU -> Triple("Aucun compte sous cet identifiant ou cet alias.", Couleurs.Texte.attention, null)
+        Verdict.MAL_FORME -> Triple("Ce n'est ni un identifiant u-… ni un alias.", Couleurs.Texte.alerte, Icones.croix)
     }
     Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (icone != null) Icon(icone, null, Modifier.width(16.dp), tint = couleur)

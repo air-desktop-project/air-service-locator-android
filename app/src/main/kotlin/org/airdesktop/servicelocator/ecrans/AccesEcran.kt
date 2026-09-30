@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import org.airdesktop.servicelocator.LocalSession
 import org.airdesktop.servicelocator.Routes
 import org.airdesktop.servicelocator.composants.Aide
+import org.airdesktop.servicelocator.composants.Couleurs
 import org.airdesktop.servicelocator.composants.Erreur
 import org.airdesktop.servicelocator.composants.Formats
 import org.airdesktop.servicelocator.composants.Icones
@@ -125,7 +126,7 @@ fun AccesEcran(nav: NavController) {
                         runCatching { session.annuaire.revoquerAutorisation(autorisation.id) }
                             .onSuccess { chargement.recharger() }.onFailure { erreur = it.messageAnnuaire }
                     }
-                }) { Text("Révoquer", color = MaterialTheme.colorScheme.error) }
+                }) { Text("Révoquer", color = Couleurs.Texte.alerte) }
             },
             dismissButton = { TextButton(onClick = { aRevoquer = null }) { Text("Annuler") } },
         )
@@ -190,7 +191,7 @@ private fun MachinesVisibles(de: Identifiant) {
     Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
         Text("Ce que je vois de lui", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         when {
-            erreur != null -> Text(erreur!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            erreur != null -> Text(erreur!!, style = MaterialTheme.typography.bodySmall, color = Couleurs.Texte.alerte)
             machines == null -> Text("…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             machines!!.isEmpty() -> Text(
                 "aucune machine visible — cet accès n'en nomme aucune, ou ce compte n'en a aucune ; l'annuaire ne dit pas lequel",
