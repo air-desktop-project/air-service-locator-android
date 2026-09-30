@@ -94,7 +94,7 @@ private fun LigneEnAttente(machine: Machine, ouvrir: () -> Unit) {
     ListItem(
         headlineContent = { Text(machine.affichee) },
         supportingContent = { Text(if (machine.alias != null) "${machine.nom} · $sous" else sous) },
-        leadingContent = { Icon(Icones.horloge, null, tint = Couleurs.attention) },
+        leadingContent = { Icon(Icones.horloge, null, tint = Couleurs.Texte.attention) },
         trailingContent = { Icon(Icones.chevron, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
         modifier = Modifier.clickable(onClick = ouvrir),
     )

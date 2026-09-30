@@ -78,11 +78,15 @@ internal object TextesEcho {
         else -> viaInconnu(mot)
     }
 
-    /** Vert du dehors ; l'accent de l'intérieur (ou d'où, on ne sait) ; orange injoignable ; rouge l'autre clé ; gris le reste. */
+    /**
+     * Vert du dehors ; l'accent de l'intérieur (ou d'où, on ne sait) ; orange injoignable ; rouge l'autre clé ; gris le
+     * reste. Ce sont les teintes vives : cette couleur ne sert qu'à la pastille, le libellé à côté reste à l'encre du
+     * texte — il dit déjà l'état en mots.
+     */
     fun couleur(echo: Echo?): Color = when (echo?.etat) {
         Echo.Etat.Verifie -> if (echo.depuis == Echo.Depuis.Exterieur) Couleurs.joignable else Couleurs.accent
         Echo.Etat.Injoignable -> Couleurs.attention
-        Echo.Etat.AutreCle -> Couleurs.erreur
+        Echo.Etat.AutreCle -> Couleurs.alerte
         Echo.Etat.EnCours, Echo.Etat.Inconnu, null -> Couleurs.parti
     }
 }

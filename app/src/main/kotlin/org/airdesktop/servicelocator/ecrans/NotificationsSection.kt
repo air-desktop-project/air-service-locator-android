@@ -28,6 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import org.airdesktop.servicelocator.LocalSession
 import org.airdesktop.servicelocator.composants.Aide
+import org.airdesktop.servicelocator.composants.Couleurs
 import org.airdesktop.servicelocator.composants.Icones
 import org.airdesktop.servicelocator.notifications.Distributeurs
 import org.airdesktop.servicelocator.notifications.Nouvelles
@@ -122,7 +123,7 @@ fun SectionNotifications() {
                     supportingContent = {
                         when {
                             etat.depose -> Text("L'annuaire a le point de cet appareil.")
-                            etat.refus != null -> Text("L'annuaire refuse le point de ce distributeur : ${etat.refus}.", color = MaterialTheme.colorScheme.error)
+                            etat.refus != null -> Text("L'annuaire refuse le point de ce distributeur : ${etat.refus}.", color = Couleurs.Texte.alerte)
                             else -> Text("Le point partira vers l'annuaire à la prochaine connexion.")
                         }
                     },

@@ -125,7 +125,7 @@ fun AccueilEcran(surRejoindre: () -> Unit) {
         }
         Column(Modifier.padding(horizontal = 24.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (erreur != null) {
-                Text(erreur!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                Text(erreur!!, color = Couleurs.Texte.alerte, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
             }
             Button(

@@ -40,8 +40,8 @@ android {
         // lit à l'écran (Compte › Annuaire), et c'est ce qu'un utilisateur
         // cite quand il rapporte quelque chose. `versionCode` est l'entier
         // croissant que le Play Store exige distinct à chaque envoi.
-        versionCode = 36
-        versionName = "0.20.0"
+        versionCode = 37
+        versionName = "0.20.1"
     }
 
     buildTypes {

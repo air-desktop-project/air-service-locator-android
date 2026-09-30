@@ -377,7 +377,7 @@ private fun FeuilleDuDomaine(feuille: FeuilleDomaine, onFermer: () -> Unit, apre
             ) {
                 if (candidates?.isEmpty() == true) TexteAbsent(TextesPageDomaines.toutEstRange)
                 candidates.orEmpty().forEach { m -> Choix(m.affichee, choisie == m.id) { choisie = m.id } }
-                avertissementDeRangement(detail.domaine, session.compte?.identifiant)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Couleurs.attention) }
+                avertissementDeRangement(detail.domaine, session.compte?.identifiant)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Couleurs.Texte.attention) }
             }
         }
     }

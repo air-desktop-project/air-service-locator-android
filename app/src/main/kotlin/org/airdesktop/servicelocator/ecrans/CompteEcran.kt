@@ -209,7 +209,7 @@ fun CompteEcran(nav: NavController) {
                     // Le geste est VISIBLE : un bouton, comme sur le Mac — l'appui long reste, pour qui l'a pris.
                     trailingContent = {
                         if (!appareil.estRevoque && !appareil.estCeluiCi) {
-                            TextButton(onClick = { aRevoquer = appareil }) { Text("Révoquer", color = MaterialTheme.colorScheme.error) }
+                            TextButton(onClick = { aRevoquer = appareil }) { Text("Révoquer", color = Couleurs.Texte.alerte) }
                         }
                     },
                     modifier = Modifier.combinedClickable(onClick = {}, onLongClick = {
@@ -385,7 +385,7 @@ fun CompteEcran(nav: NavController) {
                         runCatching { session.annuaire.revoquerAppareil(appareil.id) }
                             .onSuccess { chargement.recharger() }.onFailure { erreur = it.messageAnnuaire }
                     }
-                }) { Text("Révoquer", color = MaterialTheme.colorScheme.error) }
+                }) { Text("Révoquer", color = Couleurs.Texte.alerte) }
             },
             dismissButton = { TextButton(onClick = { aRevoquer = null }) { Text("Annuler") } },
         )

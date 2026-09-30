@@ -71,7 +71,7 @@ class TextesEchoEssais {
     fun autreCle() {
         val echo = Echo(Echo.Etat.AutreCle, "autre_cle", il_y_a_3_min, racine, Echo.Depuis.Interieur)
         assertEquals("Écho signé par une autre clé", TextesEcho.libelle(echo))
-        assertEquals(Couleurs.erreur, TextesEcho.couleur(echo))
+        assertEquals(Couleurs.alerte, TextesEcho.couleur(echo))
         assertEquals(
             "une réponse est venue, signée par une autre clé que celle de cette machine, constaté il y a 3 min, par l'annuaire n-0PWT…YHQC",
             TextesEcho.detail(echo, maintenant),

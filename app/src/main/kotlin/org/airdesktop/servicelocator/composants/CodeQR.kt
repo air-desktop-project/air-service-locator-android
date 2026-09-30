@@ -78,7 +78,7 @@ fun CodeQR(texte: String, taille: androidx.compose.ui.unit.Dp = 220.dp) {
             modifier = Modifier.size(taille), filterQuality = FilterQuality.None,
         )
     } else {
-        Text("Le code n'a pas pu être tracé.", color = MaterialTheme.colorScheme.error)
+        Text("Le code n'a pas pu être tracé.", color = Couleurs.Texte.alerte)
     }
 }
 

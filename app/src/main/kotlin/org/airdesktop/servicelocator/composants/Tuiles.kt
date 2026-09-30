@@ -121,10 +121,13 @@ fun NoteDeTuile(texte: String) {
     Text(texte, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** Un état, une étiquette : « Acceptée », « En attente ». */
+/**
+ * Un état, une étiquette : « Acceptée », « En attente ». [couleur] est la teinte de l'état, celle du fond ; **le mot,
+ * lui, s'écrit à l'encre** ([Couleurs.Texte]) — un « Vivant » en `#28C840` sur pastille pâle ne se lirait pas.
+ */
 @Composable
 fun Badge(texte: String, couleur: Color) {
-    Surface(shape = RoundedCornerShape(50), color = couleur.copy(alpha = 0.15f), contentColor = couleur) {
+    Surface(shape = RoundedCornerShape(50), color = couleur.copy(alpha = 0.15f), contentColor = Couleurs.Texte.encre(couleur)) {
         Text(texte, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
     }
 }
@@ -139,7 +142,7 @@ fun BoutonCopier(texte: String) {
 /** Un geste qu'on ne défait pas : un vrai bouton, bordé et écrit en rouge. Éteint, il se grise comme les autres. */
 @Composable
 fun BoutonDestructif(titre: String, actif: Boolean = true, action: () -> Unit) {
-    val rouge = if (actif) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
+    val rouge = if (actif) Couleurs.Texte.alerte else MaterialTheme.colorScheme.outlineVariant
     OutlinedButton(
         onClick = action,
         enabled = actif,
@@ -212,7 +215,7 @@ fun FeuilleDeSaisie(
         Text(titre, style = MaterialTheme.typography.titleLarge)
         if (explication != null) Text(explication, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         formulaire()
-        if (erreur != null) Text(erreur, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        if (erreur != null) Text(erreur, style = MaterialTheme.typography.bodyMedium, color = Couleurs.Texte.alerte)
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             if (enCours) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
